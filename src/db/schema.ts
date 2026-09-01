@@ -1,6 +1,5 @@
 import {
-  pgEnum,
-  pgTable,
+  pgSchema,
   uuid,
   varchar,
   text,
@@ -11,9 +10,21 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
-export const userStatusEnum = pgEnum("user_status", ["active", "inactive"]);
+/**
+ * The Supabase project ("LD Silk Mills", ygxnbmfmrwookrilpbfx) is shared
+ * across every LD module, each in its own Postgres schema
+ * (ld_order_entry, ld_help_slip, ...). This app's tables live in
+ * ld_erp_core — never in `public`, and never reachable from another
+ * module's schema.
+ */
+export const ldErpCore = pgSchema("ld_erp_core");
 
-export const systemCategoryEnum = pgEnum("system_category", [
+export const userStatusEnum = ldErpCore.enum("user_status", [
+  "active",
+  "inactive",
+]);
+
+export const systemCategoryEnum = ldErpCore.enum("system_category", [
   "sales",
   "operations",
   "finance",
@@ -21,15 +32,18 @@ export const systemCategoryEnum = pgEnum("system_category", [
   "admin",
 ]);
 
-export const systemStatusEnum = pgEnum("system_status", [
+export const systemStatusEnum = ldErpCore.enum("system_status", [
   "active",
   "coming_soon",
   "maintenance",
 ]);
 
-export const openModeEnum = pgEnum("open_mode", ["internal", "external"]);
+export const openModeEnum = ldErpCore.enum("open_mode", [
+  "internal",
+  "external",
+]);
 
-export const users = pgTable("users", {
+export const users = ldErpCore.table("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name").notNull(),
   email: varchar("email").notNull().unique(),
@@ -39,7 +53,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const systems = pgTable("systems", {
+export const systems = ldErpCore.table("systems", {
   id: uuid("id").primaryKey().defaultRandom(),
   systemCode: varchar("system_code").notNull().unique(),
   systemName: varchar("system_name").notNull(),
@@ -55,7 +69,7 @@ export const systems = pgTable("systems", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const systemAccess = pgTable(
+export const systemAccess = ldErpCore.table(
   "system_access",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -72,7 +86,7 @@ export const systemAccess = pgTable(
   (table) => [unique().on(table.userId, table.systemId)],
 );
 
-export const auditLogs = pgTable("audit_logs", {
+export const auditLogs = ldErpCore.table("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id),
   action: varchar("action").notNull(),

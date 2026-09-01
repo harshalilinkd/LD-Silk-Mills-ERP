@@ -3,15 +3,18 @@ import Google from "next-auth/providers/google";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { authConfig } from "./auth.config";
 
+// Full auth config, including DB-touching callbacks — runs on the Node.js
+// runtime (server components, server actions, the /api/auth route
+// handler), never on Edge. Only middleware.ts uses the DB-free
+// `authConfig` directly.
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   trustHost: true,
   providers: [Google],
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
   callbacks: {
+    ...authConfig.callbacks,
     async signIn({ user }) {
       if (!user.email) return false;
 
@@ -47,12 +50,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
       return token;
-    },
-    async session({ session, token }) {
-      if (token.userId && session.user) {
-        session.user.id = token.userId as string;
-      }
-      return session;
     },
   },
 });

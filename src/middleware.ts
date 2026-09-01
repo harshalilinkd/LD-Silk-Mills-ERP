@@ -1,5 +1,11 @@
-import { auth } from "@/auth";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
+import { authConfig } from "@/auth.config";
+
+// Edge-safe auth instance built only from the DB-free authConfig — do not
+// import from "@/auth" here, it pulls in postgres.js, which needs Node.js
+// APIs middleware's Edge runtime doesn't have.
+const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = ["/login", "/not-registered"];
 

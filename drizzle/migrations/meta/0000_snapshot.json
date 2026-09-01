@@ -1,12 +1,12 @@
 {
-  "id": "57a45f29-04b6-4283-837e-ce76b21bd377",
+  "id": "7cd52676-259d-4dc6-935a-dd0cdbe26b46",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.audit_logs": {
+    "ld_erp_core.audit_logs": {
       "name": "audit_logs",
-      "schema": "",
+      "schema": "ld_erp_core",
       "columns": {
         "id": {
           "name": "id",
@@ -53,6 +53,7 @@
           "name": "audit_logs_user_id_users_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "users",
+          "schemaTo": "ld_erp_core",
           "columnsFrom": [
             "user_id"
           ],
@@ -69,9 +70,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.system_access": {
+    "ld_erp_core.system_access": {
       "name": "system_access",
-      "schema": "",
+      "schema": "ld_erp_core",
       "columns": {
         "id": {
           "name": "id",
@@ -120,6 +121,7 @@
           "name": "system_access_user_id_users_id_fk",
           "tableFrom": "system_access",
           "tableTo": "users",
+          "schemaTo": "ld_erp_core",
           "columnsFrom": [
             "user_id"
           ],
@@ -133,6 +135,7 @@
           "name": "system_access_system_id_systems_id_fk",
           "tableFrom": "system_access",
           "tableTo": "systems",
+          "schemaTo": "ld_erp_core",
           "columnsFrom": [
             "system_id"
           ],
@@ -158,9 +161,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.systems": {
+    "ld_erp_core.systems": {
       "name": "systems",
-      "schema": "",
+      "schema": "ld_erp_core",
       "columns": {
         "id": {
           "name": "id",
@@ -184,7 +187,7 @@
         "category": {
           "name": "category",
           "type": "system_category",
-          "typeSchema": "public",
+          "typeSchema": "ld_erp_core",
           "primaryKey": false,
           "notNull": true
         },
@@ -215,7 +218,7 @@
         "status": {
           "name": "status",
           "type": "system_status",
-          "typeSchema": "public",
+          "typeSchema": "ld_erp_core",
           "primaryKey": false,
           "notNull": true,
           "default": "'coming_soon'"
@@ -223,7 +226,7 @@
         "open_mode": {
           "name": "open_mode",
           "type": "open_mode",
-          "typeSchema": "public",
+          "typeSchema": "ld_erp_core",
           "primaryKey": false,
           "notNull": true,
           "default": "'external'"
@@ -266,9 +269,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.users": {
+    "ld_erp_core.users": {
       "name": "users",
-      "schema": "",
+      "schema": "ld_erp_core",
       "columns": {
         "id": {
           "name": "id",
@@ -298,7 +301,7 @@
         "status": {
           "name": "status",
           "type": "user_status",
-          "typeSchema": "public",
+          "typeSchema": "ld_erp_core",
           "primaryKey": false,
           "notNull": true,
           "default": "'active'"
@@ -336,17 +339,17 @@
     }
   },
   "enums": {
-    "public.open_mode": {
+    "ld_erp_core.open_mode": {
       "name": "open_mode",
-      "schema": "public",
+      "schema": "ld_erp_core",
       "values": [
         "internal",
         "external"
       ]
     },
-    "public.system_category": {
+    "ld_erp_core.system_category": {
       "name": "system_category",
-      "schema": "public",
+      "schema": "ld_erp_core",
       "values": [
         "sales",
         "operations",
@@ -355,25 +358,27 @@
         "admin"
       ]
     },
-    "public.system_status": {
+    "ld_erp_core.system_status": {
       "name": "system_status",
-      "schema": "public",
+      "schema": "ld_erp_core",
       "values": [
         "active",
         "coming_soon",
         "maintenance"
       ]
     },
-    "public.user_status": {
+    "ld_erp_core.user_status": {
       "name": "user_status",
-      "schema": "public",
+      "schema": "ld_erp_core",
       "values": [
         "active",
         "inactive"
       ]
     }
   },
-  "schemas": {},
+  "schemas": {
+    "ld_erp_core": "ld_erp_core"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},
