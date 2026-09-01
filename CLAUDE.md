@@ -1,1 +1,128 @@
 @AGENTS.md
+
+# LD Silk Mills ERP Shell
+
+Central entry point (login, sidebar, dashboard, module registry) for LD Silk
+Mills' internal tools. Each module keeps its own database/schema; this repo
+is the "building," not the "rooms" — except Orders, which was later ported
+in as native pages (see Phase 3a below), not just linked to.
+
+## Stack
+Next.js 15 (App Router, TS strict) · Drizzle ORM + `postgres.js` · Auth.js v5
+· Tailwind v4 + shadcn/ui on Base UI (`@base-ui/react`) · Supabase Postgres
+(no `@supabase/supabase-js` — plain Postgres connection, same as Order Entry).
+
+## Database — one Supabase project, three schemas
+Project **"LD Silk Mills"** (`ygxnbmfmrwookrilpbfx`), region `ap-south-1`.
+No Neon involved anywhere (an earlier Neon project existed for one day in
+Phase 1 and was deleted — do not recreate it).
+
+| Schema | Owner | Notes |
+|---|---|---|
+| `ld_erp_core` | **This repo, exclusively** | `users`, `systems`, `system_access`, `audit_logs`. Nothing else reads/writes it. |
+| `ld_order_entry` | **Shared** with the standalone Order Entry app | Same live tables, same rows — no sync, no copy. A row written by either app is instantly visible in the other. |
+| `ld_help_slip` | Help Slip app only | Not touched by this repo at all. |
+
+`src/db/index.ts` opens the one shared `postgres.js` connection (`sql`),
+reused by `src/db/order-entry/index.ts` for the second schema — one pool,
+two Drizzle instances. `drizzle.config.ts` has `schemaFilter: ["ld_erp_core"]`
+— **this repo must never generate or apply a migration against
+`ld_order_entry`**; that schema's migrations are owned by the Order Entry
+repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
+`github.com/mastersystem-linkd/LD-Order-Entry`'s `db/schema.ts`.
+
+`DATABASE_URL` in `.env.local` must be the Supavisor **Transaction pooler**
+(port 6543), never the session pooler (5432) or direct connection.
+
+## Auth — two layers, on purpose
+1. **Shell session**: Auth.js v5, Google OAuth (credentials still TODO — see
+   `.env.local`) plus a **temporary** shared-password `Credentials` provider
+   (`DEV_LOGIN_PASSWORD` env var) for local testing before Google is wired
+   up. Split `src/auth.config.ts` (Edge-safe, no DB import — used only by
+   `src/middleware.ts`) vs `src/auth.ts` (full config, DB-touching
+   callbacks) — `postgres.js` needs real Node APIs the Edge runtime doesn't
+   have, so nothing DB-touching may ever be imported by middleware.
+2. **Per-module authorization**: a user must already have a shell session to
+   reach `/order-entry/*` or `/crm/*` at all. On top of that, each module's
+   layout (`src/app/(app)/order-entry/layout.tsx`,
+   `src/app/(app)/crm/layout.tsx`) calls
+   `resolveOrderEntryAuthz(email)` (`src/lib/order-entry/authz.ts`), which
+   looks the email up directly in `ld_order_entry.users` and resolves
+   role/capabilities from `role_permissions` — **the same accounts and
+   permissions Order Entry's own app uses**. Not found/inactive → a "not
+   provisioned" screen, not a crash. There is no second login form for
+   Orders/CRM; Order Entry's own bcrypt Credentials provider and login page
+   were never ported.
+
+**Remove the `DEV_LOGIN_PASSWORD` provider before Phase 2** (auth
+hardening) — it's marked TEMPORARY in `src/auth.ts` and `.env.local`.
+
+## Design system
+`docs/DESIGN.md` is the single source of truth for every color/spacing/
+typography value, sourced from the approved mockup
+(`ld-silk-mills-erp-mockup.html`, not in this repo). Fixed single dark
+theme, no light/dark toggle. When porting a module's UI (like Orders), you
+restyle against this file — you do not reuse the source app's own Tailwind
+classes, even though both apps happen to use the same Base UI primitives.
+
+## Sidebar
+Dynamic, driven entirely by `ld_erp_core.systems` + `system_access` — never
+hardcoded. A system with `status != active` renders greyed/unclickable
+regardless of any other setting. `src/lib/system-submenus.ts` is a small
+hand-maintained map (not DB-driven) of which systems have a built sidebar
+submenu; currently only `order-entry` does (Dashboard / New order / Orders
+/ Order status / Operations / Settings, collapsible, auto-expands when
+you're inside that section). Toggling a system's `status`/`route`/
+`open_mode` in `/admin/system-registry` takes effect live, no redeploy.
+
+## What's actually built vs. placeholder
+- **Shell**: login, dynamic sidebar, topbar, dashboard, all 4 admin pages
+  (`/admin/users`, `/admin/system-registry`, `/admin/access-control`,
+  `/admin/audit-logs`) — real, functional.
+- **Orders** (`/order-entry/*`, sidebar label "Orders" — system_code stays
+  `order-entry`): Dashboard, Orders list/detail/create/edit, Order Status
+  board — real, reads/writes live `ld_order_entry` data. Ported from Order
+  Entry's own repo; see `src/lib/order-entry/*` and
+  `src/app/api/order-entry/*`.
+- **Not built yet** (all present only as honest "coming soon" pages, per an
+  explicit scope decision — do not silently build these without checking
+  scope first, they're each roughly as large as the Orders port was):
+  Operations/Tracking board (`/order-entry/tracking`), the whole CRM module
+  (`/crm/*` — Follow-ups/Issues/Call log/Customers/Analytics), the
+  consolidated Settings hub (`/order-entry/settings/*` — Dropdown Master,
+  Design Database, Time tracking, Users, Access, Trash, CRM).
+- **Help Slip**: still a plain external link (opens its own app in a new
+  tab) — no integration work done.
+
+## Known gotchas (hit these once already — don't re-discover them)
+- **Base UI `Button` + `render={<Link/>}`** needs `nativeButton={false}` or
+  it logs an accessibility warning every render.
+- **Never pass an icon *component* as a prop from a Server Component to a
+  Client Component** (e.g. `<NavLink icon={IconFoo} />` from a server
+  file) — React Server Components can't serialize component references
+  across that boundary. Pass a rendered element instead: `icon={<IconFoo />}`.
+- **Multiple `next dev` instances on the same `.next` build** fight over
+  the server-actions encryption key and throw a Web Crypto `OperationError`
+  on any inline server action. Only ever run one dev server; if a stray one
+  is still listening on an old port, kill it before starting a new one.
+- **Stale `.next` cache after deleting a source file** throws
+  `Cannot find module for page: ...` on the next build — `rm -rf .next`
+  fixes it.
+- **`ld_order_entry` and `ld_help_slip` both have RLS-related Supabase
+  advisories** (RLS disabled on all 15 Order Entry tables; a few
+  SECURITY DEFINER warnings on Help Slip) — pre-existing, not introduced by
+  this repo, out of scope to fix here without an explicit decision.
+
+## Commands
+```
+npm run dev / build / lint
+npm run db:generate   # schema.ts -> new migration (ld_erp_core only)
+npm run db:migrate    # apply pending migrations (ld_erp_core only)
+npm run db:seed       # re-seed systems/users (idempotent upsert)
+```
+
+## Repo
+`github.com/harshalilinkd/LD-Silk-Mills-ERP`, branch `main`. Order Entry's
+own repo/deployment (`github.com/mastersystem-linkd/LD-Order-Entry`) and
+Help Slip's are separate, untouched, and stay live permanently as fallback
+— this repo never modifies them.
