@@ -41,7 +41,7 @@ export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
 
       <div className="flex-1 overflow-y-auto py-3">
         <div className="px-2 pb-1">
-          <NavLink href="/" icon={IconLayoutDashboard}>
+          <NavLink href="/" icon={<IconLayoutDashboard />}>
             Dashboard
           </NavLink>
         </div>
@@ -55,28 +55,28 @@ export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
         ))}
 
         <div className="mt-1 space-y-0.5 px-2">
-          <NavLink href="/reports" icon={IconReportAnalytics}>
+          <NavLink href="/reports" icon={<IconReportAnalytics />}>
             Reports
           </NavLink>
-          <NavLink href="/ai-assistant" icon={IconSparkles}>
+          <NavLink href="/ai-assistant" icon={<IconSparkles />}>
             AI Assistant
           </NavLink>
         </div>
 
         <CollapsibleSection title="Administration" defaultOpen={false}>
-          <NavLink href="/admin/users" icon={IconUsers}>
+          <NavLink href="/admin/users" icon={<IconUsers />}>
             Users
           </NavLink>
-          <NavLink href="/admin/access-control" icon={IconShieldLock}>
+          <NavLink href="/admin/access-control" icon={<IconShieldLock />}>
             Access Control
           </NavLink>
-          <NavLink href="/admin/system-registry" icon={IconApps}>
+          <NavLink href="/admin/system-registry" icon={<IconApps />}>
             System Registry
           </NavLink>
-          <NavLink href="/admin/audit-logs" icon={IconHistory}>
+          <NavLink href="/admin/audit-logs" icon={<IconHistory />}>
             Audit Logs
           </NavLink>
-          <NavLink href="/settings" icon={IconSettings}>
+          <NavLink href="/settings" icon={<IconSettings />}>
             Settings
           </NavLink>
         </CollapsibleSection>

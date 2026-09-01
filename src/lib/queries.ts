@@ -6,15 +6,28 @@ export async function getAllSystemsOrdered() {
   return db.select().from(systems).orderBy(asc(systems.sortOrder));
 }
 
-/** Systems visible to a given user: active systems they have can_view=true for. */
+/**
+ * Systems to render in a given user's sidebar: every non-active system
+ * (coming_soon / maintenance) is shown to everyone as a preview — it isn't
+ * a real destination yet, so per-user access doesn't apply to it. Active
+ * systems are shown only if the user has an explicit can_view=true row in
+ * system_access — that's what actually gates visibility once a system is
+ * live.
+ */
 export async function getVisibleSystemsForUser(userId: string) {
-  return db
-    .select({ system: systems })
-    .from(systemAccess)
-    .innerJoin(systems, eq(systemAccess.systemId, systems.id))
-    .where(and(eq(systemAccess.userId, userId), eq(systemAccess.canView, true)))
-    .orderBy(asc(systems.sortOrder))
-    .then((rows) => rows.map((r) => r.system));
+  const [allSystems, accessRows] = await Promise.all([
+    getAllSystemsOrdered(),
+    db
+      .select({ systemId: systemAccess.systemId })
+      .from(systemAccess)
+      .where(and(eq(systemAccess.userId, userId), eq(systemAccess.canView, true))),
+  ]);
+
+  const accessible = new Set(accessRows.map((r) => r.systemId));
+
+  return allSystems.filter(
+    (system) => system.status !== "active" || accessible.has(system.id),
+  );
 }
 
 export async function getAllUsersOrdered() {

@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import type { ComponentType } from "react";
+import type { ReactNode } from "react";
 
 export function NavLink({
   href,
-  icon: Icon,
+  icon,
   children,
 }: {
   href: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -27,7 +27,7 @@ export function NavLink({
           : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" />
+      <span className="[&_svg]:size-4 [&_svg]:shrink-0">{icon}</span>
       <span className="truncate">{children}</span>
     </Link>
   );
