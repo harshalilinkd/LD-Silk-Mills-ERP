@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { resolveOrderEntryAuthz } from "@/lib/order-entry/authz";
 import { OrderEntrySessionProvider } from "@/lib/order-entry/context";
-import { OrderEntryTabs } from "@/components/order-entry/order-entry-tabs";
 import { IconLock } from "@tabler/icons-react";
 
 export default async function OrderEntryLayout({
@@ -43,10 +42,7 @@ export default async function OrderEntryLayout({
         caps: authz.caps,
       }}
     >
-      <div className="flex flex-col gap-5">
-        <OrderEntryTabs role={authz.role} caps={authz.caps} />
-        {children}
-      </div>
+      {children}
     </OrderEntrySessionProvider>
   );
 }
