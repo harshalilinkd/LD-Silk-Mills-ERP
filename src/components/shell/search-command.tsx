@@ -29,11 +29,11 @@ export function SearchCommand() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full max-w-sm items-center gap-2 rounded-md border border-input bg-secondary/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary"
+        className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-text-3 transition-colors hover:bg-surface-2"
       >
-        <IconSearch className="size-4 shrink-0" />
-        <span className="flex-1 text-left">Search...</span>
-        <kbd className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <IconSearch className="size-[15px] shrink-0" />
+        <span className="flex-1 truncate text-left">Search anything...</span>
+        <kbd className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] text-text-3">
           ⌘K
         </kbd>
       </button>

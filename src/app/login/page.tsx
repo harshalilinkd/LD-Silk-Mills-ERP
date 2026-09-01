@@ -15,15 +15,20 @@ export default async function LoginPage({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-lg font-semibold text-primary-foreground">
+      <div className="w-full max-w-sm rounded-[10px] border border-border bg-surface p-8">
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div
+            className="flex size-12 items-center justify-center rounded-lg text-lg font-bold text-[#04211d]"
+            style={{
+              background: "linear-gradient(155deg, var(--primary), #0d9488)",
+            }}
+          >
             LD
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-xl font-bold tracking-[-0.01em] text-text-1">
             LD Silk Mills ERP
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[13px] text-text-3">
             Sign in with your work Google account to continue.
           </p>
         </div>
@@ -40,7 +45,7 @@ export default async function LoginPage({
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
+        <p className="mt-6 text-center text-xs text-text-3">
           Access is restricted to accounts an administrator has already set
           up.
         </p>

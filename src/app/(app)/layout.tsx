@@ -19,7 +19,12 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      <Sidebar visibleSystems={visibleSystems} />
+      <Sidebar
+        visibleSystems={visibleSystems}
+        name={dbUser.name}
+        email={dbUser.email}
+        avatar={dbUser.avatar}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           name={dbUser.name}

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   IconLayoutDashboard,
   IconReportAnalytics,
@@ -12,6 +11,7 @@ import {
 import { NavLink } from "./nav-link";
 import { SystemNavItem } from "./system-nav-item";
 import { CollapsibleSection } from "./collapsible-section";
+import { SidebarUserCard } from "./sidebar-user-card";
 import type { System } from "@/db/schema";
 
 const CATEGORY_ORDER: { key: System["category"]; label: string }[] = [
@@ -22,25 +22,44 @@ const CATEGORY_ORDER: { key: System["category"]; label: string }[] = [
   { key: "admin", label: "Admin" },
 ];
 
-export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
+export function Sidebar({
+  visibleSystems,
+  name,
+  email,
+  avatar,
+}: {
+  visibleSystems: System[];
+  name: string;
+  email: string;
+  avatar: string | null;
+}) {
   const byCategory = CATEGORY_ORDER.map(({ key, label }) => ({
     label,
     systems: visibleSystems.filter((s) => s.category === key),
   })).filter((group) => group.systems.length > 0);
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <div className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+    <aside className="hidden w-[264px] shrink-0 flex-col bg-sidebar border-r border-sidebar-border md:flex">
+      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-[18px] py-[18px]">
+        <div
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-semibold text-[#04211d]"
+          style={{
+            background: "linear-gradient(155deg, var(--primary), #0d9488)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
           LD
         </div>
-        <span className="text-sm font-semibold text-sidebar-foreground">
-          Silk Mills ERP
-        </span>
+        <div className="overflow-hidden whitespace-nowrap">
+          <div className="text-[14.5px] font-bold tracking-[-0.01em] text-sidebar-foreground">
+            LD Silk Mills ERP
+          </div>
+          <div className="text-[11px] text-text-3">ERP Shell</div>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-3">
-        <div className="px-2 pb-1">
+      <div className="flex-1 overflow-y-auto px-3 py-3.5">
+        <div className="mb-0.5">
           <NavLink href="/" icon={<IconLayoutDashboard />}>
             Dashboard
           </NavLink>
@@ -54,7 +73,7 @@ export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
           </CollapsibleSection>
         ))}
 
-        <div className="mt-1 space-y-0.5 px-2">
+        <div className="mt-3.5 space-y-0.5">
           <NavLink href="/reports" icon={<IconReportAnalytics />}>
             Reports
           </NavLink>
@@ -63,7 +82,7 @@ export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
           </NavLink>
         </div>
 
-        <CollapsibleSection title="Administration" defaultOpen={false}>
+        <CollapsibleSection title="Administration">
           <NavLink href="/admin/users" icon={<IconUsers />}>
             Users
           </NavLink>
@@ -82,14 +101,7 @@ export function Sidebar({ visibleSystems }: { visibleSystems: System[] }) {
         </CollapsibleSection>
       </div>
 
-      <div className="border-t border-sidebar-border p-3">
-        <Link
-          href="/settings"
-          className="block text-center text-[11px] text-sidebar-foreground/40 hover:text-sidebar-foreground/70"
-        >
-          v0.1.0 — Phase 1
-        </Link>
-      </div>
+      <SidebarUserCard name={name} email={email} avatar={avatar} />
     </aside>
   );
 }

@@ -10,12 +10,12 @@ export function ComingSoon({
   description: string;
 }) {
   return (
-    <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-accent">
-        <Icon className="size-6 text-accent-foreground" />
-      </div>
-      <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-      <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
+    <div className="rounded-[10px] border border-border bg-surface px-[30px] py-[60px] text-center">
+      <Icon className="mx-auto size-[34px] text-text-3" />
+      <h3 className="mt-3.5 text-[15px] font-semibold text-text-1">
+        {title}
+      </h3>
+      <p className="mt-1.5 text-[12.5px] text-text-3">{description}</p>
     </div>
   );
 }

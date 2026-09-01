@@ -1,14 +1,4 @@
 import { IconUsers } from "@tabler/icons-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/shell/empty-state";
 import { getAllUsersOrdered } from "@/lib/queries";
 import { UserEditDialog } from "./user-edit-dialog";
@@ -27,70 +17,90 @@ export default async function UsersAdminPage() {
   const allUsers = await getAllUsersOrdered();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">Users</h1>
-        <p className="text-sm text-muted-foreground">
-          {allUsers.length} user{allUsers.length === 1 ? "" : "s"} provisioned
-          in the ERP.
+        <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+          Users
+        </h1>
+        <p className="mt-1 text-[13px] text-text-3">
+          {allUsers.length} people in the LD Silk Mills workspace
         </p>
       </div>
 
-      <div className="rounded-lg border border-border">
+      <div className="rounded-[10px] border border-border bg-surface">
         {allUsers.length === 0 ? (
           <EmptyState icon={IconUsers} title="No users yet" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-7">
-                        {user.avatar && (
-                          <AvatarImage src={user.avatar} alt={user.name} />
-                        )}
-                        <AvatarFallback className="bg-accent text-[10px] text-accent-foreground">
-                          {initials(user.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{user.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {user.email}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.status === "active" ? "default" : "secondary"}
-                      className="capitalize"
-                    >
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {user.createdAt.toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <UserEditDialog user={user} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr>
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                    Name
+                  </th>
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                    Email
+                  </th>
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                    Status
+                  </th>
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                    Joined
+                  </th>
+                  <th className="w-10 border-b border-border px-3.5 pb-2.5 pt-3.5" />
+                </tr>
+              </thead>
+              <tbody className="[&>tr:last-child>td]:border-b-0">
+                {allUsers.map((user) => (
+                  <tr key={user.id}>
+                    <td className="border-b border-border px-3.5 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-strong bg-surface-3 text-[10px] font-bold text-accent-text">
+                          {user.avatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={user.avatar}
+                              alt={user.name}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            initials(user.name)
+                          )}
+                        </div>
+                        <span className="font-semibold text-text-1">
+                          {user.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="border-b border-border px-3.5 py-3 font-mono text-text-2">
+                      {user.email}
+                    </td>
+                    <td className="border-b border-border px-3.5 py-3">
+                      <span
+                        className={
+                          user.status === "active"
+                            ? "rounded-full bg-status-green-dim px-2 py-0.5 text-[10.5px] font-semibold capitalize text-status-green"
+                            : "rounded-full bg-white/5 px-2 py-0.5 text-[10.5px] font-semibold capitalize text-text-3"
+                        }
+                      >
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="border-b border-border px-3.5 py-3 text-text-2">
+                      {user.createdAt.toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                    <td className="border-b border-border px-3.5 py-3">
+                      <UserEditDialog user={user} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

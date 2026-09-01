@@ -8,7 +8,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SignOutMenuItem } from "./sign-out-button";
 
 function initials(name: string) {
@@ -32,18 +31,21 @@ export function UserMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
-        <Avatar className="size-8">
-          {avatar && <AvatarImage src={avatar} alt={name} />}
-          <AvatarFallback className="bg-accent text-accent-foreground text-xs">
-            {initials(name)}
-          </AvatarFallback>
-        </Avatar>
+      <DropdownMenuTrigger
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface-3 text-xs font-bold text-accent-text outline-none overflow-hidden focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Account menu"
+      >
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt={name} className="size-full object-cover" />
+        ) : (
+          initials(name)
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="flex flex-col">
-          <span className="text-sm font-medium">{name}</span>
-          <span className="text-xs font-normal text-muted-foreground">
+          <span className="text-[13px] font-semibold">{name}</span>
+          <span className="text-[11.5px] font-normal text-text-3">
             {email}
           </span>
         </DropdownMenuLabel>
@@ -51,7 +53,7 @@ export function UserMenu({
         <DropdownMenuItem
           render={
             <Link href="/settings">
-              <IconSettings className="size-4" />
+              <IconSettings className="size-[15px]" />
               Settings
             </Link>
           }

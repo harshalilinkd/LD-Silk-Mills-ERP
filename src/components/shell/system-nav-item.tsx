@@ -14,13 +14,10 @@ export function SystemNavItem({ system }: { system: System }) {
 
   if (isComingSoon) {
     return (
-      <div
-        className="flex cursor-not-allowed items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-sidebar-foreground/35"
-        title="Coming soon"
-      >
+      <div className="flex cursor-default items-center gap-[11px] rounded-lg border border-transparent px-2.5 py-2 text-[13.5px] font-medium text-text-3">
         <Icon className="size-4 shrink-0" />
-        <span className="truncate">{system.systemName}</span>
-        <span className="ml-auto rounded-full bg-sidebar-foreground/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-sidebar-foreground/40">
+        <span className="flex-1 truncate">{system.systemName}</span>
+        <span className="shrink-0 rounded-full bg-status-amber-dim px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.03em] text-status-amber">
           Soon
         </span>
       </div>
@@ -35,18 +32,18 @@ export function SystemNavItem({ system }: { system: System }) {
   const active = !isExternal && pathname === href;
 
   const className = cn(
-    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+    "flex items-center gap-[11px] rounded-lg border px-2.5 py-2 text-[13.5px] font-medium transition-colors",
     active
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+      ? "border-primary/20 bg-accent text-accent-text"
+      : "border-transparent text-text-2 hover:bg-surface-2 hover:text-text-1",
   );
 
   const label = (
     <>
       <Icon className="size-4 shrink-0" />
-      <span className="truncate">{system.systemName}</span>
+      <span className="flex-1 truncate">{system.systemName}</span>
       {isExternal && (
-        <IconExternalLink className="ml-auto size-3.5 shrink-0 text-sidebar-foreground/40" />
+        <IconExternalLink className="size-3 shrink-0 text-text-3" />
       )}
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { IconBell, IconBellOff } from "@tabler/icons-react";
+import { IconBell } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -11,18 +11,23 @@ import {
 export function NotificationBell() {
   return (
     <Popover>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative" />}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="size-9 rounded-lg text-text-2 hover:bg-surface-2 hover:text-text-1"
+          />
+        }
+      >
         <IconBell className="size-[18px]" />
         <span className="sr-only">Notifications</span>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72">
-        <div className="flex flex-col items-center gap-2 py-6 text-center">
-          <IconBellOff className="size-6 text-muted-foreground" />
-          <p className="text-sm font-medium">No notifications yet</p>
-          <p className="text-xs text-muted-foreground">
-            You&apos;ll see system and access updates here once they start
-            coming in.
-          </p>
+      <PopoverContent
+        align="end"
+        className="w-72 rounded-[10px] border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
+      >
+        <div className="px-2 py-4 text-center text-[12.5px] text-text-3">
+          No notifications yet
         </div>
       </PopoverContent>
     </Popover>

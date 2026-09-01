@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 export default function NotRegisteredPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
+      <div className="w-full max-w-sm rounded-[10px] border border-border bg-surface p-8 text-center">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-lg bg-status-amber-dim text-status-amber">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -21,10 +21,10 @@ export default function NotRegisteredPage() {
             />
           </svg>
         </div>
-        <h1 className="text-lg font-semibold tracking-tight">
+        <h1 className="text-lg font-bold tracking-[-0.01em] text-text-1">
           Your account isn&apos;t set up yet
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-[13px] text-text-3">
           We couldn&apos;t find an ERP account for the Google account you
           just signed in with. Contact an administrator to have your access
           set up before trying again.
