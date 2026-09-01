@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LD Silk Mills ERP — Shell
 
-## Getting Started
+Phase 1: the entrance hall for the LD Silk Mills ERP — login, sidebar,
+topbar, dashboard, and the system registry that drives every future
+module. This repo only builds the shell; Order Entry, Help Slip, and
+future modules keep their own independent codebases and databases and are
+wired in during later phases.
 
-First, run the development server:
+## Stack
+
+Next.js 15 (App Router) + TypeScript, Neon Postgres (`ld-erp-core` project)
+via Drizzle ORM, Auth.js v5 with Google OAuth only, Tailwind CSS v4 +
+shadcn/ui (Base UI).
+
+## Local setup
 
 ```bash
+npm install
+npm run db:migrate   # applies drizzle/migrations to the Neon database
+npm run db:seed      # seeds the 8 systems + 11 users from the Phase 0 audit
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Required human setup before this is demoable
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Google OAuth credentials.** Create an OAuth 2.0 Client ID (Web
+   application) in Google Cloud Console and put the values in
+   `.env.local`:
+   - `AUTH_GOOGLE_ID`
+   - `AUTH_GOOGLE_SECRET`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   Register these authorized redirect URIs on that OAuth client:
+   - `http://localhost:3000/api/auth/callback/google` (local dev)
+   - `https://<your-vercel-domain>/api/auth/callback/google` (once deployed)
+   - `https://erp.ldsilkmills.com/api/auth/callback/google` (once DNS is
+     attached — not done in this phase)
 
-## Learn More
+2. **Real Order Entry / Help Slip URLs.** `src/db/seed.ts` seeds
+   `systems.application_url` with placeholder values
+   (`TODO_ORDER_ENTRY_URL`, `TODO_HELP_SLIP_URL`) because the Phase 0
+   audit could not confirm either app's real production Vercel URL (no
+   Vercel dashboard access in that session). Update those two constants
+   with the real URLs — or just edit the rows directly from
+   `/admin/system-registry` once the app is running — before treating
+   this as live.
 
-To learn more about Next.js, take a look at the following resources:
+3. **Naushi Tibrewala's ERP login email.** Seeded as
+   `naushi.linkdprints@gmail.com`. She also holds `naushi500@gmail.com`
+   in Order Entry (both kept there, untouched). Confirm which is her
+   intended ERP sign-in identity — see the comment in `src/db/seed.ts`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## What's deliberately NOT in this phase
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- No reverse proxy / rewrites / `basePath` changes to any other repo — no
+  integration work at all. Order Entry and Help Slip sidebar entries are
+  plain external links that open in a new tab.
+- No connection to the Supabase project Order Entry and Help Slip share.
+  This shell has its own, separate Neon database holding only
+  ERP-level data (`users`, `systems`, `system_access`, `audit_logs`) —
+  never business records from either app.
+- Auth works end-to-end but isn't hardened — session expiry, concurrent
+  sessions, and logout edge cases are Phase 2's job.
+- No fake numbers anywhere. Every dashboard card without a real data
+  source shows an explicit empty state.
 
-## Deploy on Vercel
+## Database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Schema lives in `src/db/schema.ts`, migrations in `drizzle/migrations/`.
+To change the schema: edit `schema.ts`, then `npm run db:generate` to
+produce a new migration, then `npm run db:migrate` to apply it.
