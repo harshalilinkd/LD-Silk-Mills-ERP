@@ -31,6 +31,7 @@ export default function NotRegisteredPage() {
         </p>
         <Button
           variant="outline"
+          nativeButton={false}
           className="mt-6 w-full"
           render={<Link href="/login">Back to sign in</Link>}
         />
