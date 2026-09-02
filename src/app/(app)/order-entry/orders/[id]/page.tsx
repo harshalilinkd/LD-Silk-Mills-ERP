@@ -8,6 +8,8 @@ import { auth } from "@/auth";
 import { resolveOrderEntryAuthz } from "@/lib/order-entry/authz";
 import { hasCap } from "@/lib/order-entry/rbac";
 import { CancelOrderButton } from "@/components/order-entry/orders/cancel-order-button";
+import { CancelLineButton } from "@/components/order-entry/orders/cancel-line-button";
+import { DeleteOrderButton } from "@/components/order-entry/orders/delete-order-button";
 
 const STATUS_STYLE: Record<string, string> = {
   COMPLETED: "bg-status-green-dim text-status-green",
@@ -86,6 +88,10 @@ export default async function OrderDetailPage({
                 orderId={order.id}
                 cancelled={detail.is_order_cancelled}
               />
+              <DeleteOrderButton
+                orderId={order.id}
+                orderNo={order.order_no}
+              />
             </>
           )}
         </div>
@@ -124,50 +130,84 @@ export default async function OrderDetailPage({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
-                {["Fabric", "Design", "Qty (m)", "Rate", "Total", "Status"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Fabric",
+                  "Design",
+                  "Qty (m)",
+                  "Rate",
+                  "Total",
+                  "Status",
+                  ...(canEdit ? ["Actions"] : []),
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className={`border-b border-border px-3.5 pb-2.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3 ${
+                      h === "Actions" ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="[&>tr:last-child>td]:border-b-0">
-              {detail.lines.map((l) => (
-                <tr key={l.id} className={l.is_cancelled ? "opacity-50" : ""}>
-                  <td className="border-b border-border px-3.5 py-3 text-text-1">
-                    {l.quality}
-                  </td>
-                  <td className="border-b border-border px-3.5 py-3 font-mono text-text-1">
-                    {l.design_no}
-                    {l.is_cancelled && (
-                      <span className="ml-1.5 text-[10.5px] text-status-red">
-                        (cancelled)
-                      </span>
-                    )}
-                  </td>
-                  <td className="border-b border-border px-3.5 py-3 font-mono text-text-2">
-                    {l.qty_mtr}
-                  </td>
-                  <td className="border-b border-border px-3.5 py-3 font-mono text-text-2">
-                    {l.rate ?? "—"}
-                  </td>
-                  <td className="border-b border-border px-3.5 py-3 font-mono text-text-1">
-                    {l.line_total ? `₹${formatNumber(Number(l.line_total))}` : "—"}
-                  </td>
-                  <td className="border-b border-border px-3.5 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_STYLE[l.operations_status]}`}
+              {detail.lines.map((l) => {
+                // Dim the data cells, not the row — an opacity on <tr> would
+                // also mute the restore button that undoes the cancellation.
+                const dim = l.is_cancelled ? " opacity-50" : "";
+                return (
+                  <tr key={l.id}>
+                    <td
+                      className={`border-b border-border px-3.5 py-3 text-text-1${dim}`}
                     >
-                      {l.operations_status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      {l.quality}
+                    </td>
+                    <td
+                      className={`border-b border-border px-3.5 py-3 font-mono text-text-1${dim}`}
+                    >
+                      {l.design_no}
+                      {l.is_cancelled && (
+                        <span className="ml-1.5 text-[10.5px] text-status-red">
+                          (cancelled)
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      className={`border-b border-border px-3.5 py-3 font-mono text-text-2${dim}`}
+                    >
+                      {l.qty_mtr}
+                    </td>
+                    <td
+                      className={`border-b border-border px-3.5 py-3 font-mono text-text-2${dim}`}
+                    >
+                      {l.rate ?? "—"}
+                    </td>
+                    <td
+                      className={`border-b border-border px-3.5 py-3 font-mono text-text-1${dim}`}
+                    >
+                      {l.line_total
+                        ? `₹${formatNumber(Number(l.line_total))}`
+                        : "—"}
+                    </td>
+                    <td className={`border-b border-border px-3.5 py-3${dim}`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_STYLE[l.operations_status]}`}
+                      >
+                        {l.operations_status}
+                      </span>
+                    </td>
+                    {canEdit && (
+                      <td className="border-b border-border px-3.5 py-2">
+                        <CancelLineButton
+                          orderId={order.id}
+                          lineId={l.id}
+                          cancelled={l.is_cancelled}
+                        />
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
