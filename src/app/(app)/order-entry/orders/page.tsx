@@ -44,6 +44,7 @@ import {
 import { EmptyState } from "@/components/shell/empty-state";
 import { Button } from "@/components/ui/button";
 import { ExportOrdersCsvButton } from "@/components/order-entry/orders/export-orders-csv-button";
+import { OrdersScreen } from "@/components/order-entry/orders/orders-screen";
 import {
   OrdersTable,
   type OrdersTableRow,
@@ -412,38 +413,47 @@ export default async function OrdersListPage({
     if (sp[key]) exportParams.set(key, sp[key] as string);
   }
 
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-            Orders
-          </h1>
-          <p className="mt-1 text-[13px] text-text-3">
-            {formatCount(kpi.total)} order{kpi.total === 1 ? "" : "s"} ·{" "}
-            {kpi.completed} completed · {kpi.inProgress} in progress ·{" "}
-            {kpi.pending} pending
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ExportOrdersCsvButton
-            queryString={exportParams.toString()}
-            status={status}
-            disabled={total === 0}
-          />
-          {canEdit && (
-            <Button
-              size="sm"
-              nativeButton={false}
-              render={<Link href="/order-entry/orders/new" />}
-            >
-              <IconPlus className="size-3.5" />
-              New order
-            </Button>
-          )}
-        </div>
-      </div>
+  // §3.1 — the page no longer renders one view; it renders BOTH halves of the
+  // switch and lets the client screen pick. Tracking is the default, so the
+  // table below is built on every visit whether or not it is shown: the query
+  // is the same two statements it always was, and moving it behind the switch
+  // would mean a client round trip (and a flash of empty table) for the users
+  // who prefer it.
+  const title = (
+    <div>
+      <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        Orders
+      </h1>
+      <p className="mt-1 text-[13px] text-text-3">
+        {formatCount(kpi.total)} order{kpi.total === 1 ? "" : "s"} ·{" "}
+        {kpi.completed} completed · {kpi.inProgress} in progress · {kpi.pending}{" "}
+        pending
+      </p>
+    </div>
+  );
 
+  const actions = (
+    <>
+      <ExportOrdersCsvButton
+        queryString={exportParams.toString()}
+        status={status}
+        disabled={total === 0}
+      />
+      {canEdit && (
+        <Button
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/order-entry/orders/new" />}
+        >
+          <IconPlus className="size-3.5" />
+          New order
+        </Button>
+      )}
+    </>
+  );
+
+  const table = (
+    <>
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-5">
         {KPI_DEFS.map((k) => {
           const active = k.status === null ? !status : status === k.status;
@@ -580,6 +590,15 @@ export default async function OrdersListPage({
           </>
         )}
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <OrdersScreen
+      canEdit={canEdit}
+      title={title}
+      actions={actions}
+      table={table}
+    />
   );
 }

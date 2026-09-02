@@ -30,5 +30,21 @@ export const STAGE_STATE_LABEL: Record<StageState, string> = {
 };
 
 // The stage that determines "dispatched" for the whole-order rollup and the
-// sibling colour chips (see status-panel.tsx).
+// sibling colour chips (see status-panel.tsx and quality-groups.ts).
 export const DISPATCH_STAGE_KEY = "dispatch";
+
+// ── StageCell (docs/SCREENS.md §4B.4) ──────────────────────────────────────
+// A different question from STAGE_STATE_TONE above. That one tones ONE line's
+// state; this one tones how far a SET of designs has got through one stage,
+// so it has an "amber = some of them" step that a single line cannot be in.
+// Kept here rather than in stage-cell.tsx so every tone map in this module
+// lives in one file and stays on the same bg-status-*-dim / text-status-*
+// idiom.
+export type StageCellTone = "all" | "some" | "overdue" | "none";
+
+export const STAGE_CELL_TONE: Record<StageCellTone, string> = {
+  all: "bg-status-green-dim text-status-green",
+  some: "bg-status-amber-dim text-status-amber",
+  overdue: "bg-status-red-dim text-status-red",
+  none: "bg-chip text-text-3",
+};

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   IconActivity,
@@ -9,10 +10,12 @@ import {
   IconRoute,
   IconSearch,
 } from "@tabler/icons-react";
+import { auth } from "@/auth";
 import { loadOrderStatus } from "@/lib/order-entry/order-status-query";
 import { STAGE_OPTIONS } from "@/lib/order-entry/order-status";
 import { formatCount, formatDate, formatNumber } from "@/lib/order-entry/orders";
 import { EmptyState } from "@/components/shell/empty-state";
+import { OrderStatusScreen } from "@/components/order-entry/order-status/order-status-screen";
 import { StatusPanel } from "@/components/order-entry/order-status/status-panel";
 import { ExportCsvButton } from "@/components/order-entry/order-status/export-csv-button";
 import { OVERALL_LABEL, OVERALL_TONE } from "@/components/order-entry/order-status/status-style";
@@ -245,6 +248,13 @@ export default async function OrderStatusPage({
   searchParams: Promise<SP>;
 }) {
   const sp = await searchParams;
+
+  // Per-user localStorage key for the remembered view (§4.1). The layout above
+  // has already redirected anyone without a session, so this is a read for the
+  // key alone — never an access decision.
+  const session = await auth();
+  const userKey = session?.user?.email ?? undefined;
+
   const params = new URLSearchParams();
   for (const key of QUERY_KEYS) {
     if (sp[key]) params.set(key, sp[key] as string);
@@ -256,23 +266,29 @@ export default async function OrderStatusPage({
   const hasAdvancedFilters = ADVANCED_KEYS.some((k) => sp[k]);
   const exportQs = params.toString().replace(/(^|&)page=[^&]*/, "");
 
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-            Order status
-          </h1>
-          <p className="mt-1 text-[13px] text-text-3">
-            {formatCount(data.summary.total)} order
-            {data.summary.total === 1 ? "" : "s"} · {data.summary.inProgress} in
-            progress · {data.summary.overdue} overdue · {data.summary.completed}{" "}
-            completed
-          </p>
-        </div>
-        <ExportCsvButton queryString={exportQs} disabled={data.total === 0} />
-      </div>
+  // §4 — the page renders BOTH halves of the switch and lets the client screen
+  // pick, so the board keeps its server-side filtering, sorting and CSV intact
+  // while the tracking view (§4B) becomes the default way in.
+  const title = (
+    <div>
+      <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        Order status
+      </h1>
+      <p className="mt-1 text-[13px] text-text-3">
+        {formatCount(data.summary.total)} order
+        {data.summary.total === 1 ? "" : "s"} · {data.summary.inProgress} in
+        progress · {data.summary.overdue} overdue · {data.summary.completed}{" "}
+        completed
+      </p>
+    </div>
+  );
 
+  const actions = (
+    <ExportCsvButton queryString={exportQs} disabled={data.total === 0} />
+  );
+
+  const board = (
+    <>
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-5">
         {KPI_DEFS.map((k) => (
           <KpiCard
@@ -547,6 +563,19 @@ export default async function OrderStatusPage({
       </div>
 
       <StatusPanel groups={data.groups} />
-    </div>
+    </>
+  );
+
+  return (
+    // OrderStatusScreen reads useSearchParams() (the deep-link override and
+    // `?search=`); without the boundary the build fails.
+    <Suspense fallback={null}>
+      <OrderStatusScreen
+        userKey={userKey}
+        title={title}
+        actions={actions}
+        board={board}
+      />
+    </Suspense>
   );
 }
