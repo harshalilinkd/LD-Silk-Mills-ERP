@@ -1,0 +1,91 @@
+import type { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
+
+import { jsonData, jsonError, requireCapability } from "@/lib/order-entry/api";
+import { orderEntryDb as db } from "@/db/order-entry";
+import {
+  isReachedOutcome,
+  statusAfterAttempt,
+  type AttemptOutcome,
+  type FollowupStatus,
+} from "@/lib/order-entry/crm";
+import { loadCrmConfig } from "@/lib/order-entry/crm-query";
+import { followupAttemptSchema, firstZodError } from "@/lib/order-entry/validation";
+import { crmFollowupAttempts, crmFollowups } from "@/db/order-entry/schema";
+
+// POST /api/crm/followups/:id/attempts — log one call, answered or not.
+//
+// The unanswered ones are the point: without them, "no complaints this month"
+// is indistinguishable from "nobody called anyone" (§12.7).
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireCapability("crm.edit");
+  if (!guard.ok) return guard.response;
+  const { id } = await params;
+
+  const body = await req.json().catch(() => null);
+  const parsed = followupAttemptSchema.safeParse(body);
+  if (!parsed.success) return jsonError(firstZodError(parsed.error), 422);
+  const { channel, outcome, note, attended_by } = parsed.data;
+
+  try {
+    const cfg = await loadCrmConfig();
+    const existing = await db
+      .select()
+      .from(crmFollowups)
+      .where(eq(crmFollowups.id, id))
+      .limit(1);
+    const cur = existing[0];
+    if (!cur) return jsonError("Follow-up not found", 404);
+
+    const attemptCount = cur.attemptCount + 1;
+    const status = statusAfterAttempt(
+      cur.status as FollowupStatus,
+      attemptCount,
+      outcome as AttemptOutcome,
+      cfg.maxAttempts,
+    );
+    const now = new Date();
+
+    // One transaction: the attempt row and the counter it drives must not be
+    // able to disagree. postgres.js pins a connection for an interactive
+    // transaction, so this is kept as short as possible.
+    const result = await db.transaction(async (tx) => {
+      const [attempt] = await tx
+        .insert(crmFollowupAttempts)
+        .values({
+          followupId: id,
+          channel,
+          outcome,
+          attendedBy: attended_by,
+          note,
+          attemptedAt: now,
+          createdBy: guard.user.email ?? guard.user.name ?? null,
+        })
+        .returning();
+
+      const [followup] = await tx
+        .update(crmFollowups)
+        .set({
+          attemptCount,
+          status,
+          // First contact is what "contacted" means for the coverage metric —
+          // not the completion of the call.
+          contactedAt:
+            isReachedOutcome(outcome) && !cur.contactedAt ? now : cur.contactedAt,
+          updatedAt: now,
+        })
+        .where(eq(crmFollowups.id, id))
+        .returning();
+
+      return { attempt, followup };
+    });
+
+    return jsonData(result, 201);
+  } catch (e) {
+    console.error("POST /api/crm/followups/[id]/attempts failed:", e);
+    return jsonError("Could not log the attempt", 500);
+  }
+}

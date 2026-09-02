@@ -84,13 +84,32 @@ you're inside that section). Toggling a system's `status`/`route`/
   board — real, reads/writes live `ld_order_entry` data. Ported from Order
   Entry's own repo; see `src/lib/order-entry/*` and
   `src/app/api/order-entry/*`.
+- **CRM** (`/crm/*`, own top-level sidebar entry, system_code `crm`):
+  Follow-up queue (`/crm`), follow-up detail (`/crm/[id]` — a NEW dedicated
+  route; the source app renders this as a draggable floating panel, this
+  shell renders it as an ordinary page instead), Issues board
+  (`/crm/issues`), Call log (`/crm/calls`), Customers (`/crm/customers`),
+  CRM analytics (`/crm/analytics`) — real, reads/writes the same live
+  `ld_order_entry` CRM tables (`crm_followups`,
+  `crm_followup_attempts`, `crm_issues`, `crm_rating_criteria`,
+  `crm_followup_ratings`, `crm_settings`) the standalone app uses. Ported
+  from Order Entry's own repo; see `src/lib/order-entry/crm.ts` (pure
+  vocabularies/derivations, dependency-free) + `crm-query.ts` (all reads,
+  including the auto-reconcile that creates follow-up rows — there is no
+  manual "create" anywhere) + `src/app/api/crm/*` +
+  `src/components/order-entry/crm/*` (shared `Pill`/`StatusPill`/
+  `SeverityPill`/`PriorityBar`, and CSS/SVG-only chart primitives — no
+  `recharts` dependency; the source app's Recharts-based rating-trend chart
+  was rebuilt as a small hand-rolled inline SVG, `RatingTrendLine`). The
+  CRM admin config screen (rating-criteria CRUD, `crm_settings` editor) is
+  NOT built — that's deferred to the Settings hub below; the API routes for
+  it exist (`/api/crm/rating-criteria`, `/api/crm/settings`) but have no UI
+  yet.
 - **Not built yet** (all present only as honest "coming soon" pages, per an
   explicit scope decision — do not silently build these without checking
-  scope first, they're each roughly as large as the Orders port was):
-  Operations/Tracking board (`/order-entry/tracking`), the whole CRM module
-  (`/crm/*` — Follow-ups/Issues/Call log/Customers/Analytics), the
+  scope first): Operations/Tracking board (`/order-entry/tracking`), the
   consolidated Settings hub (`/order-entry/settings/*` — Dropdown Master,
-  Design Database, Time tracking, Users, Access, Trash, CRM).
+  Design Database, Time tracking, Users, Access, Trash, CRM config).
 - **Help Slip**: still a plain external link (opens its own app in a new
   tab) — no integration work done.
 
