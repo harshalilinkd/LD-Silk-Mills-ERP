@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconExternalLink, IconChevronDown } from "@tabler/icons-react";
@@ -95,6 +95,15 @@ function ExpandableSystemNavItem({
   const inSection = pathname === href || pathname.startsWith(`${href}/`);
   const [open, setOpen] = useState(inSection);
 
+  // The sidebar itself never remounts across client-side navigation, so the
+  // `useState(inSection)` above only auto-expands on first page load. Clicking
+  // into a section from elsewhere (e.g. Dashboard -> Orders) changes `pathname`
+  // without remounting this component, and without this effect the submenu
+  // would stay collapsed until the chevron was clicked by hand.
+  useEffect(() => {
+    if (inSection) setOpen(true);
+  }, [inSection]);
+
   // Only the single longest-matching child href is active, so a nested route
   // (e.g. /order-entry/orders/new) doesn't light up both "Orders" and
   // "New order" at once.
@@ -116,7 +125,11 @@ function ExpandableSystemNavItem({
             : "border-transparent text-text-2 hover:bg-surface-2 hover:text-text-1",
         )}
       >
-        <Link href={href} className="flex min-w-0 flex-1 items-center gap-[11px]">
+        <Link
+          href={href}
+          onClick={() => setOpen(true)}
+          className="flex min-w-0 flex-1 items-center gap-[11px]"
+        >
           <Icon className="size-4 shrink-0" />
           <span className="flex-1 truncate">{system.systemName}</span>
         </Link>
