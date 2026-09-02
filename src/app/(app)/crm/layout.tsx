@@ -3,14 +3,15 @@ import { IconLock } from "@tabler/icons-react";
 import { auth } from "@/auth";
 import { resolveOrderEntryAuthz } from "@/lib/order-entry/authz";
 import { OrderEntrySessionProvider } from "@/lib/order-entry/context";
-import { CrmTabs } from "@/components/order-entry/crm-tabs";
 
 // CRM is its own sidebar entry, but it reads/writes the same
 // ld_order_entry schema and the same user/role/capability model as Order
 // Entry (crm.view / crm.edit are capabilities defined in Order Entry's own
 // rbac). So authorization here is identical to the Order Entry layout —
-// same lookup, same "not provisioned" fallback — just a different tab set
-// and a different top-level sidebar entry.
+// same lookup, same "not provisioned" fallback — just a different
+// top-level sidebar entry. Navigation between CRM's own pages lives in the
+// sidebar submenu (src/lib/system-submenus.ts), not a top tab bar — same
+// pattern as Order Entry.
 export default async function CrmLayout({
   children,
 }: {
@@ -49,10 +50,7 @@ export default async function CrmLayout({
         caps: authz.caps,
       }}
     >
-      <div className="flex flex-col gap-5">
-        <CrmTabs role={authz.role} caps={authz.caps} />
-        {children}
-      </div>
+      {children}
     </OrderEntrySessionProvider>
   );
 }

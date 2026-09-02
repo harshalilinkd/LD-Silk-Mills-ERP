@@ -14,4 +14,12 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "Operations", href: "/order-entry/tracking" },
     { label: "Settings", href: "/order-entry/settings" },
   ],
+  crm: [
+    { label: "Follow-ups", href: "/crm", exact: true },
+    { label: "Issues", href: "/crm/issues" },
+    { label: "Call log", href: "/crm/calls" },
+    { label: "Customers", href: "/crm/customers" },
+    { label: "CRM analytics", href: "/crm/analytics" },
+    { label: "Settings", href: "/order-entry/settings/crm" },
+  ],
 };
