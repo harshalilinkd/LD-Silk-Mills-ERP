@@ -1,12 +1,6 @@
-import { IconShieldLock } from "@tabler/icons-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { AccessMatrix } from "@/components/order-entry/settings/access-matrix";
 
-export default function OrderEntryAccessSettingsPage() {
-  return (
-    <ComingSoon
-      icon={IconShieldLock}
-      title="Access — coming soon"
-      description="Edit the role × capability grant matrix (orders.view, orders.edit, operations.*, crm.*) that governs Order Entry and CRM."
-    />
-  );
+// ADMIN-gating lives in ../layout.tsx.
+export default function AccessSettingsPage() {
+  return <AccessMatrix />;
 }

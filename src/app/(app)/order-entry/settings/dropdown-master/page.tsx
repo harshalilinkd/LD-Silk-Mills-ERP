@@ -1,12 +1,7 @@
-import { IconList } from "@tabler/icons-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { DropdownMaster } from "@/components/order-entry/settings/dropdown-master";
 
+// ADMIN-gating lives in ../layout.tsx (which also renders the h1 + tab bar),
+// so this page is just the shell around the client island.
 export default function DropdownMasterPage() {
-  return (
-    <ComingSoon
-      icon={IconList}
-      title="Dropdown Master — coming soon"
-      description="Manage the autocomplete lists (party, sales person, agent, haste, transport, fabric, CRM categories) here."
-    />
-  );
+  return <DropdownMaster />;
 }

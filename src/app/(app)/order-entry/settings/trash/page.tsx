@@ -1,12 +1,8 @@
-import { IconTrash } from "@tabler/icons-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { TrashView } from "@/components/order-entry/settings/trash-view";
 
-export default function OrderEntryTrashPage() {
-  return (
-    <ComingSoon
-      icon={IconTrash}
-      title="Trash — coming soon"
-      description="Restore or permanently purge soft-deleted orders and designs."
-    />
-  );
+// ADMIN-gating lives in ../layout.tsx. (The trash APIs themselves are
+// orders.edit rather than ADMIN, so this same view could be surfaced outside
+// Settings later without any change to the component.)
+export default function TrashSettingsPage() {
+  return <TrashView />;
 }

@@ -247,6 +247,82 @@ export const stageToggleSchema = z.object({
 
 export type StageTogglePayload = z.infer<typeof stageToggleSchema>;
 
+// ---- Settings / master data (ported from Order Entry's lib/validation.ts) ----
+
+// PATCH /api/order-entry/lookups/:id — edit the spelling and/or the active flag.
+export const lookupUpdateSchema = z
+  .object({
+    value: z.string().trim().min(1).max(200).optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((d) => d.value !== undefined || d.is_active !== undefined, {
+    message: "Nothing to update",
+  });
+
+// POST /api/order-entry/lookups/bulk — paste-import many values at once.
+export const lookupBulkSchema = z.object({
+  category: z.enum(LOOKUP_CATEGORIES),
+  values: z.array(z.string()).min(1, "Paste at least one value"),
+});
+
+// DELETE /api/order-entry/lookups/bulk — deactivate (or purge with hard:true).
+export const lookupBulkDeleteSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "Select at least one value"),
+  hard: z.boolean().optional(),
+});
+
+// PATCH /api/order-entry/stages/:stage_key — the stage's SLA offset in days.
+export const stageUpdateSchema = z.object({
+  planned_offset_days: z.coerce
+    .number()
+    .int("Must be a whole number")
+    .min(0, "Cannot be negative")
+    .max(365, "Too large"),
+});
+
+// ---- User access management (admin) ----
+// Kept in step with ROLES in lib/order-entry/rbac.ts by hand — zod needs a
+// literal tuple, and rbac.ts must stay free of Node-only imports for the edge
+// middleware. If you add a role there, add it here, or it cannot be assigned.
+const USER_ROLES = ["ADMIN", "SALES", "OPS", "VIEWER", "CRM"] as const;
+
+export const userCreateSchema = z.object({
+  email: z.string().trim().email("A valid email is required").max(255),
+  name: z.string().trim().max(200).optional().nullable(),
+  role: z.enum(USER_ROLES),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(200),
+});
+
+export const userUpdateSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .email("A valid email is required")
+      .max(255)
+      .optional(),
+    name: z.string().trim().max(200).optional().nullable(),
+    role: z.enum(USER_ROLES).optional(),
+    is_active: z.boolean().optional(),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(200)
+      .optional(),
+  })
+  .refine(
+    (d) =>
+      d.email !== undefined ||
+      d.name !== undefined ||
+      d.role !== undefined ||
+      d.is_active !== undefined ||
+      d.password !== undefined,
+    { message: "Nothing to update" },
+  );
+
 export function firstZodError(error: z.ZodError): string {
   const issue = error.issues[0];
   if (!issue) return "Invalid request body";
