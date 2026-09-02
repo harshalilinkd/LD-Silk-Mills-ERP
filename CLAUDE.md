@@ -57,6 +57,27 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
 **Remove the `DEV_LOGIN_PASSWORD` provider before Phase 2** (auth
 hardening) — it's marked TEMPORARY in `src/auth.ts` and `.env.local`.
 
+## Two specs, and which wins where
+- **`docs/SCREENS.md`** — the source app's build-to-print spec (every region,
+  field, size, behaviour) for the six Order Entry screens + the five CRM
+  screens. It governs **layout, fields, logic and behaviour** for those
+  screens. They are meant to be an exact clone of the old app.
+- **`docs/DESIGN.md`** — governs the **palette and type** everywhere, and
+  everything about the shell itself (login, sidebar, topbar, admin pages),
+  which SCREENS.md does not cover.
+
+Where they conflict on a shared primitive (e.g. SCREENS.md's `Input` at
+h-[46px] vs the shell's h-8), keep the shell's version global and scope the
+spec's version to the module — don't restyle screens the spec never covers.
+Translate SCREENS.md's colour names to ours: `ink→text-1`, `ink-soft→text-2`,
+`ink-muted→text-3`, `line→border`, `inset→chip`, `accent→primary`,
+`accent-soft→accent`, `success/warning/danger→status-green/amber/red`.
+
+**Use `.num`, never `font-mono`, on figures/money/dates** — it's tabular
+figures in Manrope. SCREENS.md §0.3 rejects mono there (it reads as code on
+screens that are mostly money), and Manrope's default digits are proportional,
+so rupee columns stagger without it.
+
 ## Design system
 `docs/DESIGN.md` is the single source of truth for every color/spacing/
 typography value, sourced from the approved mockup
@@ -134,10 +155,28 @@ you're inside that section). Toggling a system's `status`/`route`/
   different endpoint from `designs/` (order-form autocomplete) — don't
   conflate them. User passwords use `bcryptjs` at cost 10, matching the
   Order Entry app they're shared with.
-- **Not built yet**: the CRM settings tab (`/order-entry/settings/crm` —
-  rating-criteria CRUD and the `crm_settings` editor). Its API routes
-  exist; only the UI is deferred. Do not silently build it without
-  checking scope.
+- **Everything in `docs/SCREENS.md` is now built**, including the CRM
+  settings tab, the Tracking view (§4B — the default view of Orders, behind
+  a `ViewSwitch`), and the five-stage draggable call panel (§7.2).
+
+## Module conventions (post-SCREENS.md rebuild)
+- The module's list screens are **client components on TanStack Query** with
+  live debounced search and `placeholderData: (prev) => prev`. The shell's
+  own pages stay server components — don't "harmonise" the two.
+- Shared primitives live in `src/components/ui/` (`HScroll`, `Pager`,
+  `StatCard`, `StatusBadge`, `Segmented`, `Reveal`, `Money`, `data-table`)
+  and `src/components/order-entry/shared/` (`ViewSwitch`, `OrderFilters`,
+  `useTrackView`, `useDebouncedValue`, `useColumnPrefs`, `csv`). Reuse them;
+  §0.4 exists because these were hand-rolled inconsistently before.
+- **`STAGE_DOT` has exactly one home**: `order-status/status-style.ts`. A
+  second local copy drifted once and the same stage read purple on one screen
+  and blue on two others.
+- **There is no toast library here.** The source app used sonner; every
+  message in this module is an inline banner instead. Don't add one without
+  asking — several screens' error handling assumes the banner.
+- `GET /api/order-entry/lookups` returns **`string[]`**, not row objects,
+  unless you pass `?all=1`. Typing it wrong yields `[undefined]` and crashes
+  on mount.
 - **Help Slip**: still a plain external link (opens its own app in a new
   tab) — no integration work done.
 
