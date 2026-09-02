@@ -15,6 +15,36 @@ or spacing scales without updating this file first.
   `family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600`
 - Base body size: `14px`, line-height `1.5`.
 
+## Text colour — the rule every module follows
+
+**Text runs to pure black on light and pure white on dark.** `--text-1` is
+`#000000` / `#ffffff`; secondary and muted are steps down a *dark* ramp, not a
+fade to grey.
+
+| | `--text-1` | `--text-2` | `--text-3` |
+|---|---|---|---|
+| Light | `#000000` | `#2b3038` | `#5c6270` |
+| Dark | `#ffffff` | `#d6dae1` | `#a9afba` |
+| Contrast on white | 21.0 : 1 | 13.3 : 1 | 6.1 : 1 |
+
+**Three steps, all readable.** The steps exist because a table where the value
+and its caption weigh the same is harder to scan — but every step must be
+legible on its own. An earlier palette started secondary at `#57686d` and muted
+at `#718184` (and, worse, dropped to `#98a3a8`/`#5e6a70` on dark) which read as
+washed out and sent people hunting for the value. If a new token is ever added,
+it sits on this ramp or it does not ship.
+
+**Applies to every module, existing and future.** Use `text-text-1/2/3` — never
+a hardcoded hex, never a Tailwind palette grey (`text-gray-500` and friends
+bypass the themes and will be wrong in one of them).
+
+**Table headers are `font-bold text-text-1`**, uppercase with
+`tracking-[0.04em]`. Not `font-semibold`, not muted — a column header is a
+label for everything beneath it and has to survive being scanned past. The
+`Th` in `src/components/ui/data-table.tsx` already does this; match it in any
+hand-rolled table. (Form field labels and section captions are a different
+thing and stay on `text-text-2`/`text-text-3`.)
+
 ## Color tokens
 
 The dark palette below is exact hex/rgba from the mockup — not
@@ -39,9 +69,9 @@ both themes.
 | `--surface-3` | `#191f24` | Avatar background, dropdown item hover |
 | `--border` | `rgba(255,255,255,.07)` | Default hairline border |
 | `--border-strong` | `rgba(255,255,255,.13)` | Emphasized border (dropdowns, focus) |
-| `--text-1` | `#eef1f2` | Primary text |
-| `--text-2` | `#98a3a8` | Secondary text |
-| `--text-3` | `#5e6a70` | Muted / tertiary text, placeholders |
+| `--text-1` | `#ffffff` | Primary text |
+| `--text-2` | `#d6dae1` | Secondary text |
+| `--text-3` | `#a9afba` | Muted / tertiary text, placeholders |
 | `--chip` | `rgba(255,255,255,.05)` | Neutral badge/chip fill (e.g. "no status") |
 | `--chip-strong` | `rgba(255,255,255,.12)` | Neutral hover fill, low-priority bar |
 | `--accent-text` | `#5eead4` | Accent text/links on the page background |
@@ -80,9 +110,9 @@ all but disappear on white.
 | `--surface-3` | `#e4e9e9` | Avatar background, dropdown item hover |
 | `--border` | `rgba(15,23,23,.08)` | Default hairline border |
 | `--border-strong` | `rgba(15,23,23,.14)` | Emphasized border (dropdowns, focus) |
-| `--text-1` | `#10171a` | Primary text |
-| `--text-2` | `#57686d` | Secondary text |
-| `--text-3` | `#718184` | Muted / tertiary text, placeholders |
+| `--text-1` | `#000000` | Primary text |
+| `--text-2` | `#2b3038` | Secondary text |
+| `--text-3` | `#5c6270` | Muted / tertiary text, placeholders |
 | `--chip` | `rgba(15,23,23,.045)` | Neutral badge/chip fill |
 | `--chip-strong` | `rgba(15,23,23,.09)` | Neutral hover fill, low-priority bar |
 | `--accent-text` | `#0f766e` | Accent text/links on the page background |

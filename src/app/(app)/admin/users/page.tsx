@@ -35,16 +35,16 @@ export default async function UsersAdminPage() {
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
                     Name
                   </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
                     Email
                   </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
                     Status
                   </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3">
+                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
                     Joined
                   </th>
                   <th className="w-10 border-b border-border px-3.5 pb-2.5 pt-3.5" />

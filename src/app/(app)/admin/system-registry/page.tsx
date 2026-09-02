@@ -3,7 +3,7 @@ import { getSystemIcon } from "@/lib/system-icons";
 import { SystemEditDialog } from "./system-edit-dialog";
 
 const TH =
-  "border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3";
+  "border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1";
 const TD = "border-b border-border px-3.5 py-3";
 
 export default async function SystemRegistryPage() {

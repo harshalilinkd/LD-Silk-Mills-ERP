@@ -106,9 +106,15 @@
   --surface-3: #e4e9e9;
   --border: rgba(15, 23, 23, 0.08);
   --border-strong: rgba(15, 23, 23, 0.14);
-  --text-1: #10171a;
-  --text-2: #57686d;
-  --text-3: #718184;
+  /* Text runs to PURE BLACK on light and pure white on dark — docs/SCREENS.md
+     §0.2. The three steps are deliberate: a table where the value and its
+     caption weigh the same is harder to scan. But they are three steps of a
+     dark ramp, not a fade to grey — an earlier palette started at #10171a and
+     dropped to #718184, which read as washed out and sent people hunting for
+     the value. Contrast on white: 21.0 / 13.3 / 6.1. */
+  --text-1: #000000;
+  --text-2: #2b3038;
+  --text-3: #5c6270;
   --chip: rgba(15, 23, 23, 0.045);
   --chip-strong: rgba(15, 23, 23, 0.09);
 
@@ -176,9 +182,12 @@
   --surface-3: #191f24;
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.13);
-  --text-1: #eef1f2;
-  --text-2: #98a3a8;
-  --text-3: #5e6a70;
+  /* Dark mirrors the light ramp toward white (docs/SCREENS.md §0.2). The old
+     values (#eef1f2 / #98a3a8 / #5e6a70) fell away much faster than the light
+     side did, so secondary and muted text read as disabled on this ground. */
+  --text-1: #ffffff;
+  --text-2: #d6dae1;
+  --text-3: #a9afba;
   --chip: rgba(255, 255, 255, 0.05);
   --chip-strong: rgba(255, 255, 255, 0.12);
 
