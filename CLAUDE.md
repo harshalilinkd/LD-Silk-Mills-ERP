@@ -117,11 +117,27 @@ you're inside that section). Toggling a system's `status`/`route`/
   NOT built — that's deferred to the Settings hub below; the API routes for
   it exist (`/api/crm/rating-criteria`, `/api/crm/settings`) but have no UI
   yet.
-- **Not built yet** (all present only as honest "coming soon" pages, per an
-  explicit scope decision — do not silently build these without checking
-  scope first): Operations/Tracking board (`/order-entry/tracking`), the
-  consolidated Settings hub (`/order-entry/settings/*` — Dropdown Master,
-  Design Database, Time tracking, Users, Access, Trash, CRM config).
+- **Operations tracking** (`/order-entry/tracking`): the index plus the
+  per-order 7-stage board (`/tracking/[id]`), backed by
+  `POST /api/order-entry/tracking/stage` and
+  `GET /api/order-entry/orders/[id]/tracking`. Stage gating (order entry →
+  stock checking → the five post-stock stages, which unlock only on
+  `in_stock`) is enforced server-side by `applyStageProgress` in
+  `src/lib/order-entry/workflow.ts` and mirrored in the board's UI. Untick
+  and stock-downgrade never cascade-undo later work — both warn and leave
+  it done.
+- **Settings** (`/order-entry/settings/*`): Dropdown Master, Design
+  Database, Time tracking, Users, Access, Trash — all real, ADMIN-only,
+  backed by routes under `src/app/api/order-entry/` (lookups `[id]`/`bulk`,
+  `design-database/*`, `stages/*`, `users/*`, `access`, `trash`,
+  `orders/[id]/lines/[lineId]`). Note `design-database/` (admin CRUD) is a
+  different endpoint from `designs/` (order-form autocomplete) — don't
+  conflate them. User passwords use `bcryptjs` at cost 10, matching the
+  Order Entry app they're shared with.
+- **Not built yet**: the CRM settings tab (`/order-entry/settings/crm` —
+  rating-criteria CRUD and the `crm_settings` editor). Its API routes
+  exist; only the UI is deferred. Do not silently build it without
+  checking scope.
 - **Help Slip**: still a plain external link (opens its own app in a new
   tab) — no integration work done.
 
