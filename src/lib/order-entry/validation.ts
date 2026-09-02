@@ -15,6 +15,7 @@ import {
   RATING_SOURCES,
   REORDER_INTENTS,
 } from "./crm";
+import { STAGE_KEYS } from "./workflow";
 
 const optionalText = z
   .string()
@@ -229,6 +230,22 @@ export const crmSettingsUpdateSchema = z
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" });
 export type CrmSettingsUpdateInput = z.infer<typeof crmSettingsUpdateSchema>;
+
+// ---- Operations tracking ----
+
+// PATCH /api/order-entry/tracking/stage — tick/untick ONE stage on ONE line
+// item. Ported verbatim from Order Entry's lib/validation.ts.
+export const stageToggleSchema = z.object({
+  line_item_id: z.string().uuid("line_item_id must be a UUID"),
+  stage_key: z.enum(STAGE_KEYS),
+  checked: z.boolean(),
+  // Only for stage_key === "stock_checking": the chosen stock outcome.
+  stock_status: z.enum(["in_stock", "out_of_stock"]).nullable().optional(),
+  planned: z.string().datetime({ offset: true }).optional().nullable(),
+  actual: z.string().datetime({ offset: true }).optional().nullable(),
+});
+
+export type StageTogglePayload = z.infer<typeof stageToggleSchema>;
 
 export function firstZodError(error: z.ZodError): string {
   const issue = error.issues[0];
