@@ -1,3 +1,4 @@
+import { sql as drizzleSql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { sql as rawSql } from "@/db";
@@ -79,21 +80,35 @@ export async function withHelpSlip<T>(
     throw new Error("withHelpSlip: profileId must be a UUID");
   }
 
-  return rawSql.begin(async (tx) => {
+  // Drizzle owns the transaction, not postgres.js. Handing a raw postgres.js
+  // transaction to drizzle() does not work — that object is a bare tagged
+  // template with no `.options`, which drizzle's postgres-js driver writes
+  // its date parsers onto, so it throws on the first query. Going through
+  // drizzle's own `.transaction()` yields a `tx` that is already a drizzle
+  // instance bound to one pinned connection, which is exactly what is needed
+  // here and needs no cast.
+  return helpSlipDb.transaction(async (tx) => {
     // `authenticated` is the role Help Slip's policies are granted TO, and
-    // unlike `postgres` it does not bypass RLS.
-    await tx.unsafe("SET LOCAL ROLE authenticated");
+    // unlike `postgres` it does not bypass RLS. No parameter is possible in
+    // SET ROLE, hence a static statement — `profileId` is nowhere near it.
+    await tx.execute(drizzleSql`set local role authenticated`);
     // What Supabase's auth.uid() reads. Bound as a parameter, and `true`
-    // makes it local to this transaction.
-    await tx`select set_config('request.jwt.claims', ${JSON.stringify({
-      sub: profileId,
-      role: "authenticated",
-    })}, true)`;
+    // scopes it to this transaction.
+    await tx.execute(
+      drizzleSql`select set_config('request.jwt.claims', ${JSON.stringify({
+        sub: profileId,
+        role: "authenticated",
+      })}, true)`,
+    );
 
-    const db = drizzle(tx as never, { schema: helpSlipSchema });
-    return fn(db);
-  }) as T;
+    return fn(tx);
+  });
 }
+
+// One instance over the shared pool. Creating it per call would re-run
+// drizzle's driver setup on every request for no benefit; the RLS context is
+// established per transaction, not per instance.
+const helpSlipDb: HelpSlipDb = drizzle(rawSql, { schema: helpSlipSchema });
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
