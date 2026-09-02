@@ -13,7 +13,12 @@ export default auth((req) => {
   const { nextUrl } = req;
   const isPublic =
     PUBLIC_PATHS.includes(nextUrl.pathname) ||
-    nextUrl.pathname.startsWith("/api/auth");
+    nextUrl.pathname.startsWith("/api/auth") ||
+    // The machine-to-machine order feed. It authenticates on its own with a
+    // static `x-api-key` (see src/app/api/export/orders/route.ts) and has no
+    // session — left in this gate it would 307 SCOT and the Embroidery System
+    // to /login and hand them HTML where they expect JSON.
+    nextUrl.pathname.startsWith("/api/export");
 
   if (isPublic) return;
 

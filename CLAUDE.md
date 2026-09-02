@@ -159,6 +159,38 @@ you're inside that section). Toggling a system's `status`/`route`/
   settings tab, the Tracking view (§4B — the default view of Orders, behind
   a `ViewSwitch`), and the five-stage draggable call panel (§7.2).
 
+## Outbound integration — the order feed (`/api/export/orders`)
+Two external systems pull orders from us. **We are the source; we never call
+them.** `docs/SCOT-INTEGRATION.md` is the handover note given to the SCOT team
+and is the contract of record.
+
+| Env key | Consumer | Gets `rate`/`line_total`? |
+|---|---|---|
+| `EXPORT_API_KEY` | **Embroidery System** — called **"Knot"** in conversation | **No** |
+| `EXPORT_API_KEY_SCOT` | **SCOT** (sales-coordinator dashboard) | **Yes** |
+
+- Auth is a static `x-api-key`, compared in **constant time with no early
+  exit**. The route sits **outside** the session middleware (`src/middleware.ts`
+  excludes `/api/export`) — leave it there, or consumers get a 307 to `/login`
+  and HTML where they expect JSON.
+- Pricing is gated **per consumer**, not globally. SCOT asked for revenue;
+  Embroidery never did. Don't widen it.
+- `party_name` goes out **verbatim** — never trim, case-fold or "clean" it.
+  SCOT resolves it against its own alias table, so a tidied name arrives as a
+  brand-new unknown customer.
+- Cancelled and soft-deleted lines are **emitted flagged, never hidden**, so
+  consumers can remove them their side. The cancel/delete routes bump the
+  order's `updated_at` so the next incremental pull re-emits it.
+- `updated_since` is **inclusive** and ordering is `(updated_at, id)` —
+  consumers dedupe on the stable ids.
+- **Production must use the SAME key values as the standalone app**, so
+  consumers change only the hostname at cutover. `.env.local` here holds
+  throwaway dev keys, not the real ones.
+- Both apps serve this feed off the same `ld_order_entry` data today, so
+  nothing breaks until the old deployment is retired.
+- Not ported: `lib/crr-match.ts` and the one-off CRR linking scripts. The
+  `crr_customer_id` values already in the database are what the feed emits.
+
 ## Module conventions (post-SCREENS.md rebuild)
 - The module's list screens are **client components on TanStack Query** with
   live debounced search and `placeholderData: (prev) => prev`. The shell's
