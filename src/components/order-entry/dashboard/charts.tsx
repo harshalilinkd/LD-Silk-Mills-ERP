@@ -90,7 +90,7 @@ function ChartTooltip({
           {labelMap ? labelMap(label) : label}
         </div>
       ) : null}
-      <div className="font-mono text-text-2">
+      <div className="num text-text-2">
         {prefix ?? ""}
         {Number.isFinite(v) ? formatNumber(v) : "—"}
       </div>
@@ -224,7 +224,7 @@ export function StatusDonut({
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-mono text-[24px] leading-none font-bold tracking-[-0.02em] text-text-1">
+          <span className="num text-[24px] leading-none font-bold tracking-[-0.02em] text-text-1">
             {formatCount(total)}
           </span>
           <span className="mt-1 text-[11px] text-text-3">orders</span>
@@ -238,7 +238,7 @@ export function StatusDonut({
               style={{ background: i.color }}
             />
             <span className="text-text-3">{i.name}</span>
-            <span className="font-mono font-semibold text-text-1">{i.value}</span>
+            <span className="num font-semibold text-text-1">{i.value}</span>
           </span>
         ))}
       </div>

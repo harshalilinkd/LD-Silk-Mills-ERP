@@ -57,7 +57,7 @@ export function OnTimeGauge({
           />
         </svg>
         <div className="absolute inset-x-0 bottom-2 flex flex-col items-center">
-          <span className="font-mono text-[28px] leading-none font-bold tracking-[-0.02em] text-text-1">
+          <span className="num text-[28px] leading-none font-bold tracking-[-0.02em] text-text-1">
             {done === 0 ? "—" : `${pct}%`}
           </span>
           <span className="mt-1 text-[11px] text-text-3">on time</span>
@@ -67,14 +67,14 @@ export function OnTimeGauge({
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-status-green" />
           <span className="text-text-3">On time</span>
-          <span className="font-mono font-semibold text-text-1">
+          <span className="num font-semibold text-text-1">
             {formatCount(onTime)}
           </span>
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-status-red" />
           <span className="text-text-3">Late</span>
-          <span className="font-mono font-semibold text-text-1">
+          <span className="num font-semibold text-text-1">
             {formatCount(late)}
           </span>
         </span>

@@ -21,7 +21,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   CHECKBOX_CLS,
-  ConfirmDialog,
   EmptyRow,
   ErrorBanner,
   INPUT_CLS,
@@ -55,10 +54,6 @@ const CATEGORIES = [
 // customer master. The other categories are not customers and never link.
 const CRR_LINKED = new Set<string>(["PARTY", "HASTE"]);
 
-type Confirm =
-  | { kind: "one"; id: string; label: string }
-  | { kind: "bulk"; ids: string[] };
-
 export function DropdownMaster() {
   const [category, setCategory] = useState<string>("PARTY");
   const [rows, setRows] = useState<LookupRow[]>([]);
@@ -74,7 +69,12 @@ export function DropdownMaster() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  // Edit and delete are both ROW STATES, not dialogs (§6.1): `editId` swaps
+  // the label for an input, `confirmId` swaps the whole row for
+  // Delete "X" permanently? + Delete/Cancel, and the bulk bar becomes its own
+  // confirmation rather than opening one.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkText, setBulkText] = useState("");
 
   const categoryLabel =
@@ -104,7 +104,8 @@ export function DropdownMaster() {
     setSearch("");
     setEditId(null);
     setSelected(new Set());
-    setConfirm(null);
+    setConfirmId(null);
+    setBulkConfirm(false);
     setError(null);
     setNotice(null);
   }
@@ -144,6 +145,9 @@ export function DropdownMaster() {
   const allVisibleSelected = visible.length > 0 && selectedCount === visible.length;
 
   function toggleOne(id: string) {
+    // Any change to the selection retracts the bulk confirm — otherwise the
+    // bar would still read "Delete 3 permanently?" over a different three.
+    setBulkConfirm(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -153,6 +157,7 @@ export function DropdownMaster() {
   }
 
   function toggleAllVisible() {
+    setBulkConfirm(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) visible.forEach((r) => next.delete(r.id));
@@ -216,30 +221,30 @@ export function DropdownMaster() {
     });
   }
 
-  async function runConfirm() {
-    if (!confirm) return;
-    if (confirm.kind === "one") {
-      const ok = await run(
-        () =>
-          apiJson(`/api/order-entry/lookups/${confirm.id}?hard=1`, {
-            method: "DELETE",
-          }),
-        `Deleted “${confirm.label}” permanently.`,
-      );
-      if (ok) setConfirm(null);
-      return;
-    }
-    const n = confirm.ids.length;
+  // Permanent deletion always takes the confirm step; the X button beside it
+  // is only a deactivate (§6.1: deactivate ≠ delete).
+  async function hardDelete(r: LookupRow) {
+    const ok = await run(
+      () =>
+        apiJson(`/api/order-entry/lookups/${r.id}?hard=1`, { method: "DELETE" }),
+      `Deleted “${r.value}” permanently.`,
+    );
+    if (ok) setConfirmId(null);
+  }
+
+  async function bulkHardDelete() {
+    const ids = visibleSelectedIds;
+    if (ids.length === 0) return;
     const ok = await run(
       () =>
         apiJson("/api/order-entry/lookups/bulk", {
           method: "DELETE",
-          body: { ids: confirm.ids, hard: true },
+          body: { ids, hard: true },
         }),
-      `${n} value${n === 1 ? "" : "s"} deleted permanently.`,
+      `${ids.length} value${ids.length === 1 ? "" : "s"} deleted permanently.`,
     );
     if (ok) {
-      setConfirm(null);
+      setBulkConfirm(false);
       setSelected(new Set());
     }
   }
@@ -276,7 +281,7 @@ export function DropdownMaster() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
+    <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
       <Panel
         title="Dropdown Master"
         description="The values that fill the order form's autocomplete lists."
@@ -358,24 +363,50 @@ export function DropdownMaster() {
               {selectedCount > 0 ? `${selectedCount} selected` : "Select all"}
             </label>
             {selectedCount > 0 && (
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  title="Deactivate selected (hide from dropdowns)"
-                  onClick={bulkDeactivate}
-                >
-                  Deactivate
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={busy}
-                  onClick={() => setConfirm({ kind: "bulk", ids: visibleSelectedIds })}
-                >
-                  <IconTrash /> Delete
-                </Button>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {bulkConfirm ? (
+                  // The bar IS the confirmation — no dialog (§6.1).
+                  <>
+                    <span className="text-status-red">
+                      Delete {selectedCount} permanently?
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy}
+                      onClick={() => void bulkHardDelete()}
+                    >
+                      {busy ? "Deleting…" : "Delete"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setBulkConfirm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      title="Deactivate selected (hide from dropdowns)"
+                      onClick={bulkDeactivate}
+                    >
+                      Deactivate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy}
+                      onClick={() => setBulkConfirm(true)}
+                    >
+                      <IconTrash /> Delete
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -440,6 +471,27 @@ export function DropdownMaster() {
                         <IconX />
                       </Button>
                     </>
+                  ) : confirmId === r.id ? (
+                    <>
+                      <span className="flex-1 truncate text-status-red">
+                        Delete “{r.value}” permanently?
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={busy}
+                        onClick={() => void hardDelete(r)}
+                      >
+                        {busy ? "Deleting…" : "Delete"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </>
                   ) : (
                     <>
                       <span
@@ -474,6 +526,7 @@ export function DropdownMaster() {
                         disabled={busy}
                         onClick={() => {
                           setEditId(r.id);
+                          setConfirmId(null);
                           setEditValue(r.value);
                         }}
                       >
@@ -509,9 +562,10 @@ export function DropdownMaster() {
                         title="Delete permanently"
                         className="text-status-red hover:bg-status-red-dim hover:text-status-red"
                         disabled={busy}
-                        onClick={() =>
-                          setConfirm({ kind: "one", id: r.id, label: r.value })
-                        }
+                        onClick={() => {
+                          setConfirmId(r.id);
+                          setEditId(null);
+                        }}
                       >
                         <IconTrash />
                       </Button>
@@ -548,39 +602,6 @@ export function DropdownMaster() {
           {busy ? "Working…" : "Import values"}
         </Button>
       </Panel>
-
-      <ConfirmDialog
-        open={confirm !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirm(null);
-        }}
-        busy={busy}
-        busyLabel="Deleting…"
-        title="Delete permanently?"
-        description={
-          confirm?.kind === "one" ? (
-            <>
-              Permanently delete{" "}
-              <span className="font-semibold text-text-1">
-                “{confirm.label}”
-              </span>{" "}
-              from {categoryLabel}? Existing orders keep the text they were
-              saved with, but the value disappears from the dropdown for good.
-            </>
-          ) : (
-            <>
-              Permanently delete{" "}
-              <span className="font-semibold text-text-1">
-                {confirm?.kind === "bulk" ? confirm.ids.length : 0} value
-                {confirm?.kind === "bulk" && confirm.ids.length === 1 ? "" : "s"}
-              </span>{" "}
-              from {categoryLabel}? This cannot be undone — use Deactivate if you
-              only want them hidden.
-            </>
-          )
-        }
-        onConfirm={() => void runConfirm()}
-      />
     </div>
   );
 }

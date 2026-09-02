@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { resolveOrderEntryAuthz } from "@/lib/order-entry/authz";
 import { SettingsTabs } from "@/components/order-entry/settings-tabs";
+import { Reveal } from "@/components/ui/reveal";
 
 // Consolidated admin area for both Order Entry and CRM config — ADMIN only
 // (same rule as Order Entry's own Settings: non-admins never see this, no
@@ -31,8 +32,13 @@ export default async function OrderEntrySettingsLayout({
           Admin configuration for Order Entry and CRM.
         </p>
       </div>
-      <SettingsTabs />
-      {children}
+      {/* §6: the strip is Reveal index 0, the panel index 1 — the tabs land
+          first and the panel follows, so the page reads as arriving in order
+          rather than all at once. */}
+      <Reveal index={0}>
+        <SettingsTabs />
+      </Reveal>
+      <Reveal index={1}>{children}</Reveal>
     </div>
   );
 }

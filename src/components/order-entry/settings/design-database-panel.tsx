@@ -9,16 +9,15 @@ import { useCallback, useEffect, useState } from "react";
 import { IconDatabaseOff, IconSearch, IconTrash } from "@tabler/icons-react";
 import { formatDateTime } from "@/lib/order-entry/orders";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/ui/pager";
 import {
   CHECKBOX_CLS,
-  ConfirmDialog,
   EmptyRow,
   ErrorBanner,
   INPUT_CLS,
   LoadingRow,
   NoticeBanner,
   PANEL_CLS,
-  Pager,
   TD_CLS,
   TH_CLS,
   apiJson,
@@ -41,10 +40,6 @@ type DesignList = {
   total_pages: number;
 };
 
-type Confirm =
-  | { kind: "one"; id: string; label: string }
-  | { kind: "bulk"; ids: string[] };
-
 export function DesignDatabasePanel() {
   // `searchInput`/`fabricInput` are what's typed; `search`/`fabric` are what's
   // actually queried (only on submit), so typing never re-fetches.
@@ -60,10 +55,17 @@ export function DesignDatabasePanel() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  // Two-step confirms live in the row and in the bulk bar itself — no dialog
+  // (§6.1's rule, applied here too). Deletion is permanent: this table is a
+  // log, not a lifecycle, so removing a row only removes a suggestion.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    // A re-fetch invalidates any pending row confirm: the row it pointed at
+    // may not even be on this page any more.
+    setConfirmId(null);
     const qs = new URLSearchParams();
     if (search) qs.set("search", search);
     if (fabric) qs.set("fabric", fabric);
@@ -95,6 +97,9 @@ export function DesignDatabasePanel() {
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   function toggle(id: string) {
+    // Any change to the selection retracts the bulk confirm — otherwise the
+    // bar would still read "Delete permanently?" over a different selection.
+    setConfirmBulk(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -104,6 +109,7 @@ export function DesignDatabasePanel() {
   }
 
   function toggleAll() {
+    setConfirmBulk(false);
     setSelected((prev) => {
       const next = new Set(prev);
       if (allOnPageSelected) rows.forEach((r) => next.delete(r.id));
@@ -119,46 +125,47 @@ export function DesignDatabasePanel() {
     setFabric(fabricInput.trim());
   }
 
-  async function runConfirm() {
-    if (!confirm) return;
+  async function deleteRow(r: DesignRow) {
     setBusy(true);
     setError(null);
     setNotice(null);
-
-    if (confirm.kind === "one") {
-      const res = await apiJson(
-        `/api/order-entry/design-database/${confirm.id}`,
-        { method: "DELETE" },
-      );
-      setBusy(false);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      setConfirm(null);
-      setNotice(`Deleted ${confirm.label}.`);
-      // Stepping back a page when the last row of a page goes away keeps the
-      // list from showing an empty final page.
-      if (rows.length === 1 && page > 1) setPage(page - 1);
-      else await load();
+    const res = await apiJson(`/api/order-entry/design-database/${r.id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
       return;
     }
+    setConfirmId(null);
+    setNotice(`Deleted ${r.fabric_name} · ${r.design_no}.`);
+    // Stepping back a page when the last row of a page goes away keeps the
+    // list from showing an empty final page.
+    if (rows.length === 1 && page > 1) setPage(page - 1);
+    else await load();
+  }
 
+  async function deleteSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
     const res = await apiJson<{ deleted: number }>(
       "/api/order-entry/design-database/bulk-delete",
-      { method: "POST", body: { ids: confirm.ids } },
+      { method: "POST", body: { ids } },
     );
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setConfirm(null);
+    setConfirmBulk(false);
     setSelected(new Set());
     setNotice(
       `Deleted ${res.data.deleted} design${res.data.deleted === 1 ? "" : "s"}.`,
     );
-    if (rows.length === confirm.ids.length && page > 1) setPage(page - 1);
+    if (rows.length === ids.length && page > 1) setPage(page - 1);
     else await load();
   }
 
@@ -219,19 +226,45 @@ export function DesignDatabasePanel() {
           <span className="font-semibold text-text-1">
             {selected.size} selected
           </span>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={busy}
-              onClick={() => setConfirm({ kind: "bulk", ids: [...selected] })}
-            >
-              <IconTrash /> Delete selected
-            </Button>
-          </div>
+          {confirmBulk ? (
+            // The bar becomes the confirmation — no dialog.
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-status-red">Delete permanently?</span>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void deleteSelected()}
+              >
+                {busy ? "Deleting…" : `Delete ${selected.size}`}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirmBulk(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => setConfirmBulk(true)}
+              >
+                <IconTrash /> Delete selected
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -290,32 +323,49 @@ export function DesignDatabasePanel() {
                             onChange={() => toggle(r.id)}
                           />
                         </td>
-                        <td className={cn(TD_CLS, "font-mono whitespace-nowrap")}>
+                        <td className={cn(TD_CLS, "num whitespace-nowrap")}>
                           {formatDateTime(r.created_at)}
                         </td>
-                        <td className={cn(TD_CLS, "font-mono font-semibold text-accent-text")}>
+                        <td className={cn(TD_CLS, "num font-semibold text-accent-text")}>
                           {r.order_no}
                         </td>
                         <td className={cn(TD_CLS, "text-text-1")}>{r.fabric_name}</td>
-                        <td className={cn(TD_CLS, "font-mono")}>{r.design_no}</td>
+                        <td className={cn(TD_CLS, "num")}>{r.design_no}</td>
                         <td className={cn(TD_CLS, "text-right")}>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label="Delete design row"
-                            title="Delete this log row"
-                            className="text-status-red hover:bg-status-red-dim hover:text-status-red"
-                            disabled={busy}
-                            onClick={() =>
-                              setConfirm({
-                                kind: "one",
-                                id: r.id,
-                                label: `${r.fabric_name} · ${r.design_no}`,
-                              })
-                            }
-                          >
-                            <IconTrash />
-                          </Button>
+                          {confirmId === r.id ? (
+                            <div className="flex flex-wrap items-center justify-end gap-1.5">
+                              <span className="text-[12px] whitespace-nowrap text-status-red">
+                                Delete permanently?
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={busy}
+                                onClick={() => void deleteRow(r)}
+                              >
+                                {busy ? "Deleting…" : "Delete"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setConfirmId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              aria-label="Delete design row"
+                              title="Delete this log row"
+                              className="text-status-red hover:bg-status-red-dim hover:text-status-red"
+                              disabled={busy}
+                              onClick={() => setConfirmId(r.id)}
+                            >
+                              <IconTrash />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -324,47 +374,24 @@ export function DesignDatabasePanel() {
               </table>
             </div>
             {data && (
-              <Pager
-                page={data.page}
-                totalPages={data.total_pages}
-                total={data.total}
-                busy={loading || busy}
-                onPage={setPage}
-              />
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3.5 py-3">
+                <p className="text-[12px] text-text-3">
+                  <span className="num">{data.total}</span> design
+                  {data.total === 1 ? "" : "s"} logged
+                </p>
+                {data.total_pages > 1 && (
+                  <Pager
+                    page={data.page}
+                    totalPages={data.total_pages}
+                    disabled={loading || busy}
+                    onPageChange={setPage}
+                  />
+                )}
+              </div>
             )}
           </>
         )}
       </div>
-
-      <ConfirmDialog
-        open={confirm !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirm(null);
-        }}
-        busy={busy}
-        busyLabel="Deleting…"
-        title="Delete from the design log?"
-        description={
-          confirm?.kind === "one" ? (
-            <>
-              Permanently remove{" "}
-              <span className="font-semibold text-text-1">{confirm.label}</span>{" "}
-              from the design log? The order itself is untouched — only the
-              autocomplete entry goes away.
-            </>
-          ) : (
-            <>
-              Permanently remove{" "}
-              <span className="font-semibold text-text-1">
-                {confirm?.kind === "bulk" ? confirm.ids.length : 0} log row
-                {confirm?.kind === "bulk" && confirm.ids.length === 1 ? "" : "s"}
-              </span>
-              ? The orders themselves are untouched. This cannot be undone.
-            </>
-          )
-        }
-        onConfirm={() => void runConfirm()}
-      />
     </div>
   );
 }

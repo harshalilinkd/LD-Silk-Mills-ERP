@@ -249,45 +249,6 @@ export function ConfirmDialog({
   );
 }
 
-/** Prev / Next pager matching the order-status + tracking list pagers. */
-export function Pager({
-  page,
-  totalPages,
-  total,
-  busy,
-  onPage,
-}: {
-  page: number;
-  totalPages: number;
-  total: number;
-  busy?: boolean;
-  onPage: (page: number) => void;
-}) {
-  const btn =
-    "rounded-md border border-border px-2.5 py-1 text-[12px] font-medium text-text-2 hover:bg-surface-2 hover:text-text-1 disabled:cursor-not-allowed disabled:text-text-3 disabled:opacity-40 disabled:hover:bg-transparent";
-  return (
-    <div className="flex items-center justify-between border-t border-border px-3.5 py-3">
-      <p className="text-[12px] text-text-3">
-        Page {page} of {totalPages} · {total} total
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={btn}
-          disabled={busy || page <= 1}
-          onClick={() => onPage(page - 1)}
-        >
-          Prev
-        </button>
-        <button
-          type="button"
-          className={btn}
-          disabled={busy || page >= totalPages}
-          onClick={() => onPage(page + 1)}
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
-}
+// NOTE: there is deliberately no Pager here. §0.4 says not to hand-roll one —
+// Design Database uses the shared `@/components/ui/pager`, the same control
+// (Previous · typed page box · Next) as Orders, Order status and Tracking.

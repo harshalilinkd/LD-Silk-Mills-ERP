@@ -25,6 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { useOrderEntrySession } from "@/lib/order-entry/context";
 import { hasCap } from "@/lib/order-entry/rbac";
+import { STAGE_DOT } from "@/components/order-entry/order-status/status-style";
 import {
   formatDate,
   formatDateTime,
@@ -59,23 +60,11 @@ import { cn } from "@/lib/utils";
 
 const STAGE_ENDPOINT = "/api/order-entry/tracking/stage";
 
-// ── Stage dots (§5.4) ──────────────────────────────────────────────────────
-// The spec names the source app's Tailwind hues — order_entry indigo ·
-// stock_checking blue · rolling_checking amber · challan rose · bill emerald ·
-// dispatch violet · received_lr cyan. Those are literals; this app carries
-// per-theme tokens instead (docs/DESIGN.md), so each is mapped to its nearest
-// one. Our palette has exactly ONE violet token, and indigo and violet both
-// land on it — so dispatch takes it at reduced alpha. The two are five columns
-// apart, which is why that reads as two colours rather than one mistake.
-const STAGE_DOT: Record<string, string> = {
-  order_entry: "bg-status-purple", // indigo  → purple
-  stock_checking: "bg-status-blue", // blue    → blue
-  rolling_checking: "bg-status-amber", // amber   → amber
-  challan: "bg-status-red", // rose    → red
-  bill: "bg-status-green", // emerald → green
-  dispatch: "bg-status-purple/60", // violet  → purple, lightened
-  received_lr: "bg-primary", // cyan    → brand teal
-};
+// Stage dots (§5.4) come from the one exported map so a stage is the same
+// colour here, on the Order status board and on the dashboard pipeline. A
+// second local copy briefly existed and drifted — Order Entry read purple on
+// this screen and blue on the other two, which makes the dot useless as an
+// identity.
 
 // Per-stage status that drives the cell COLOUR (dates move to a hover tip).
 type CellState =

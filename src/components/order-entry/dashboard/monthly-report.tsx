@@ -96,7 +96,7 @@ export function MonthlyReportTable({
                   </>
                 ) : null}
                 {" · "}
-                <span className="font-mono">{formatCount(since.ordersTotal)}</span>{" "}
+                <span className="num">{formatCount(since.ordersTotal)}</span>{" "}
                 orders in total
               </>
             ) : loading ? (
@@ -167,13 +167,13 @@ export function MonthlyReportTable({
                     <td
                       className={cn(
                         TD_CLS,
-                        "text-right font-mono font-semibold",
+                        "text-right num font-semibold",
                         empty ? "text-text-3" : "text-text-1",
                       )}
                     >
                       {formatCount(m.orders)}
                     </td>
-                    <td className={cn(TD_CLS, "text-right font-mono text-text-2")}>
+                    <td className={cn(TD_CLS, "text-right num text-text-2")}>
                       {formatCount(m.designs)}
                       {m.cancelledDesigns ? (
                         <span
@@ -184,16 +184,16 @@ export function MonthlyReportTable({
                         </span>
                       ) : null}
                     </td>
-                    <td className={cn(TD_CLS, "text-right font-mono text-text-2")}>
+                    <td className={cn(TD_CLS, "text-right num text-text-2")}>
                       {formatNumber(m.qtyMtr)}
                     </td>
-                    <td className={cn(TD_CLS, "text-right font-mono text-text-1")}>
+                    <td className={cn(TD_CLS, "text-right num text-text-1")}>
                       ₹{formatNumber(m.value)}
                     </td>
                     <td
                       className={cn(
                         TD_CLS,
-                        "text-right font-mono",
+                        "text-right num",
                         m.completedOrders ? "text-status-green" : "text-text-3",
                       )}
                     >
@@ -202,19 +202,19 @@ export function MonthlyReportTable({
                     <td
                       className={cn(
                         TD_CLS,
-                        "text-right font-mono",
+                        "text-right num",
                         m.partiallyOrders ? "text-status-amber" : "text-text-3",
                       )}
                     >
                       {formatCount(m.partiallyOrders)}
                     </td>
-                    <td className={cn(TD_CLS, "text-right font-mono text-text-3")}>
+                    <td className={cn(TD_CLS, "text-right num text-text-3")}>
                       {formatCount(m.pendingOrders)}
                     </td>
                     <td
                       className={cn(
                         TD_CLS,
-                        "text-right font-mono",
+                        "text-right num",
                         m.cancelledOrders ? "text-status-red" : "text-text-3",
                       )}
                     >
@@ -229,16 +229,16 @@ export function MonthlyReportTable({
                 <td className="px-3.5 py-2.5 text-[11.5px] font-medium text-text-3">
                   All months
                 </td>
-                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-text-1">
+                <td className="px-3.5 py-2.5 text-right num font-bold text-text-1">
                   {formatCount(totals.orders)}
                 </td>
-                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-text-1">
+                <td className="px-3.5 py-2.5 text-right num font-bold text-text-1">
                   {formatCount(totals.designs)}
                 </td>
-                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-text-1">
+                <td className="px-3.5 py-2.5 text-right num font-bold text-text-1">
                   {formatNumber(totals.qtyMtr)}
                 </td>
-                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-text-1">
+                <td className="px-3.5 py-2.5 text-right num font-bold text-text-1">
                   ₹{formatNumber(totals.value)}
                 </td>
                 <td colSpan={4} />

@@ -114,7 +114,7 @@ export function DashboardFilterBar({
           onChange={(e) => e.target.value && apply({ from: e.target.value })}
           className={cn(
             FIELD_CLS,
-            "min-w-0 flex-1 font-mono sm:w-[148px] sm:flex-none",
+            "min-w-0 flex-1 num sm:w-[148px] sm:flex-none",
           )}
         />
         <span className="text-text-3">–</span>
@@ -126,7 +126,7 @@ export function DashboardFilterBar({
           onChange={(e) => e.target.value && apply({ to: e.target.value })}
           className={cn(
             FIELD_CLS,
-            "min-w-0 flex-1 font-mono sm:w-[148px] sm:flex-none",
+            "min-w-0 flex-1 num sm:w-[148px] sm:flex-none",
           )}
         />
       </div>

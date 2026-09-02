@@ -142,7 +142,7 @@ export function TimeTrackingPanel() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
+    <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
       <Panel
         title="Time tracking (SLA)"
         description="Days from the order date each stage is planned for."
@@ -165,7 +165,7 @@ export function TimeTrackingPanel() {
                   key={s.stage_key}
                   className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2"
                 >
-                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent font-mono text-[12px] text-accent-text">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent num text-[12px] text-accent-text">
                     {s.sort_order}
                   </span>
                   <span className="flex-1 truncate text-[13px] font-medium text-text-1">
@@ -177,7 +177,7 @@ export function TimeTrackingPanel() {
                     max={365}
                     step={1}
                     aria-label={`${s.label} planned offset in days`}
-                    className={cn(INPUT_CLS, "w-20 text-center font-mono")}
+                    className={cn(INPUT_CLS, "num h-9 w-20 text-center")}
                     value={draft[s.stage_key] ?? ""}
                     onChange={(e) =>
                       setDraft((m) => ({ ...m, [s.stage_key]: e.target.value }))
@@ -234,7 +234,7 @@ export function TimeTrackingPanel() {
                 className="flex items-center justify-between gap-3 text-[13px]"
               >
                 <span className="truncate text-text-3">{s.label}</span>
-                <span className="shrink-0 font-mono font-medium text-text-1">
+                <span className="num shrink-0 font-medium text-text-1">
                   {valid ? previewDate(off) : "—"}
                 </span>
               </li>

@@ -1,13 +1,20 @@
 "use client";
 
-// Settings → Users. Manages ld_order_entry.users: who has an Order Entry
-// account and at what access level (role). WHAT each role may do is the
-// Access tab. NOTE: this is not the ERP shell's own /admin/users list.
+// Settings → Users — docs/SCREENS.md §6.5. Manages ld_order_entry.users: who
+// has an Order Entry account and at what access level (role). WHAT each role
+// may do is the Access tab. NOTE: this is not the ERP shell's own /admin/users
+// list.
 //
-// The server enforces three self-protection rules (you can't change your own
-// role, deactivate yourself, delete yourself, and the last active admin must
-// remain). Rather than duplicate that logic, this UI surfaces the server's
-// 409 message inline on the row that triggered it — the server is the only
+// Two renderings, ONE set of controls. The desktop table and the mobile
+// stacked cards both call `nameEditor()`, `roleSelect()`, `statusToggle()` and
+// `userActions()`, so the phone and the desktop cannot drift into offering
+// different actions — which is exactly what happens when the small screen gets
+// its own hand-written copy of the row.
+//
+// The server enforces the self-protection rules (you can't change your own
+// role, deactivate yourself or delete yourself, and the last active admin must
+// remain). Rather than duplicate that logic, this UI surfaces the server's 409
+// message inline on the row that triggered it — the server is the only
 // authority, so its wording is what the admin sees.
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -18,10 +25,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { ROLES, type Role } from "@/lib/order-entry/rbac";
-import { formatDate } from "@/lib/order-entry/orders";
 import { Button } from "@/components/ui/button";
 import {
-  ConfirmDialog,
   EmptyRow,
   ErrorBanner,
   INPUT_CLS,
@@ -66,13 +71,15 @@ export function UsersManage() {
   const [role, setRole] = useState<Role>("VIEWER");
   const [password, setPassword] = useState("");
 
-  // Per-row modes
+  // Per-row modes. All three are row states, not dialogs (§6.5): renaming is
+  // an inline editor, resetting takes a new password inline, deleting is a
+  // two-step confirm in the same strip of buttons.
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [resetId, setResetId] = useState<string | null>(null);
   const [resetPw, setResetPw] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<UserRow | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,19 +157,109 @@ export function UsersManage() {
     });
     if (!res.ok) {
       setBusy(false);
-      setConfirmDelete(null);
+      setConfirmId(null);
       setRowError({ id: u.id, message: res.error });
       return;
     }
     await load();
     setBusy(false);
-    setConfirmDelete(null);
+    setConfirmId(null);
     setNotice(`Deleted ${u.email}.`);
   }
 
   const canCreate = email.trim().includes("@") && password.length >= 8;
 
-  function renderActions(u: UserRow, isSelf: boolean) {
+  // -------------------------------------------------------------------------
+  // Shared per-user controls. Both renderings below call exactly these.
+  // -------------------------------------------------------------------------
+
+  /** The inline rename editor — name over email. */
+  const nameEditor = () => (
+    <div className="flex max-w-xs flex-col gap-1.5">
+      <input
+        className={cn(INPUT_CLS, "h-8")}
+        value={editName}
+        onChange={(e) => setEditName(e.target.value)}
+        placeholder="Full name"
+        aria-label="Full name"
+      />
+      <input
+        type="email"
+        className={cn(INPUT_CLS, "h-8 font-mono")}
+        value={editEmail}
+        onChange={(e) => setEditEmail(e.target.value)}
+        placeholder="Email"
+        aria-label="Email"
+      />
+    </div>
+  );
+
+  /** Name (or the email's local part) + the accent "you" pill + the email. */
+  const userIdentity = (u: UserRow, isSelf: boolean) => (
+    <>
+      <div className="flex items-center gap-2 font-semibold text-text-1">
+        {u.name || u.email.split("@")[0]}
+        {isSelf && <Pill tone="accent">you</Pill>}
+      </div>
+      <div className="truncate font-mono text-[11.5px] text-text-3">
+        {u.email}
+      </div>
+    </>
+  );
+
+  const roleSelect = (u: UserRow, isSelf: boolean) => (
+    <select
+      className={cn(INPUT_CLS, "h-8 w-[110px]")}
+      value={u.role}
+      disabled={busy || isSelf}
+      aria-label={`Role for ${u.email}`}
+      title={isSelf ? "You can't change your own role" : undefined}
+      onChange={(e) =>
+        void patch(
+          u,
+          { role: e.target.value as Role },
+          `${u.email} is now ${e.target.value}.`,
+        )
+      }
+    >
+      {ROLES.map((r) => (
+        <option key={r} value={r}>
+          {r}
+        </option>
+      ))}
+    </select>
+  );
+
+  const statusToggle = (u: UserRow, isSelf: boolean) => (
+    <button
+      type="button"
+      disabled={busy || isSelf}
+      title={
+        isSelf
+          ? "You can't deactivate your own account"
+          : u.is_active
+            ? "Click to deactivate"
+            : "Click to activate"
+      }
+      onClick={() =>
+        void patch(
+          u,
+          { is_active: !u.is_active },
+          u.is_active ? `${u.email} deactivated.` : `${u.email} activated.`,
+        )
+      }
+      className={cn(
+        "shrink-0 rounded-full px-2.5 py-[3px] text-[10.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        u.is_active
+          ? "bg-status-green-dim text-status-green"
+          : "bg-chip text-text-3",
+      )}
+    >
+      {u.is_active ? "Active" : "Inactive"}
+    </button>
+  );
+
+  const userActions = (u: UserRow, isSelf: boolean) => {
     if (editId === u.id) {
       return (
         <div className="flex items-center justify-end gap-1.5">
@@ -194,13 +291,16 @@ export function UsersManage() {
     if (resetId === u.id) {
       return (
         <div className="flex items-center justify-end gap-1.5">
+          {/* There is no self-serve reset — the login screen's "Forgot
+              password?" points at an admin, and this is that admin. */}
           <input
             type="text"
             value={resetPw}
             autoFocus
             onChange={(e) => setResetPw(e.target.value)}
-            placeholder="New password (8+)"
-            className={cn(INPUT_CLS, "h-8 w-44")}
+            placeholder="New password"
+            aria-label={`New password for ${u.email}`}
+            className={cn(INPUT_CLS, "h-8 w-40")}
           />
           <Button
             size="sm"
@@ -229,6 +329,24 @@ export function UsersManage() {
         </div>
       );
     }
+    if (confirmId === u.id) {
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <span className="text-[12px] text-status-red">Delete user?</span>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void deleteUser(u)}
+          >
+            {busy ? "Deleting…" : "Delete"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>
+            Cancel
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-end gap-0.5">
         <Button
@@ -240,6 +358,7 @@ export function UsersManage() {
           onClick={() => {
             setEditId(u.id);
             setResetId(null);
+            setConfirmId(null);
             setEditName(u.name ?? "");
             setEditEmail(u.email);
           }}
@@ -255,6 +374,7 @@ export function UsersManage() {
           onClick={() => {
             setResetId(u.id);
             setEditId(null);
+            setConfirmId(null);
             setResetPw("");
           }}
         >
@@ -267,16 +387,27 @@ export function UsersManage() {
           title={isSelf ? "You can't delete your own account" : "Delete user"}
           className="text-status-red hover:bg-status-red-dim hover:text-status-red"
           disabled={busy || isSelf}
-          onClick={() => setConfirmDelete(u)}
+          onClick={() => {
+            setConfirmId(u.id);
+            setEditId(null);
+            setResetId(null);
+          }}
         >
           <IconTrash />
         </Button>
       </div>
     );
-  }
+  };
+
+  const rowErrorFor = (u: UserRow) =>
+    rowError?.id === u.id ? (
+      <p className="mt-1.5 text-[11.5px] font-medium text-status-red">
+        {rowError.message}
+      </p>
+    ) : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
+    <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
       <Panel
         title="Users"
         description="Who has an Order Entry account, and at what access level."
@@ -296,121 +427,66 @@ export function UsersManage() {
             description="Add the first account with the form on the right."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className={TH_CLS}>User</th>
-                  <th className={TH_CLS}>Role</th>
-                  <th className={TH_CLS}>Status</th>
-                  <th className={TH_CLS}>Added</th>
-                  <th className={cn(TH_CLS, "text-right")}>Actions</th>
-                </tr>
-              </thead>
-              <tbody className="[&>tr:last-child>td]:border-b-0">
-                {users.map((u) => {
-                  const isSelf = u.id === selfId;
-                  return (
-                    <tr key={u.id} className="align-middle hover:bg-surface-2">
-                      <td className={cn(TD_CLS, "min-w-[220px]")}>
-                        {editId === u.id ? (
-                          <div className="flex max-w-xs flex-col gap-1.5">
-                            <input
-                              className={cn(INPUT_CLS, "h-8")}
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              placeholder="Full name"
-                            />
-                            <input
-                              type="email"
-                              className={cn(INPUT_CLS, "h-8 font-mono")}
-                              value={editEmail}
-                              onChange={(e) => setEditEmail(e.target.value)}
-                              placeholder="Email"
-                            />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2 font-semibold text-text-1">
-                              {u.name || u.email.split("@")[0]}
-                              {isSelf && <Pill tone="accent">you</Pill>}
-                            </div>
-                            <div className="font-mono text-[11.5px] text-text-3">
-                              {u.email}
-                            </div>
-                          </>
-                        )}
-                        {rowError?.id === u.id && (
-                          <p className="mt-1.5 text-[11.5px] font-medium text-status-red">
-                            {rowError.message}
-                          </p>
-                        )}
-                      </td>
-                      <td className={TD_CLS}>
-                        <select
-                          className={cn(INPUT_CLS, "h-8 w-[110px]")}
-                          value={u.role}
-                          disabled={busy || isSelf}
-                          title={
-                            isSelf ? "You can't change your own role" : undefined
-                          }
-                          onChange={(e) =>
-                            void patch(
-                              u,
-                              { role: e.target.value as Role },
-                              `${u.email} is now ${e.target.value}.`,
-                            )
-                          }
-                        >
-                          {ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className={TD_CLS}>
-                        <button
-                          type="button"
-                          disabled={busy || isSelf}
-                          title={
-                            isSelf
-                              ? "You can't deactivate your own account"
-                              : u.is_active
-                                ? "Click to deactivate"
-                                : "Click to activate"
-                          }
-                          onClick={() =>
-                            void patch(
-                              u,
-                              { is_active: !u.is_active },
-                              u.is_active
-                                ? `${u.email} deactivated.`
-                                : `${u.email} activated.`,
-                            )
-                          }
-                          className={cn(
-                            "rounded-full px-2.5 py-[3px] text-[10.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                            u.is_active
-                              ? "bg-status-green-dim text-status-green"
-                              : "bg-chip text-text-3",
-                          )}
-                        >
-                          {u.is_active ? "Active" : "Inactive"}
-                        </button>
-                      </td>
-                      <td className={cn(TD_CLS, "font-mono whitespace-nowrap")}>
-                        {formatDate(u.created_at)}
-                      </td>
-                      <td className={cn(TD_CLS, "text-right")}>
-                        {renderActions(u, isSelf)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Mobile: the same four controls as stacked cards. */}
+            <ul className="flex flex-col gap-2.5 px-[18px] pb-1 md:hidden">
+              {users.map((u) => {
+                const isSelf = u.id === selfId;
+                return (
+                  <li
+                    key={u.id}
+                    className="rounded-field border border-border bg-surface-2 p-3"
+                  >
+                    {editId === u.id ? (
+                      nameEditor()
+                    ) : (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">{userIdentity(u, isSelf)}</div>
+                        {statusToggle(u, isSelf)}
+                      </div>
+                    )}
+                    {rowErrorFor(u)}
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+                      {roleSelect(u, isSelf)}
+                      {userActions(u, isSelf)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: the table. */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[620px] border-collapse text-[13px]">
+                <thead>
+                  <tr>
+                    <th className={TH_CLS}>User</th>
+                    <th className={TH_CLS}>Role</th>
+                    <th className={TH_CLS}>Status</th>
+                    <th className={cn(TH_CLS, "text-right")}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="[&>tr:last-child>td]:border-b-0">
+                  {users.map((u) => {
+                    const isSelf = u.id === selfId;
+                    return (
+                      <tr key={u.id} className="align-middle hover:bg-surface-2">
+                        <td className={cn(TD_CLS, "min-w-[220px]")}>
+                          {editId === u.id ? nameEditor() : userIdentity(u, isSelf)}
+                          {rowErrorFor(u)}
+                        </td>
+                        <td className={TD_CLS}>{roleSelect(u, isSelf)}</td>
+                        <td className={TD_CLS}>{statusToggle(u, isSelf)}</td>
+                        <td className={cn(TD_CLS, "text-right")}>
+                          {userActions(u, isSelf)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         <p className="border-t border-border px-[18px] py-3 text-[11.5px] text-text-3">
@@ -443,7 +519,7 @@ export function UsersManage() {
           </div>
           <div>
             <label className={LABEL_CLS} htmlFor="u-name">
-              Name
+              Full name
             </label>
             <input
               id="u-name"
@@ -487,7 +563,9 @@ export function UsersManage() {
               placeholder="At least 8 characters"
             />
             <p className="mt-1 text-[11.5px] text-text-3">
-              Share it with the user; they can change it later.
+              Share it with the user; they can change it later. Google-only
+              users have no password at all and are never auto-provisioned —
+              Google sign-in is restricted to accounts that already exist here.
             </p>
           </div>
           <ErrorBanner message={createError} />
@@ -496,30 +574,6 @@ export function UsersManage() {
           </Button>
         </form>
       </Panel>
-
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDelete(null);
-        }}
-        busy={busy}
-        busyLabel="Deleting…"
-        confirmLabel="Delete user"
-        title="Delete this account?"
-        description={
-          <>
-            Permanently remove{" "}
-            <span className="font-semibold text-text-1">
-              {confirmDelete?.email}
-            </span>
-            ? They lose access to Order Entry immediately. Deactivating instead
-            keeps the account and its history.
-          </>
-        }
-        onConfirm={() => {
-          if (confirmDelete) void deleteUser(confirmDelete);
-        }}
-      />
     </div>
   );
 }

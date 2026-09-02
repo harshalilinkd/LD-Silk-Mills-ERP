@@ -1,12 +1,8 @@
-import { IconAdjustments } from "@tabler/icons-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { CrmSettingsPanel } from "@/components/order-entry/settings/crm-settings";
 
+// ADMIN-gating lives in ../layout.tsx. The knobs here are read live by
+// loadCrmConfig() on every follow-up read path, so a change lands without a
+// deploy — which is the whole reason this tab exists (SCREENS.md §6.4).
 export default function CrmSettingsPage() {
-  return (
-    <ComingSoon
-      icon={IconAdjustments}
-      title="CRM settings — coming soon"
-      description="Tune transit days, follow-up due days, max attempts, escalation threshold, and rating criteria."
-    />
-  );
+  return <CrmSettingsPanel />;
 }

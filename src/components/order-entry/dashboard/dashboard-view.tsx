@@ -10,7 +10,7 @@
 // awaits loadDashboard() and hands the whole payload down as a prop, so the
 // first paint has real numbers and changing the range is a server navigation,
 // not a client fetch.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -24,13 +24,18 @@ import {
   IconRoute,
   IconRuler2,
   IconTrash,
-  IconTrendingDown,
-  IconTrendingUp,
 } from "@tabler/icons-react";
 
 import type { DashboardData, Department } from "@/lib/order-entry/dashboard";
 import { formatCount, formatDate, formatNumber } from "@/lib/order-entry/orders";
 import { EmptyState } from "@/components/shell/empty-state";
+import { AnimatedNumber } from "@/components/ui/money";
+import { StatCard, type StatTone } from "@/components/ui/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
+// One stage palette for the whole module: the pipeline rows deep-link INTO the
+// order-status board, so the dot beside "Challan" here has to be the dot beside
+// "Challan" there. Importing rather than re-declaring is what keeps that true.
+import { STAGE_DOT } from "@/components/order-entry/order-status/status-style";
 import { DashboardFilterBar } from "./filter-bar";
 import { MonthlyReportTable } from "./monthly-report";
 import { OnTimeGauge } from "./on-time-gauge";
@@ -56,76 +61,81 @@ const StatusDonut = dynamic(() => chartsModule().then((m) => m.StatusDonut), {
 
 /**
  * Percent change against the previous period of the same length (kpis.prev).
- * Ported from the source dashboard's `delta()`: a zero baseline can't produce
- * a percentage, so it reads "new" when something appeared out of nothing and
- * shows no badge at all when both periods are empty.
+ * Ported from the source dashboard's `delta()`: a zero baseline cannot produce
+ * a percentage, so `pct` is null when something appeared out of nothing (the
+ * tile says so in words instead) and the whole thing is undefined when both
+ * periods are empty and there is nothing to compare.
  */
 function delta(
   cur: number,
   prev: number,
-): { dir: "up" | "down"; text: string } | undefined {
-  if (prev === 0) return cur > 0 ? { dir: "up", text: "new" } : undefined;
-  const pct = Math.round(((cur - prev) / prev) * 100);
+): { pct: number | null; note: string } | undefined {
+  if (prev === 0) return cur > 0 ? { pct: null, note: "new this period" } : undefined;
   return {
-    dir: pct >= 0 ? "up" : "down",
-    text: `${pct >= 0 ? "+" : ""}${pct}%`,
+    pct: Math.round(((cur - prev) / prev) * 100),
+    note: "vs previous period",
   };
 }
 
+/**
+ * A KPI tile — SCREENS.md §1.2B.
+ *
+ * The spec is specific about the parts: it is the shared `StatCard` primitive
+ * (§0.4) whose value is an animated NumberFlow count-up at
+ * `maximumFractionDigits: 0`, wrapped in a `Link`, and the LINK is what carries
+ * `hover:-translate-y-0.5` — the lift belongs to the thing that navigates, not
+ * to the card.
+ *
+ * `AnimatedNumber` rather than `Money` for the rupee tile: `Money` pins both
+ * fraction digits at 2, and "₹12,48,300.00" at KPI size is two dead glyphs of
+ * false precision. `AnimatedNumber` takes the prefix and honours §1.2B's
+ * `maximumFractionDigits: 0`. Both come from the same file and both carry
+ * `.num`, so the tabular figures that stop the roll from jittering are intact.
+ *
+ * The trend badge is StatCard's own: our `delta()` compares against the
+ * previous period of the same length (`kpis.prev`), which the spec's tile does
+ * not do at all. The zero-baseline "new" case has no percentage to render, so
+ * it moves to `sub`, which is also where the "vs previous period" caption goes
+ * — otherwise a bare ▲12% never says twelve percent of what.
+ */
 function Kpi({
   icon: Icon,
-  iconClass,
-  value,
+  tone,
   label,
+  value,
+  prefix,
+  suffix,
   href,
   trend,
 }: {
   icon: typeof IconClipboardList;
-  iconClass: string;
-  value: string;
+  tone: StatTone;
   label: string;
-  href?: string;
-  trend?: { dir: "up" | "down"; text: string };
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  /** Every tile deep-links: a figure you cannot open is a dead end (§1.2B). */
+  href: string;
+  trend?: { pct: number | null; note: string };
 }) {
-  const inner = (
-    <div className="h-full rounded-[10px] border border-border bg-surface p-[18px] transition-colors hover:bg-surface-2">
-      <div className="mb-3.5 flex items-start justify-between gap-2">
-        <div
-          className={`flex size-8 items-center justify-center rounded-lg ${iconClass}`}
-        >
-          <Icon className="size-[18px]" />
-        </div>
-        {trend ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold",
-              trend.dir === "up"
-                ? "bg-status-green-dim text-status-green"
-                : "bg-status-red-dim text-status-red",
-            )}
-            title="vs the previous period of the same length"
-          >
-            {trend.dir === "up" ? (
-              <IconTrendingUp className="size-3" />
-            ) : (
-              <IconTrendingDown className="size-3" />
-            )}
-            {trend.text}
-          </span>
-        ) : null}
-      </div>
-      <div className="font-mono text-[22px] font-bold tracking-[-0.02em] text-text-1">
-        {value}
-      </div>
-      <div className="mt-[3px] text-xs text-text-3">{label}</div>
-    </div>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {inner}
+  return (
+    <Link
+      href={href}
+      title="View these orders"
+      className="block rounded-card transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+    >
+      <StatCard
+        className="h-full"
+        icon={<Icon />}
+        tone={tone}
+        label={label}
+        trend={trend?.pct ?? null}
+        sub={trend?.note}
+        value={
+          <AnimatedNumber value={value} prefix={prefix} suffix={suffix} />
+        }
+      />
     </Link>
-  ) : (
-    inner
   );
 }
 
@@ -178,7 +188,7 @@ function MiniFig({
       </div>
       <div
         className={cn(
-          "mt-1.5 font-mono text-[24px] leading-none font-bold tracking-[-0.02em]",
+          "mt-1.5 num text-[24px] leading-none font-bold tracking-[-0.02em]",
           tone === "danger" ? "text-status-red" : "text-text-1",
         )}
       >
@@ -218,7 +228,7 @@ function TopBars({
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <div className="font-mono text-[12.5px] font-semibold text-text-1">
+            <div className="num text-[12.5px] font-semibold text-text-1">
               {r.display}
             </div>
             <div className="text-[10.5px] text-text-3">{r.sub}</div>
@@ -242,6 +252,42 @@ export function DashboardView({
   const { from, to } = data.range;
   const pipelineMax = Math.max(...data.pipeline.map((p) => p.count), 1);
   const pipelineEmpty = data.pipeline.every((p) => p.count === 0);
+
+  // §1.3 — "Needs attention" must break ties DETERMINISTICALLY.
+  //
+  // The query orders overdue stages by `planned_at` ascending and nothing
+  // else, so two stages planned for the same instant come back in whatever
+  // order Postgres happened to emit rows — and the grid below quietly
+  // reshuffles between loads. That is exactly the bug §1.3 says was fixed
+  // once and is worth keeping fixed.
+  //
+  // The fix belongs in the ORDER BY, but src/lib is not ours to edit here, so
+  // it is re-established client-side. Two properties make this a true tie-break
+  // rather than a re-sort:
+  //
+  //  1. `daysOverdue` is a monotone function of `planned_at` (earlier plan =
+  //     more days late), so the server's rows already arrive in descending
+  //     `daysOverdue` order. The first comparator is therefore a no-op on
+  //     well-ordered input.
+  //  2. Array.prototype.sort is stable (ES2019), so the ONLY rows that move
+  //     are those the server left ambiguous — the equal-`daysOverdue` runs,
+  //     which is precisely where the ambiguity lives.
+  //
+  // `orderNo` is TEXT (§0.6.2) — `numeric: true` collates "ORD-9" before
+  // "ORD-10" without ever parsing it as a number.
+  //
+  // What this cannot repair: the query's own LIMIT 10 picks its tenth row
+  // before we see anything, so a tie straddling that boundary can still swap
+  // WHICH card appears. Only an ORDER BY in dashboard-query.ts closes that.
+  const attention = useMemo(
+    () =>
+      [...data.attention].sort(
+        (a, b) =>
+          b.daysOverdue - a.daysOverdue ||
+          a.orderNo.localeCompare(b.orderNo, "en", { numeric: true }),
+      ),
+    [data.attention],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -271,53 +317,62 @@ export function DashboardView({
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi
           icon={IconClipboardList}
-          iconClass="bg-accent text-accent-text"
-          value={formatCount(data.kpis.orders)}
+          tone="accent"
           label="Total orders"
+          value={data.kpis.orders}
           href="/order-entry/orders"
           trend={delta(data.kpis.orders, data.kpis.prev.orders)}
         />
         <Kpi
           icon={IconCurrencyRupee}
-          iconClass="bg-status-blue-dim text-status-blue"
-          value={`₹${formatNumber(data.kpis.value)}`}
+          tone="success"
           label="Order value"
+          value={data.kpis.value}
+          prefix="₹"
           href="/order-entry/orders"
           trend={delta(data.kpis.value, data.kpis.prev.value)}
         />
         <Kpi
           icon={IconRuler2}
-          iconClass="bg-status-purple-dim text-status-purple"
-          value={`${formatNumber(data.kpis.meters)} m`}
+          tone="warning"
           label="Meters"
+          value={data.kpis.meters}
+          suffix=" m"
           href="/order-entry/orders"
           trend={delta(data.kpis.meters, data.kpis.prev.meters)}
         />
         <Kpi
           icon={IconActivity}
-          iconClass="bg-chip text-text-2"
-          value={formatCount(data.kpis.activeOrders)}
+          tone="accent"
           label="Active orders"
+          value={data.kpis.activeOrders}
           href="/order-entry/order-status?overall=in_progress"
         />
         <Kpi
           icon={IconAlertTriangle}
-          iconClass="bg-status-red-dim text-status-red"
-          value={formatCount(data.kpis.overdueStages)}
+          tone="danger"
           label="Overdue stages"
+          value={data.kpis.overdueStages}
           href="/order-entry/order-status?overall=overdue"
         />
         <Kpi
           icon={IconCircleCheck}
-          iconClass="bg-status-green-dim text-status-green"
-          value={`${data.kpis.onTimePct}%`}
-          label="On-time delivery"
+          tone="success"
+          label="On-time %"
+          value={data.kpis.onTimePct}
+          suffix="%"
           href="/order-entry/order-status"
         />
       </div>
 
-      {/* Operations pipeline — where work is sitting right now. Every row
-          deep-links to the order-status board filtered to that stage. */}
+      {/* Operations pipeline — where work is sitting right now (§1.2C).
+          Every row deep-links to the stage it counts. §1.2C names /tracking,
+          but our Operations index (components/order-entry/tracking/
+          tracking-index.tsx) keeps its filters in component state and never
+          reads useSearchParams — a ?stage= there would be a dead link. The
+          order-status board DOES read it (order-status-board.tsx seeds its
+          stage select from params.get("stage")), so that is where the intent
+          "open the list filtered to this stage" actually lands today. */}
       <Panel
         title="Operations pipeline"
         action={
@@ -327,11 +382,7 @@ export function DashboardView({
         }
       >
         {pipelineEmpty ? (
-          <EmptyState
-            icon={IconRoute}
-            title="Nothing in progress"
-            description="No active lines are waiting at any stage in this range."
-          />
+          <EmptyState icon={IconRoute} title="No active lines in the pipeline." />
         ) : (
           <div className="flex flex-col gap-1">
             {data.pipeline.map((p) => (
@@ -339,12 +390,24 @@ export function DashboardView({
                 key={p.stageKey}
                 href={`/order-entry/order-status?stage=${p.stageKey}`}
                 title={`Show orders waiting at ${p.label}`}
-                className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2"
+                className="group -mx-2 flex items-center gap-3 rounded-field px-2 py-1.5 transition-colors hover:bg-surface-2"
               >
-                <span className="w-28 shrink-0 truncate text-[12.5px] text-text-2 group-hover:text-text-1 sm:w-32">
-                  {p.label}
+                {/* The dot is a SECOND signal, never the only one: the seven
+                    stage hues sit close together under colour-blindness, so
+                    §1.2C requires the stage NAME on every row as well. */}
+                <span className="flex w-[104px] shrink-0 items-center gap-1.5 sm:w-[132px]">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2 shrink-0 rounded-full",
+                      STAGE_DOT[p.stageKey] ?? "bg-text-3",
+                    )}
+                  />
+                  <span className="truncate text-[13px] font-medium text-text-2 group-hover:text-text-1">
+                    {p.label}
+                  </span>
                 </span>
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+                <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-chip">
                   <span
                     className="block h-full rounded-full bg-primary transition-[width] duration-500"
                     style={{
@@ -355,7 +418,7 @@ export function DashboardView({
                     }}
                   />
                 </span>
-                <span className="w-8 shrink-0 text-right font-mono text-[12px] font-semibold text-text-1">
+                <span className="num w-8 shrink-0 text-right text-[13px] font-semibold text-text-1">
                   {p.count}
                 </span>
               </Link>
@@ -500,12 +563,15 @@ export function DashboardView({
           {data.recentOrders.length === 0 ? (
             <EmptyState icon={IconClipboardList} title="No orders in this range" />
           ) : (
-            <div className="flex flex-col">
+            // §1.2F row: order no over `party · date`, then ₹value and the
+            // badge. The badge is the point — "₹1,20,000" tells you nothing
+            // about whether that order is still owed to anyone.
+            <div className="-mx-2 flex flex-col">
               {data.recentOrders.map((o) => (
                 <Link
                   key={o.id}
                   href={`/order-entry/orders/${o.id}`}
-                  className="flex items-center justify-between gap-3 border-b border-border py-2.5 last:border-0 hover:bg-surface-2"
+                  className="flex items-center justify-between gap-3 rounded-field px-2 py-2 transition-colors hover:bg-surface-2"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-[13px] font-semibold text-text-1">
@@ -515,9 +581,12 @@ export function DashboardView({
                       {o.party} · {formatDate(o.orderDate)}
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono text-[12.5px] text-text-2">
-                    ₹{formatNumber(o.value)}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="num text-[12.5px] font-medium text-text-1">
+                      ₹{formatNumber(o.value)}
+                    </span>
+                    <StatusBadge status={o.status} />
+                  </div>
                 </Link>
               ))}
             </div>
@@ -526,19 +595,21 @@ export function DashboardView({
       </div>
 
       <Panel title="Needs attention">
-        {data.attention.length === 0 ? (
+        {attention.length === 0 ? (
           <EmptyState
             icon={IconAlertTriangle}
-            title="Nothing overdue"
-            description="Every in-progress stage is within its planned deadline."
+            title="Nothing overdue — you're on track."
           />
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
-            {data.attention.map((a) => (
+            {attention.map((a) => (
               <Link
                 key={`${a.orderId}-${a.stageLabel}`}
                 href={`/order-entry/tracking/${a.orderId}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2.5 transition-colors hover:border-border-strong"
+                // §1.2G: the hover tints toward DANGER, not toward a neutral
+                // emphasis. Every card in this grid is something already late,
+                // so the pointer landing on one should feel like the alarm it is.
+                className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 transition-colors hover:border-status-red/40"
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-semibold text-text-1">
@@ -549,7 +620,7 @@ export function DashboardView({
                     Stage: {a.stageLabel}
                   </div>
                 </div>
-                <span className="shrink-0 rounded-full bg-status-red-dim px-2 py-0.5 font-mono text-[10.5px] font-semibold text-status-red">
+                <span className="num shrink-0 rounded-pill bg-status-red-dim px-2 py-0.5 text-[10.5px] font-semibold text-status-red">
                   {a.daysOverdue}d overdue
                 </span>
               </Link>

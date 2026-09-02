@@ -270,12 +270,18 @@ export function CountBars({
   );
 }
 
+// TOKENS, not hexes — docs/SCREENS.md §7.6.4 and docs/DESIGN.md are both
+// emphatic: a literal colour here is invisible in one of the two themes. The
+// spec's `line-strong` for "not required" is this app's `--border-strong`; the
+// hardcoded `rgba(255,255,255,0.15)` it replaced simply vanished in light mode.
 export const CHART_COLOURS = {
   due: "var(--text-3)",
+  // `progress` is `--status-blue` rather than the accent, so the "In progress"
+  // segment matches the "In progress" StatusPill beside it in every table.
   progress: "var(--status-blue)",
   done: "var(--status-green)",
   unreachable: "var(--status-amber)",
-  notRequired: "rgba(255,255,255,0.15)",
+  notRequired: "var(--border-strong)",
 } as const;
 
 /**
