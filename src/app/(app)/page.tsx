@@ -123,7 +123,7 @@ export default async function DashboardPage() {
                   className={
                     s.status === "active"
                       ? "rounded-full bg-status-green-dim px-2 py-0.5 text-[10.5px] font-semibold text-status-green"
-                      : "rounded-full bg-white/5 px-2 py-0.5 text-[10.5px] font-semibold text-text-3"
+                      : "rounded-full bg-chip px-2 py-0.5 text-[10.5px] font-semibold text-text-3"
                   }
                 >
                   {s.status === "active" ? "Active" : "Coming soon"}

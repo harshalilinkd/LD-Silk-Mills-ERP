@@ -12,7 +12,7 @@ import { CancelOrderButton } from "@/components/order-entry/orders/cancel-order-
 const STATUS_STYLE: Record<string, string> = {
   COMPLETED: "bg-status-green-dim text-status-green",
   "PARTIALLY COMPLETED": "bg-status-amber-dim text-status-amber",
-  PENDING: "bg-white/5 text-text-3",
+  PENDING: "bg-chip text-text-3",
   CANCELLED: "bg-status-red-dim text-status-red",
 };
 

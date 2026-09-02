@@ -136,7 +136,7 @@ export function IssueTriageRow({ row }: { row: IssueRow }) {
         <td className="px-3.5 py-3 text-text-2">{categoryLabel(row.category)}</td>
         <td className="px-3.5 py-3">
           {row.ownerDept ? (
-            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-text-3">
+            <span className="rounded-full bg-chip px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-text-3">
               {DEPT_LABEL[row.ownerDept] ?? row.ownerDept}
             </span>
           ) : (

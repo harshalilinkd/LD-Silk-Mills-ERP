@@ -17,8 +17,19 @@ or spacing scales without updating this file first.
 
 ## Color tokens
 
-All colors are exact hex/rgba from the mockup — not approximations.
-This is a **single fixed dark theme**, not a light/dark toggle.
+The dark palette below is exact hex/rgba from the mockup — not
+approximations. **The app now ships two themes**, dark (the original,
+still the default for every new visitor) and light (its complement) —
+toggled via `src/components/shell/theme-toggle.tsx`, persisted to
+`localStorage` (`ld-erp-theme`), applied before first paint by a blocking
+script in `src/app/layout.tsx` so there's no flash of the wrong theme. Both
+are defined in `src/app/globals.css`: light values live on bare `:root`,
+dark values override them under `.dark` (added to `<html>` when dark is
+active). Never add a new color as a hardcoded hex/rgba in a component —
+add a token here and to `globals.css` instead, so it resolves correctly in
+both themes.
+
+### Dark (default)
 
 | Token | Value | Use |
 |---|---|---|
@@ -31,9 +42,10 @@ This is a **single fixed dark theme**, not a light/dark toggle.
 | `--text-1` | `#eef1f2` | Primary text |
 | `--text-2` | `#98a3a8` | Secondary text |
 | `--text-3` | `#5e6a70` | Muted / tertiary text, placeholders |
-| `--accent` | `#2dd4bf` | Primary accent (teal) |
+| `--chip` | `rgba(255,255,255,.05)` | Neutral badge/chip fill (e.g. "no status") |
+| `--chip-strong` | `rgba(255,255,255,.12)` | Neutral hover fill, low-priority bar |
+| `--accent-text` | `#5eead4` | Accent text/links on the page background |
 | `--accent-dim` | `rgba(45,212,191,.14)` | Accent background fill (active nav, active KPI icon bg) |
-| `--accent-text` | `#5eead4` | Accent text on dim backgrounds |
 | `--green` | `#4ade80` | Success / "active" status |
 | `--green-dim` | `rgba(74,222,128,.13)` | Success background fill |
 | `--amber` | `#fbbf24` | Warning / "coming soon" |
@@ -42,8 +54,56 @@ This is a **single fixed dark theme**, not a light/dark toggle.
 | `--red-dim` | `rgba(248,113,113,.13)` | Destructive background fill |
 | `--blue` | `#60a5fa` | Informational accent (e.g. "Total users" KPI) |
 | `--blue-dim` | `rgba(96,165,250,.13)` | Informational background fill |
-| `--purple` | `#c084fc` | Reserved accent (unused so far) |
+| `--purple` | `#c084fc` | Reserved accent |
 | `--purple-dim` | `rgba(192,132,252,.13)` | Reserved accent background |
+
+### Light
+
+Built as light mode's complement, not an afterthought: the page canvas is
+a soft cool-grey (never stark white) so pure-white cards read as
+"elevated" above it — the same lighter-means-more-elevated relationship
+the dark theme has (`surface` lighter than `bg`), just inverted in
+absolute lightness. Status hues are deepened (600/700-weight, not the dark
+theme's pastel 400s) so they hold WCAG-AA-ish contrast directly on white;
+their `-dim` fills stay the same low-alpha-wash idea. `--accent` (brand
+teal) is deliberately identical in both themes — see the comment above
+`--primary` in `globals.css` for why. `--accent-text` is the one accent
+token that DOES change: it's teal sitting directly on the page (links, the
+greeting name, active-nav text), and the dark theme's pale `#5eead4` would
+all but disappear on white.
+
+| Token | Value | Use |
+|---|---|---|
+| `--bg` | `#f4f6f6` | Page background |
+| `--surface` | `#ffffff` | Sidebar, topbar background |
+| `--surface-2` | `#eef2f2` | Hover state background |
+| `--surface-3` | `#e4e9e9` | Avatar background, dropdown item hover |
+| `--border` | `rgba(15,23,23,.08)` | Default hairline border |
+| `--border-strong` | `rgba(15,23,23,.14)` | Emphasized border (dropdowns, focus) |
+| `--text-1` | `#10171a` | Primary text |
+| `--text-2` | `#57686d` | Secondary text |
+| `--text-3` | `#718184` | Muted / tertiary text, placeholders |
+| `--chip` | `rgba(15,23,23,.045)` | Neutral badge/chip fill |
+| `--chip-strong` | `rgba(15,23,23,.09)` | Neutral hover fill, low-priority bar |
+| `--accent-text` | `#0f766e` | Accent text/links on the page background |
+| `--accent-dim` | `rgba(15,118,110,.10)` | Accent background fill (active nav, active KPI icon bg) |
+| `--green` | `#15803d` | Success / "active" status |
+| `--green-dim` | `rgba(21,128,61,.10)` | Success background fill |
+| `--amber` | `#b45309` | Warning / "coming soon" |
+| `--amber-dim` | `rgba(180,83,9,.10)` | Warning background fill |
+| `--red` | `#dc2626` | Destructive / notification dot |
+| `--red-dim` | `rgba(220,38,38,.10)` | Destructive background fill |
+| `--blue` | `#2563eb` | Informational accent |
+| `--blue-dim` | `rgba(37,99,235,.10)` | Informational background fill |
+| `--purple` | `#7c3aed` | Reserved accent |
+| `--purple-dim` | `rgba(124,58,237,.10)` | Reserved accent background |
+
+### Shared (identical in both themes)
+
+| Token | Value | Use |
+|---|---|---|
+| `--accent` / `--primary` | `#2dd4bf` | Brand teal — badge/button FILLS only (self-contained, so it never needs a per-theme variant the way `--accent-text` does) |
+| `--primary-foreground` | `#04211d` | Text/icon color sitting on top of an `--accent` fill |
 
 ## Layout constants
 
@@ -76,7 +136,7 @@ This is a **single fixed dark theme**, not a light/dark toggle.
 - `66px` tall, sticky, `1px` bottom border, background `var(--bg)`.
 - Greeting block: line 1 `14.5px/600` ("Good {morning/afternoon/evening}, **{first name}**" — the name is `var(--accent-text)`), line 2 `11.5px` `var(--text-3)` (today's date, localized).
 - Search input: full width up to `420px`, left-aligned in the remaining space, `var(--surface)` bg, `1px` border, radius `8px`, left search icon, right `⌘K` kbd hint styled as a small bordered chip (IBM Plex Mono, `10px`).
-- Icon buttons (notification bell, etc.): `36×36`, radius `8px`, transparent by default, `var(--surface-2)` bg + border on hover.
+- Icon buttons (theme toggle, notification bell, etc.): `36×36`, radius `8px`, transparent by default, `var(--surface-2)` bg + border on hover. The theme toggle sits immediately left of the notification bell — sun icon while dark (click to go light), moon icon while light.
 - Avatar button: `36×36`, radius `8px` (**square, not circle**), `var(--surface-3)` bg, `1px` border-strong, initials in `var(--accent-text)`.
 - Dropdowns (notification / avatar menu): `var(--surface-2)` bg, `1px` border-strong, radius `10px`, drop shadow `0 12px 32px rgba(0,0,0,.4)`, `6px` internal padding. Header row shows name (`13px/600`) + email (`11.5px`, `var(--text-3)`). Items are `13px`, `var(--text-2)`, hover → `var(--surface-3)` bg + `var(--text-1)`.
 - Empty notification state: centered, `12.5px`, `var(--text-3)`, just says "No notifications yet" — no icon needed at this size.

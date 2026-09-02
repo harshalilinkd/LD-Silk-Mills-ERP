@@ -21,6 +21,8 @@
   --color-text-2: var(--text-2);
   --color-text-3: var(--text-3);
   --color-accent-text: var(--accent-text);
+  --color-chip: var(--chip);
+  --color-chip-strong: var(--chip-strong);
   --color-status-green: var(--status-green);
   --color-status-green-dim: var(--status-green-dim);
   --color-status-amber: var(--status-amber);
@@ -71,47 +73,68 @@
 }
 
 /*
- * LD Silk Mills ERP is a single fixed dark theme — see docs/DESIGN.md.
- * There is no light mode to switch to, so every token is defined once
- * on :root rather than split across :root/.dark.
+ * LD Silk Mills ERP ships two themes — dark (the original, still the
+ * default) and light (its complement) — toggled by adding/removing `.dark`
+ * on <html> (see src/components/shell/theme-toggle.tsx and the blocking
+ * script in src/app/layout.tsx that applies the saved choice before first
+ * paint, avoiding a flash of the wrong theme). See docs/DESIGN.md for the
+ * full token tables and the reasoning behind each light-mode color choice.
+ *
+ * Tokens that are the SAME in both themes (brand teal, radius, fonts) are
+ * declared once here on :root and never overridden. Tokens that alias
+ * another token (--card, --popover, --muted, --input, --ring, ...) are also
+ * declared once — CSS custom properties resolve live against whatever the
+ * current theme's leaf value is, so they never need duplicating. Only the
+ * literal per-theme leaf colors (surfaces, text, borders, status hues,
+ * accent-text) are redeclared under .dark below.
  */
 :root {
-  --background: #090c0e;
-  --foreground: #eef1f2;
-  --surface: #0f1417;
-  --surface-2: #141a1e;
-  --surface-3: #191f24;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.13);
-  --text-1: #eef1f2;
-  --text-2: #98a3a8;
-  --text-3: #5e6a70;
+  --background: #f4f6f6;
+  --foreground: #10171a;
+  --surface: #ffffff;
+  --surface-2: #eef2f2;
+  --surface-3: #e4e9e9;
+  --border: rgba(15, 23, 23, 0.08);
+  --border-strong: rgba(15, 23, 23, 0.14);
+  --text-1: #10171a;
+  --text-2: #57686d;
+  --text-3: #718184;
+  --chip: rgba(15, 23, 23, 0.045);
+  --chip-strong: rgba(15, 23, 23, 0.09);
 
   --card: var(--surface);
   --card-foreground: var(--text-1);
   --popover: var(--surface-2);
   --popover-foreground: var(--text-1);
 
+  /* Brand teal — deliberately IDENTICAL in both themes. It's a self-
+     contained fill (badge/button background with its own text color baked
+     in), not text sitting directly on the page background, so it never
+     needs a theme-specific variant the way accent-TEXT does below. */
   --primary: #2dd4bf;
   --primary-foreground: #04211d;
-  --accent-text: #5eead4;
   --secondary: var(--surface-2);
   --secondary-foreground: var(--text-1);
   --muted: var(--surface-2);
   --muted-foreground: var(--text-3);
-  --accent: rgba(45, 212, 191, 0.14);
   --accent-foreground: var(--accent-text);
 
-  --status-green: #4ade80;
-  --status-green-dim: rgba(74, 222, 128, 0.13);
-  --status-amber: #fbbf24;
-  --status-amber-dim: rgba(251, 191, 36, 0.13);
-  --status-red: #f87171;
-  --status-red-dim: rgba(248, 113, 113, 0.13);
-  --status-blue: #60a5fa;
-  --status-blue-dim: rgba(96, 165, 250, 0.13);
-  --status-purple: #c084fc;
-  --status-purple-dim: rgba(192, 132, 252, 0.13);
+  /* Accent TEXT/wash, unlike --primary, sits directly on the page — a pale
+     teal (dark theme's value) reads fine on near-black but nearly
+     disappears on white, so light mode gets a deeper teal instead. */
+  --accent-text: #0f766e;
+  --accent: rgba(15, 118, 110, 0.1);
+
+  --status-green: #15803d;
+  --status-green-dim: rgba(21, 128, 61, 0.1);
+  --status-amber: #b45309;
+  --status-amber-dim: rgba(180, 83, 9, 0.1);
+  --status-red: #dc2626;
+  --status-red-dim: rgba(220, 38, 38, 0.1);
+  --status-blue: #2563eb;
+  --status-blue-dim: rgba(37, 99, 235, 0.1);
+  --status-purple: #7c3aed;
+  --status-purple-dim: rgba(124, 58, 237, 0.1);
 
   --destructive: var(--status-red);
   --input: var(--border-strong);
@@ -133,6 +156,35 @@
   --sidebar-accent-foreground: var(--accent-text);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
+}
+
+.dark {
+  --background: #090c0e;
+  --foreground: #eef1f2;
+  --surface: #0f1417;
+  --surface-2: #141a1e;
+  --surface-3: #191f24;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --text-1: #eef1f2;
+  --text-2: #98a3a8;
+  --text-3: #5e6a70;
+  --chip: rgba(255, 255, 255, 0.05);
+  --chip-strong: rgba(255, 255, 255, 0.12);
+
+  --accent-text: #5eead4;
+  --accent: rgba(45, 212, 191, 0.14);
+
+  --status-green: #4ade80;
+  --status-green-dim: rgba(74, 222, 128, 0.13);
+  --status-amber: #fbbf24;
+  --status-amber-dim: rgba(251, 191, 36, 0.13);
+  --status-red: #f87171;
+  --status-red-dim: rgba(248, 113, 113, 0.13);
+  --status-blue: #60a5fa;
+  --status-blue-dim: rgba(96, 165, 250, 0.13);
+  --status-purple: #c084fc;
+  --status-purple-dim: rgba(192, 132, 252, 0.13);
 }
 
 @layer base {

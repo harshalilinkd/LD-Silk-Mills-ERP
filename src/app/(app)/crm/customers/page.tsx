@@ -231,7 +231,7 @@ export default async function CrmCustomersPage({
         />
         <Kpi
           icon={IconLinkOff}
-          iconClass="bg-white/5 text-text-3"
+          iconClass="bg-chip text-text-3"
           value={formatCount(data.kpis.unlinked)}
           label="Unlinked"
           href={filterHref(sp, { linked: "no" })}

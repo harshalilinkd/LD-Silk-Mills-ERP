@@ -144,7 +144,7 @@ function FilterChip({
         "rounded-full px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors",
         active
           ? "bg-accent-dim text-accent-text"
-          : "bg-white/5 text-text-3 hover:bg-surface-2 hover:text-text-2",
+          : "bg-chip text-text-3 hover:bg-surface-2 hover:text-text-2",
       )}
     >
       {children}

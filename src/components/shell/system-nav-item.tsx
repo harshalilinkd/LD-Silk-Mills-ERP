@@ -124,7 +124,7 @@ function ExpandableSystemNavItem({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Collapse" : "Expand"}
-          className="shrink-0 rounded p-0.5 text-current hover:bg-white/10"
+          className="shrink-0 rounded p-0.5 text-current hover:bg-chip-strong"
         >
           <IconChevronDown
             className={cn(

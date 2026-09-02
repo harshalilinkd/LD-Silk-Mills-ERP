@@ -60,10 +60,22 @@ hardening) — it's marked TEMPORARY in `src/auth.ts` and `.env.local`.
 ## Design system
 `docs/DESIGN.md` is the single source of truth for every color/spacing/
 typography value, sourced from the approved mockup
-(`ld-silk-mills-erp-mockup.html`, not in this repo). Fixed single dark
-theme, no light/dark toggle. When porting a module's UI (like Orders), you
-restyle against this file — you do not reuse the source app's own Tailwind
-classes, even though both apps happen to use the same Base UI primitives.
+(`ld-silk-mills-erp-mockup.html`, not in this repo). When porting a
+module's UI (like Orders), you restyle against this file — you do not
+reuse the source app's own Tailwind classes, even though both apps happen
+to use the same Base UI primitives.
+
+**Two themes, dark default**: `src/app/globals.css` defines light tokens
+on bare `:root` and dark overrides under `.dark` (added to `<html>` when
+active). `src/components/shell/theme-toggle.tsx` flips it and persists to
+`localStorage` (`ld-erp-theme`); a blocking inline script in
+`src/app/layout.tsx` applies the saved choice before first paint. Never
+hardcode a color — every raw `bg-white/N`/hex in a component is a color
+that silently breaks in the other theme (this bit us once: `bg-white/5`
+"neutral chip" idioms scattered across Orders/CRM pages were invisible
+against a white light-mode background until replaced with the new
+`bg-chip`/`bg-chip-strong` tokens). See `docs/DESIGN.md`'s Color tokens
+section for the full light/dark table and the reasoning per token.
 
 ## Sidebar
 Dynamic, driven entirely by `ld_erp_core.systems` + `system_access` — never
@@ -114,6 +126,19 @@ you're inside that section). Toggling a system's `status`/`route`/
   tab) — no integration work done.
 
 ## Known gotchas (hit these once already — don't re-discover them)
+- **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base
+  UI app, not Radix — `onSelect` on a `DropdownMenuItem` is silently a
+  no-op (TypeScript won't catch it either, since `...props` is untyped
+  passthrough). The topbar/sidebar "Log out" button shipped broken this
+  way for a while: it visually existed and the menu closed on click, but
+  `signOutAction()` never ran, because it was wired to `onSelect`. Always
+  use `onClick` for menu item actions, and manually click through any new
+  menu item once in a real browser — this class of bug produces zero
+  TypeScript errors and zero console errors.
+- **Base UI `Menu.GroupLabel` (`DropdownMenuLabel`) must be inside a
+  `Menu.Group` (`DropdownMenuGroup`)** or it throws
+  `MenuGroupContext is missing` at render time — crashes the whole
+  dropdown, not just the label. Wrap it: `<DropdownMenuGroup><DropdownMenuLabel>...`.
 - **Base UI `Button` + `render={<Link/>}`** needs `nativeButton={false}` or
   it logs an accessibility warning every render.
 - **Never pass an icon *component* as a prop from a Server Component to a

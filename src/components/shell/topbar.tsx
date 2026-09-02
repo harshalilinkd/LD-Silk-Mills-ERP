@@ -1,5 +1,6 @@
 import { SearchCommand } from "./search-command";
 import { NotificationBell } from "./notification-bell";
+import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
 function greeting() {
@@ -43,6 +44,7 @@ export function Topbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
+        <ThemeToggle />
         <NotificationBell />
         <UserMenu name={name} email={email} avatar={avatar} />
       </div>

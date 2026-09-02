@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const TONE = {
-  due: "bg-white/5 text-text-3",
+  due: "bg-chip text-text-3",
   progress: "bg-status-blue-dim text-status-blue",
   done: "bg-status-green-dim text-status-green",
   late: "bg-status-red-dim text-status-red",
@@ -93,7 +93,7 @@ export function SeverityPill({ severity }: { severity: IssueSeverity }) {
 const BAND: Record<PriorityBand, string> = {
   high: "bg-status-red",
   medium: "bg-status-amber",
-  low: "bg-white/15",
+  low: "bg-chip-strong",
 };
 
 export function PriorityBar({ band, label }: { band: PriorityBand; label: string }) {

@@ -104,7 +104,7 @@ function IssueItem({ issue, canEdit }: { issue: FollowupIssue; canEdit: boolean 
       <div className="flex flex-wrap items-center gap-2">
         <SeverityPill severity={issue.severity as IssueSeverity} />
         <strong className="text-text-1">{categoryLabel(issue.category)}</strong>
-        <span className="ml-auto rounded-full bg-white/5 px-2 py-[3px] text-[11px] font-medium text-text-3">
+        <span className="ml-auto rounded-full bg-chip px-2 py-[3px] text-[11px] font-medium text-text-3">
           {ISSUE_STATUS_LABEL[issue.status as IssueStatus] ?? issue.status}
         </span>
       </div>

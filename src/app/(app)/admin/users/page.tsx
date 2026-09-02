@@ -80,7 +80,7 @@ export default async function UsersAdminPage() {
                         className={
                           user.status === "active"
                             ? "rounded-full bg-status-green-dim px-2 py-0.5 text-[10.5px] font-semibold capitalize text-status-green"
-                            : "rounded-full bg-white/5 px-2 py-0.5 text-[10.5px] font-semibold capitalize text-text-3"
+                            : "rounded-full bg-chip px-2 py-0.5 text-[10.5px] font-semibold capitalize text-text-3"
                         }
                       >
                         {user.status}

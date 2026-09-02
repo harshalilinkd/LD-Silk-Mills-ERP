@@ -94,7 +94,7 @@ export default async function OrderStatusPage({
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
                           g.isCancelled
-                            ? "bg-white/5 text-text-3"
+                            ? "bg-chip text-text-3"
                             : OVERALL_STYLE[g.overall]
                         }`}
                       >
