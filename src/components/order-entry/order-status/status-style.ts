@@ -30,7 +30,7 @@ export const STAGE_STATE_LABEL: Record<StageState, string> = {
 };
 
 // The stage that determines "dispatched" for the whole-order rollup and the
-// sibling colour chips (see status-panel.tsx and quality-groups.ts).
+// sibling colour chips (see quality-groups.ts and tracker-detail.tsx).
 export const DISPATCH_STAGE_KEY = "dispatch";
 
 // ── StageCell (docs/SCREENS.md §4B.4) ──────────────────────────────────────
@@ -47,4 +47,42 @@ export const STAGE_CELL_TONE: Record<StageCellTone, string> = {
   some: "bg-status-amber-dim text-status-amber",
   overdue: "bg-status-red-dim text-status-red",
   none: "bg-chip text-text-3",
+};
+
+// ── StageChip / StageDot (docs/SCREENS.md §4A.6) ───────────────────────────
+// The Board's seven per-stage columns carry a THIRD tone vocabulary, keyed by
+// what the chip is saying rather than by a state enum: green = done / in
+// stock, red = overdue / out of stock, amber = partly done, muted = nothing
+// yet. It is deliberately separate from STAGE_CELL_TONE above — that one has
+// no "danger" step for stock, and this one has no "some" that means anything
+// other than amber.
+export type StageChipTone = "success" | "danger" | "warning" | "muted";
+
+export const STAGE_CHIP_TONE: Record<StageChipTone, string> = {
+  success: "bg-status-green-dim text-status-green",
+  danger: "bg-status-red-dim text-status-red",
+  warning: "bg-status-amber-dim text-status-amber",
+  muted: "bg-chip text-text-3",
+};
+
+// ── STAGE_DOT (docs/SCREENS.md §4A.6) ──────────────────────────────────────
+// An IDENTITY colour per stage — the `size-1.5` dot in each stage column
+// header and in CurrentStageBadge. It says *which* stage, never how it is
+// going (that is STAGE_CHIP_TONE's job), so a red dot on Challan is not an
+// alarm.
+//
+// The source app used raw Tailwind palette steps (indigo/blue/amber/rose/
+// emerald/violet/cyan). docs/DESIGN.md forbids a colour that is not a token,
+// so these are the seven most-separated hues our palette actually has. The
+// last two are both teal-family because that is where the palette runs out —
+// `accent-text` is the deep teal (light) / pale teal (dark) variant, so it
+// still reads apart from `primary` in both themes.
+export const STAGE_DOT: Record<string, string> = {
+  order_entry: "bg-status-blue",
+  stock_checking: "bg-primary",
+  rolling_checking: "bg-status-amber",
+  challan: "bg-status-red",
+  bill: "bg-status-green",
+  dispatch: "bg-status-purple",
+  received_lr: "bg-accent-text",
 };

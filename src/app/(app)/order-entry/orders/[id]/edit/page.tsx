@@ -13,7 +13,9 @@ export default async function EditOrderPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
+      {/* Width-matched to the form below (max-w-[1500px], centred), so the
+          title stays flush with the cards on a wide screen. */}
+      <div className="mx-auto w-full max-w-[1500px]">
         <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
           Edit order {detail.order.order_no}
         </h1>
