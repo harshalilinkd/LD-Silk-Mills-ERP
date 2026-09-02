@@ -70,6 +70,16 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Semantic radius aliases used by the Order Entry / CRM module spec
+     (docs/SCREENS.md writes `rounded-card`, `rounded-field`, `rounded-pill`).
+     The spec's own values are 16 / 10 / 999px; we deliberately bind them to
+     OUR scale from docs/DESIGN.md instead — card/button 10px, small controls
+     8px, pill 99px — so the ported screens inherit this app's geometry rather
+     than the source app's. Only the NAMES are borrowed. */
+  --radius-card: var(--radius); /* 10px */
+  --radius-field: 8px;
+  --radius-pill: 99px;
 }
 
 /*
@@ -196,5 +206,68 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * `.num` — docs/SCREENS.md §0.3
+ *
+ * Apply to every figure, quantity, money value and date.
+ *
+ * It is TABULAR FIGURES IN THE UI SANS. It deliberately does NOT switch to
+ * the mono face: on screens that are mostly money, mono reads as code. It
+ * also cannot simply inherit the sans default, because proportional digits
+ * make a column of rupee figures stagger — and the animated <Money> figure
+ * (number-flow) jitters as digits roll.
+ *
+ * Manrope DOES ship `tnum`: verified against the actual Latin subset Next's
+ * font pipeline emits (`.next/static/media/*.p.woff2` → GSUB feature list
+ * contains calt, dnom, frac, kern, liga, locl, numr, pnum, tnum). So no
+ * fallback family is needed — we keep var(--font-manrope) and just switch the
+ * figure set. `font-variant-numeric` is the standard property; the explicit
+ * `font-feature-settings` is belt-and-braces for engines that only honour the
+ * low-level tag, and `"pnum" 0` makes sure Manrope's proportional set (which
+ * it also ships) cannot win.
+ * ------------------------------------------------------------------------ */
+@utility num {
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "tnum" 1,
+    "pnum" 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * <Reveal index={n}> — docs/SCREENS.md §0.4
+ *
+ * Staggered mount fade. The delay comes in as a custom property so one
+ * keyframe serves every index. `both` keeps the element at the "from" frame
+ * during its delay, otherwise every region flashes in at full opacity first.
+ *
+ * Reduced motion is handled here in CSS rather than with a matchMedia hook:
+ * a hook cannot know the preference during SSR, so the first paint would
+ * animate anyway. The component still guards too, for the transform.
+ * ------------------------------------------------------------------------ */
+@keyframes ld-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility ld-reveal {
+  animation: ld-reveal 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ld-reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
