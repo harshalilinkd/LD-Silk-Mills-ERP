@@ -26,6 +26,11 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "My concerns", href: "/help-slip/concerns" },
     { label: "All concerns", href: "/help-slip/all" },
     { label: "Notifications", href: "/help-slip/notifications" },
+    // Everyone gets this — Profile is theirs. The other four tabs appear by
+    // role inside the screen (see settingsTabsFor), which is why this entry is
+    // unconditional while CRM's equivalent above points straight at an
+    // admin-only route.
+    { label: "Settings", href: "/help-slip/settings" },
   ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },

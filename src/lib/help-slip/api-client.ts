@@ -29,7 +29,7 @@ export async function helpSlipGet<T>(url: string): Promise<T> {
 
 export async function helpSlipSend<T>(
   url: string,
-  method: "POST" | "PATCH",
+  method: "POST" | "PATCH" | "PUT",
   body?: unknown,
 ): Promise<T> {
   return unwrap<T>(
