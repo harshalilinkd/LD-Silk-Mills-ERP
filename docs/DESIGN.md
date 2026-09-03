@@ -77,31 +77,54 @@ both themes.
 
 ### Dark (default)
 
+**Dark is not light inverted.** Three rules govern this table, and all three
+were learned by shipping the opposite:
+
+1. **The ground is not black.** It was `#090c0e`. Combined with rule 2 that
+   produced the maximum contrast a screen can emit, on every surface, at all
+   times — and left a card indistinguishable from the page it sat on.
+2. **The text is not pure white.** It briefly was, when the light side went to
+   pure black and mirroring looked consistent. `#ffffff` on a near-black ground
+   **halates**: glyph edges bloom and thin strokes shimmer, which at 13px reads
+   as blur. Maximum contrast is not maximum legibility. `#e9edef` still reads
+   as white and stops glowing.
+3. **Saturated hues vibrate on dark.** The status colours were Tailwind's 400
+   tones, tuned for white backgrounds. On near-black they buzz, and six of them
+   on one screen reads as gaudy rather than informative. Each lost roughly 15%
+   saturation and gained a little body — same hue, so a green badge is still
+   green.
+
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#090c0e` | Page background |
-| `--surface` | `#0f1417` | Sidebar, topbar background |
-| `--surface-2` | `#141a1e` | Hover state background |
-| `--surface-3` | `#191f24` | Avatar background, dropdown item hover |
-| `--border` | `rgba(255,255,255,.07)` | Default hairline border |
-| `--border-strong` | `rgba(255,255,255,.13)` | Emphasized border (dropdowns, focus) |
-| `--text-1` | `#ffffff` | Primary text |
-| `--text-2` | `#d6dae1` | Secondary text |
-| `--text-3` | `#a9afba` | Muted / tertiary text, placeholders |
-| `--chip` | `rgba(255,255,255,.05)` | Neutral badge/chip fill (e.g. "no status") |
-| `--chip-strong` | `rgba(255,255,255,.12)` | Neutral hover fill, low-priority bar |
-| `--accent-text` | `#5eead4` | Accent text/links on the page background |
+| `--bg` | `#0f1417` | Page background |
+| `--surface` | `#171e22` | Cards, sidebar, topbar |
+| `--surface-2` | `#1e262b` | Hover state, recessed wells |
+| `--surface-3` | `#263137` | Avatar background, dropdown item hover |
+| `--border` | `rgba(255,255,255,.09)` | Default hairline border |
+| `--border-strong` | `rgba(255,255,255,.16)` | Emphasized border (dropdowns, focus) |
+| `--text-1` | `#e9edef` | Primary text |
+| `--text-2` | `#e9edef` | Body text — same as `--text-1`, see § Text colour |
+| `--text-3` | `#a3adb5` | Muted / tertiary |
+| `--text-placeholder` | `#7d878f` | Empty form fields only |
+| `--chip` | `rgba(255,255,255,.06)` | Neutral badge/chip fill |
+| `--chip-strong` | `rgba(255,255,255,.13)` | Neutral hover fill, low-priority bar |
+| `--accent-text` | `#5ee0cc` | Accent text/links on the page background |
 | `--accent-dim` | `rgba(45,212,191,.14)` | Accent background fill (active nav, active KPI icon bg) |
-| `--green` | `#4ade80` | Success / "active" status |
-| `--green-dim` | `rgba(74,222,128,.13)` | Success background fill |
-| `--amber` | `#fbbf24` | Warning / "coming soon" |
-| `--amber-dim` | `rgba(251,191,36,.13)` | Warning background fill |
-| `--red` | `#f87171` | Destructive / notification dot |
-| `--red-dim` | `rgba(248,113,113,.13)` | Destructive background fill |
-| `--blue` | `#60a5fa` | Informational accent (e.g. "Total users" KPI) |
-| `--blue-dim` | `rgba(96,165,250,.13)` | Informational background fill |
-| `--purple` | `#c084fc` | Reserved accent |
-| `--purple-dim` | `rgba(192,132,252,.13)` | Reserved accent background |
+| `--green` | `#5cc98c` | Success / "active" status |
+| `--green-dim` | `rgba(92,201,140,.14)` | Success background fill |
+| `--amber` | `#e3ad4e` | Warning / "coming soon" |
+| `--amber-dim` | `rgba(227,173,78,.14)` | Warning background fill |
+| `--red` | `#ef8080` | Destructive / notification dot |
+| `--red-dim` | `rgba(239,128,128,.14)` | Destructive background fill |
+| `--blue` | `#71a6ef` | Informational accent |
+| `--blue-dim` | `rgba(113,166,239,.14)` | Informational background fill |
+| `--purple` | `#b48ceb` | Reserved accent |
+| `--purple-dim` | `rgba(180,140,235,.14)` | Reserved accent background |
+
+Measured on `--surface`: text 14.3 : 1 · muted 7.4 : 1 · accent 10.4 : 1 ·
+green 8.2 : 1 · amber 8.3 : 1 · red 6.5 : 1 · placeholder 4.6 : 1. Every one
+clears WCAG AA; the first three clear AAA. **A new dark value goes in this
+table only after its contrast on `--surface` has been measured, not estimated.**
 
 ### Light
 

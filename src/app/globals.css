@@ -198,36 +198,64 @@
 }
 
 .dark {
-  --background: #090c0e;
-  --surface: #0f1417;
-  --surface-2: #141a1e;
-  --surface-3: #191f24;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.13);
-  /* Dark mirrors the light side exactly: the workhorse is pure WHITE, and the
-     hierarchy is weight and size rather than a fade. The old values
-     (#eef1f2 / #98a3a8 / #5e6a70) fell away faster still and read as disabled
-     on this ground. Contrast on #090c0e: 19.6 / 19.6 / 11.4. */
-  --text-1: #ffffff;
-  --text-2: #ffffff;
-  --text-3: #c4ccd8;
-  --text-placeholder: #8b93a1;
-  --chip: rgba(255, 255, 255, 0.05);
-  --chip-strong: rgba(255, 255, 255, 0.12);
+  /* ═══════════════════════════════════════════════════════════════════════
+     DARK IS NOT LIGHT INVERTED. Three rules, all learned the hard way here.
+     ═══════════════════════════════════════════════════════════════════════
 
-  --accent-text: #5eead4;
+     1. THE GROUND IS NOT BLACK. It was #090c0e — a hair off pure black — and
+        combined with rule 2 that gave the maximum contrast a screen can
+        produce, on every surface, all the time. It lifts to #0f1417 (the old
+        card colour), and the cards lift with it, so a card now reads as
+        raised rather than as the only thing that is not a void.
+
+     2. THE TEXT IS NOT PURE WHITE. It was, briefly, because the light side
+        went to pure black in the same change and mirroring seemed consistent.
+        It is not: #ffffff on a near-black ground HALATES — the glyphs bloom at
+        their edges and thin strokes shimmer, which at 13px reads as blur.
+        Maximum contrast is not maximum legibility, and the reported symptom
+        was exactly this ("text is not properly readable"). #e9edef still reads
+        as white and stops glowing. 14.3:1, comfortably AAA.
+
+     3. SATURATED HUES VIBRATE ON DARK. #fbbf24 amber and #4ade80 green are
+        Tailwind's 400s, tuned for white backgrounds; on near-black they buzz,
+        and a screen with six of them reads as gaudy rather than informative.
+        Each drops roughly 15% saturation and gains a little body. They remain
+        the same hue — a green badge is still green — and every one still
+        clears AA on the card it sits on.
+
+     Measured on `--surface`: text 14.3 / muted 7.4 / accent 10.4 /
+     green 8.2 / amber 8.3 / red 6.5 / placeholder 4.6. All AA; the first
+     three AAA. */
+  --background: #0f1417;
+  --surface: #171e22;
+  --surface-2: #1e262b;
+  --surface-3: #263137;
+  /* A touch more visible than before. On the lifted ground a 7% hairline
+     disappeared, and a card with no visible edge is what made the old dark
+     read as one flat sheet. */
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --text-1: #e9edef;
+  --text-2: #e9edef;
+  --text-3: #a3adb5;
+  --text-placeholder: #7d878f;
+  --chip: rgba(255, 255, 255, 0.06);
+  --chip-strong: rgba(255, 255, 255, 0.13);
+
+  --accent-text: #5ee0cc;
   --accent: rgba(45, 212, 191, 0.14);
 
-  --status-green: #4ade80;
-  --status-green-dim: rgba(74, 222, 128, 0.13);
-  --status-amber: #fbbf24;
-  --status-amber-dim: rgba(251, 191, 36, 0.13);
-  --status-red: #f87171;
-  --status-red-dim: rgba(248, 113, 113, 0.13);
-  --status-blue: #60a5fa;
-  --status-blue-dim: rgba(96, 165, 250, 0.13);
-  --status-purple: #c084fc;
-  --status-purple-dim: rgba(192, 132, 252, 0.13);
+  --status-green: #5cc98c;
+  --status-green-dim: rgba(92, 201, 140, 0.14);
+  --status-amber: #e3ad4e;
+  --status-amber-dim: rgba(227, 173, 78, 0.14);
+  --status-red: #ef8080;
+  --status-red-dim: rgba(239, 128, 128, 0.14);
+  --status-blue: #71a6ef;
+  --status-blue-dim: rgba(113, 166, 239, 0.14);
+  --status-purple: #b48ceb;
+  --status-purple-dim: rgba(180, 140, 235, 0.14);
 }
 
 @layer base {
