@@ -4,64 +4,52 @@ import * as React from "react";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  The loom. A real plain weave, drawn to canvas, with a shuttle running.
+ *  Silk. Threads under a travelling sheen.
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * LD Silk Mills weaves cloth, so the login screen weaves cloth. This is not an
- * ambient gradient with the brand colour poured over it — it is warp and weft
- * with correct OVER-UNDER interlacing, which is the one structure everybody in
- * this building would recognise on sight.
+ * The first version drew an orthogonal plain weave — a technically correct
+ * weave, with real over-under interlacing — and it read as graph paper. "Plain
+ * and boring" was the verdict and it was right: a rigid grid at 10% alpha is a
+ * background texture, not an image of silk.
  *
- * ── HOW THE INTERLACING WORKS ─────────────────────────────────────────────
+ * This draws what silk actually DOES. A bolt of it is hundreds of near-parallel
+ * filaments, and the thing that makes it silk rather than cotton is that light
+ * runs ACROSS those filaments in a band as the cloth moves — the sheen. So:
  *
- * A plain weave alternates: at each crossing either the warp passes over the
- * weft or the weft passes over the warp, and the parity flips every column and
- * every row. Painted naively — all warp, then all weft — the weft would sit on
- * top everywhere and it would read as a grid, not cloth. So there is a third
- * pass: at every crossing where `(col + row)` is even, a short piece of the
- * warp thread is repainted ON TOP of the weft. That third pass is the entire
- * difference between "graph paper" and "fabric".
+ *   · ~110 threads, each undulating on its own phase, so the cloth has drape
+ *     rather than being ruled.
+ *   · A sheen band travelling diagonally across them, slowly. A thread inside
+ *     the band is bright mint; a thread outside it is nearly the ground. That
+ *     gradient IS the effect — silk is not a colour, it is a highlight moving
+ *     over one.
+ *   · Each thread is drawn in short SEGMENTS so its brightness varies along
+ *     its length. Stroked as one path per thread, the band would light whole
+ *     threads at once and the panel would look like a barcode.
  *
- * ── WHY CANVAS ────────────────────────────────────────────────────────────
+ * ── THE PANEL IS DARK IN BOTH THEMES, DELIBERATELY ────────────────────────
  *
- * Around 1,000 crossings, each needing a short segment repainted every frame.
- * As SVG that is 3,000-odd nodes for the browser to lay out and diff; as
- * canvas it is a few hundred cheap strokes into a bitmap. docs/DESIGN.md's own
- * rule for generative work.
+ * docs/DESIGN.md forbids hardcoded colours because they are wrong in one theme.
+ * This is the exception that rule allows: the panel is one committed visual
+ * world, dark in both, so the constants below are constants on purpose. The
+ * previous version used tokens and therefore put a near-white panel beside a
+ * near-white form in light mode — no contrast anywhere, which is most of why
+ * the screen read as flat. A deep ground is also the only ground a sheen shows
+ * on at all.
  *
- * ── COLOUR COMES FROM THE THEME, NEVER FROM A LITERAL ─────────────────────
- *
- * Every stroke reads `--accent-text` and `--border` off the element, so the
- * weave tracks light and dark automatically and cannot drift from the palette.
- * A `MutationObserver` on `<html>`'s class list re-reads them when the theme
- * toggles — `getComputedStyle` per frame would be the obvious way and is far
- * too expensive at 60fps.
- *
- * ── MOTION IS OPTIONAL ────────────────────────────────────────────────────
- *
- * `prefers-reduced-motion` draws ONE frame and stops. Not a blank panel — the
- * cloth is the design, and somebody who has asked for less movement should
- * still get it. They simply get it still.
+ * ── MOTION ────────────────────────────────────────────────────────────────
+ * `prefers-reduced-motion` draws one frame with the sheen parked and stops.
+ * Silk that is not moving is still silk.
  */
 
-type Palette = {
-  thread: string;
-  ground: string;
-  /**
-   * Alpha multiplier for the current theme.
-   *
-   * The same alpha does NOT read the same on both grounds. On dark, a pale
-   * teal at 0.10 over near-black is clearly there; on light, the deep teal
-   * (#0f766e) at 0.10 over white is almost nothing — the first light-mode pass
-   * rendered an all-but-blank panel. Light needs roughly double to sit at the
-   * same visual weight, which is a property of the eye rather than of the
-   * colour.
-   */
-  lift: number;
-};
+/** Deep teal-black — the brand hue taken almost to black. */
+const GROUND_TOP = "#071a18";
+const GROUND_BOTTOM = "#04100f";
+/** Thread at rest, and thread at the centre of the sheen. */
+const THREAD_DIM = "45, 212, 191"; // --primary as rgb parts
+const THREAD_LIT = "150, 255, 236";
 
-const WARP_GAP = 26; // px between vertical threads
-const WEFT_GAP = 26; // px between horizontal threads
+const THREADS = 110;
+const SEGMENTS = 26;
 
 export function LoomBackdrop({ className }: { className?: string }) {
   const ref = React.useRef<HTMLCanvasElement | null>(null);
@@ -74,32 +62,12 @@ export function LoomBackdrop({ className }: { className?: string }) {
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    // Read the palette once per theme change rather than per frame.
-    let palette: Palette = { thread: "#2dd4bf", ground: "#0f1417", lift: 1 };
-    const readPalette = () => {
-      const s = getComputedStyle(canvas);
-      const dark = document.documentElement.classList.contains("dark");
-      palette = {
-        thread: s.getPropertyValue("--accent-text").trim() || "#2dd4bf",
-        ground: s.getPropertyValue("--surface").trim() || "#0f1417",
-        lift: dark ? 1 : 2.1,
-      };
-    };
-    readPalette();
-
-    const themeWatcher = new MutationObserver(readPalette);
-    themeWatcher.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
     let w = 0;
     let h = 0;
-    let dpr = 1;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = Math.max(1, Math.floor(rect.width));
       h = Math.max(1, Math.floor(rect.height));
       canvas.width = Math.floor(w * dpr);
@@ -107,121 +75,88 @@ export function LoomBackdrop({ className }: { className?: string }) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
 
     /**
-     * One frame.
-     *
-     * `t` is seconds. Everything that moves is a slow function of it — the
-     * whole cloth breathes about once every 40 seconds, and the shuttle
-     * crosses in roughly 9. Nothing here is fast; a login screen that
-     * demands attention is a login screen that is in the way.
+     * Per-thread constants, fixed once so the cloth keeps a stable identity
+     * instead of reshuffling every frame. Deterministic — no `Math.random` —
+     * so every load looks the same.
      */
+    const phase = Array.from({ length: THREADS }, (_, i) => i * 0.7);
+    const sway = Array.from({ length: THREADS }, (_, i) => 6 + ((i * 13) % 9));
+
     const draw = (t: number) => {
-      ctx.clearRect(0, 0, w, h);
+      // ── the ground ───────────────────────────────────────────────────
+      const g = ctx.createLinearGradient(0, 0, w * 0.35, h);
+      g.addColorStop(0, GROUND_TOP);
+      g.addColorStop(1, GROUND_BOTTOM);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
 
-      const cols = Math.ceil(w / WARP_GAP) + 2;
-      const rows = Math.ceil(h / WEFT_GAP) + 2;
-
-      // A slow lateral drift, so the cloth is never quite still.
-      const drift = Math.sin(t * 0.16) * 7;
-      const sag = Math.cos(t * 0.11) * 5;
-
-      const xOf = (c: number) => c * WARP_GAP + drift;
-      const yOf = (r: number) => r * WEFT_GAP + sag;
-
-      // The shuttle: one weft row lit at a time, travelling left to right,
-      // then the next row down. This is the motion of an actual loom.
-      const CROSS = 9; // seconds per pass
-      const pass = t / CROSS;
-      // Offset to the middle of the panel. Starting at row 0 put the first
-      // nine seconds — the only nine seconds most people see — half off the
-      // top edge, which is the one moment the effect had to land.
-      const shuttleRow =
-        (Math.floor(pass) + Math.floor(rows / 2)) % Math.max(1, rows);
-      const shuttleX = (pass % 1) * (w + 260) - 130;
+      const gap = w / (THREADS - 1);
+      // The sheen runs on a diagonal, so it crosses the panel rather than
+      // wiping down it. One pass takes about fourteen seconds.
+      const travel = ((t * 0.072) % 1.6) - 0.3;
+      const BAND = 0.22; // width of the lit band, as a fraction of a pass
 
       ctx.lineCap = "round";
+      ctx.lineWidth = 1.15;
 
-      // ── 1. warp — the threads held on the loom, vertical ────────────────
-      ctx.strokeStyle = palette.thread;
-      ctx.globalAlpha = 0.1 * palette.lift;
-      ctx.lineWidth = 1;
-      for (let c = 0; c < cols; c += 1) {
-        const x = xOf(c);
-        ctx.beginPath();
-        ctx.moveTo(x, -WEFT_GAP);
-        ctx.lineTo(x, h + WEFT_GAP);
-        ctx.stroke();
-      }
+      for (let i = 0; i < THREADS; i += 1) {
+        const baseX = i * gap;
+        for (let s = 0; s < SEGMENTS; s += 1) {
+          const y0 = (s / SEGMENTS) * h;
+          const y1 = ((s + 1) / SEGMENTS) * h;
 
-      // ── 2. weft — the thread the shuttle carries, horizontal ────────────
-      for (let r = 0; r < rows; r += 1) {
-        const y = yOf(r);
-        // Rows near the shuttle are brighter, and the effect falls away over
-        // three rows, so the light looks like it belongs to the pass rather
-        // than being switched on and off.
-        const near = Math.max(0, 1 - Math.abs(r - shuttleRow) / 3);
-        ctx.globalAlpha = (0.08 + near * 0.1) * palette.lift;
-        ctx.beginPath();
-        ctx.moveTo(-WARP_GAP, y);
-        ctx.lineTo(w + WARP_GAP, y);
-        ctx.stroke();
-      }
+          // Drape: each thread leans on its own slow sine, and the lean grows
+          // toward the bottom, the way hanging cloth does.
+          const bend = (y: number) =>
+            Math.sin(y * 0.0055 + phase[i]! + t * 0.22) *
+            sway[i]! *
+            (0.35 + y / h);
 
-      // ── 3. THE INTERLACE — warp repainted over weft on alternate crossings
-      // Without this the weft sits on top everywhere and the whole thing reads
-      // as a grid. This pass is what makes it cloth.
-      ctx.globalAlpha = 0.13 * palette.lift;
-      for (let c = 0; c < cols; c += 1) {
-        const x = xOf(c);
-        for (let r = 0; r < rows; r += 1) {
-          if ((c + r) % 2 !== 0) continue;
-          const y = yOf(r);
+          const x0 = baseX + bend(y0);
+          const x1 = baseX + bend(y1);
+
+          // Where this segment sits along the diagonal, and how far it is from
+          // the centre of the travelling band.
+          const along = (baseX / w) * 0.68 + (y0 / h) * 0.32;
+          const lit = Math.max(0, 1 - Math.abs(along - travel) / BAND) ** 1.8;
+
+          // 0.13 at rest, not 0.055: between passes the panel was an empty
+          // rectangle. Threads fade UP toward the top, where the eye lands
+          // first and where no copy sits.
+          const rest = 0.13 * (1.25 - (y0 / h) * 0.5);
+          ctx.strokeStyle = `rgba(${lit > 0.02 ? THREAD_LIT : THREAD_DIM}, ${
+            rest + lit * 0.72
+          })`;
           ctx.beginPath();
-          ctx.moveTo(x, y - WEFT_GAP * 0.34);
-          ctx.lineTo(x, y + WEFT_GAP * 0.34);
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
           ctx.stroke();
         }
       }
 
-      // ── 4. the shuttle itself — a short bright run of thread ─────────────
-      const y = yOf(shuttleRow);
-      const grad = ctx.createLinearGradient(
-        shuttleX - 130,
+      // A soft bloom over the band, so the highlight reads as light falling on
+      // a surface rather than as a set of brighter lines.
+      const bx = (travel * 1.45 - 0.1) * w;
+      const bloom = ctx.createRadialGradient(
+        bx,
+        h * 0.42,
         0,
-        shuttleX + 40,
-        0,
+        bx,
+        h * 0.42,
+        w * 0.5,
       );
-      grad.addColorStop(0, "transparent");
-      grad.addColorStop(0.75, palette.thread);
-      grad.addColorStop(1, "transparent");
-      ctx.strokeStyle = grad;
-      // A THIRD of the lift, not all of it. The threads need the boost on
-      // white; the shuttle does not, and at full lift it painted an opaque
-      // line across whatever text it passed.
-      ctx.globalAlpha = Math.min(0.62, 0.55 * (1 + (palette.lift - 1) * 0.3));
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.moveTo(shuttleX - 130, y);
-      ctx.lineTo(shuttleX + 40, y);
-      ctx.stroke();
-
-      // The bobbin — a small bright head where the shuttle is now.
-      ctx.globalAlpha = Math.min(0.9, 0.85 * (1 + (palette.lift - 1) * 0.3));
-      ctx.fillStyle = palette.thread;
-      ctx.beginPath();
-      ctx.arc(shuttleX + 26, y, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.globalAlpha = 1;
+      bloom.addColorStop(0, "rgba(120, 255, 235, 0.055)");
+      bloom.addColorStop(1, "rgba(120, 255, 235, 0)");
+      ctx.fillStyle = bloom;
+      ctx.fillRect(0, 0, w, h);
     };
 
     let raf = 0;
     let start = 0;
-
     const loop = (now: number) => {
       if (!start) start = now;
       draw((now - start) / 1000);
@@ -230,9 +165,9 @@ export function LoomBackdrop({ className }: { className?: string }) {
 
     const begin = () => {
       cancelAnimationFrame(raf);
+      start = 0;
       if (reduced.matches) {
-        // One frame, at a moment that happens to look composed, and stop.
-        draw(3.2);
+        draw(5.2);
         return;
       }
       raf = requestAnimationFrame(loop);
@@ -244,18 +179,11 @@ export function LoomBackdrop({ className }: { className?: string }) {
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
-      themeWatcher.disconnect();
       reduced.removeEventListener("change", begin);
     };
   }, []);
 
-  return (
-    <canvas
-      ref={ref}
-      aria-hidden
-      // Decorative. The panel it sits behind carries the words, so a screen
-      // reader loses nothing by never being told this exists.
-      className={className}
-    />
-  );
+  // Decorative. The panel carries the words, so a screen reader loses nothing
+  // by never being told this exists.
+  return <canvas ref={ref} aria-hidden className={className} />;
 }

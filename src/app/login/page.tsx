@@ -45,7 +45,7 @@ export default async function LoginPage({
   return (
     <div className="grid min-h-screen bg-background lg:grid-cols-[1.05fr_1fr]">
       {/* ═══ the company ═══════════════════════════════════════════════ */}
-      <aside className="relative hidden overflow-hidden border-r border-border bg-surface lg:flex lg:flex-col lg:justify-between lg:p-14">
+      <aside className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-14">
         <LoomBackdrop className="pointer-events-none absolute inset-0 size-full" />
 
         {/* A wash rising from the bottom, so the copy never fights the weave for
@@ -60,7 +60,7 @@ export default async function LoginPage({
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "linear-gradient(to top, var(--surface) 26%, transparent 82%)",
+              "linear-gradient(to top, #04100f 30%, rgba(4,16,15,0.55) 62%, transparent 88%)",
           }}
         />
 
@@ -74,18 +74,18 @@ export default async function LoginPage({
             LD
           </div>
           <div className="leading-tight">
-            <div className="text-[13.5px] font-bold text-text-1">
+            <div className="text-[13.5px] font-bold text-white">
               LD Silk Mills
             </div>
-            <div className="text-[11.5px] text-text-3">ERP</div>
+            <div className="text-[11.5px] text-white/55">ERP</div>
           </div>
         </div>
 
         <div className="ld-reveal relative flex flex-col gap-4">
-          <h2 className="max-w-[15ch] text-[38px] leading-[1.08] font-extrabold tracking-[-0.03em] text-text-1">
+          <h2 className="max-w-[15ch] text-[42px] leading-[1.05] font-extrabold tracking-[-0.035em] text-white">
             One place for the whole mill.
           </h2>
-          <p className="max-w-[46ch] text-[14.5px] text-text-2">
+          <p className="max-w-[46ch] text-[15px] leading-relaxed text-white/70">
             Orders, customers, operations and the help slip — the systems the
             floor already runs on, in a single sign-in.
           </p>
@@ -97,7 +97,7 @@ export default async function LoginPage({
               (m, i) => (
                 <li
                   key={m}
-                  className="ld-reveal rounded-pill border border-border bg-surface-2 px-3 py-1 text-[12px] font-medium text-text-2"
+                  className="ld-reveal rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-white/80 backdrop-blur-sm"
                   style={
                     {
                       "--ld-reveal-delay": `${160 + i * 55}ms`,
@@ -111,7 +111,7 @@ export default async function LoginPage({
           </ul>
         </div>
 
-        <p className="relative text-[11.5px] text-text-3">
+        <p className="relative text-[11.5px] text-white/45">
           Access is granted by an administrator. Nothing here is public.
         </p>
       </aside>
