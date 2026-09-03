@@ -1,38 +1,72 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { redirect } from "next/navigation";
+import {
+  IconChartBar,
+  IconClipboardList,
+  IconFileDescription,
+  IconLock,
+  IconMail,
+  IconSettings,
+  IconShieldCheck,
+  IconUsers,
+} from "@tabler/icons-react";
 
 import { auth } from "@/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { LoomBackdrop } from "./loom-backdrop";
+import { SilkBackdrop } from "./silk-backdrop";
 import { signInWithGoogle, signInWithPassword } from "./actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  Sign in.
+ *  Sign in — the approved design, built.
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * A SPLIT, not a card floating on grey. The left half is the company — the
- * loom, the name, what is inside — and the right half is the one job the
- * visitor came to do. Below `lg` the brand half is dropped entirely rather
- * than stacked: on a phone somebody wants the form, not a masthead they have
- * to scroll past.
+ * Full-bleed fabric, the brand and the promise on the left, one card on the
+ * right. Every element of the mockup is here: the wordmark, the two-line serif
+ * headline with `Power` in teal, the rule, the five module tiles, the trust
+ * pill, the ringed emblem, both sign-in methods, the security note and the
+ * browser row.
  *
- * The backdrop is a real plain weave with a shuttle running through it
- * (`loom-backdrop.tsx`). It is the one thing on this screen that could only
- * belong to this company.
+ * ── THE PHOTOGRAPH ────────────────────────────────────────────────────────
  *
- * ── EVERY COLOUR IS A TOKEN ───────────────────────────────────────────────
- * Including on the brand panel, which is why it works in both themes without
- * a second design. The panel is `--surface` with the weave over it, not a
- * hardcoded dark slab that would glow white in light mode.
+ * Drop the real image at `public/login-bg.jpg` and it is used automatically.
+ * The check is at MODULE scope, so it costs one `existsSync` per server start
+ * rather than one per request. Until the file exists, `SilkBackdrop` draws
+ * generated drapery in the same palette — so adding it changes the texture and
+ * nothing else about the layout.
  *
  * ── MOTION ────────────────────────────────────────────────────────────────
- * The card's parts arrive staggered on `ld-reveal` (globals.css), which
- * already honours `prefers-reduced-motion`; the weave freezes on one frame
- * under the same query. Nothing here moves after the first half second except
- * the shuttle, and the shuttle takes nine seconds to cross.
+ *
+ * Gentle, and never more than one thing moving at once:
+ *   · the drape breathes over ~90s (canvas)
+ *   · the emblem's ring turns once every 40s
+ *   · content arrives on a stagger, left column first
+ *   · fields lift their ring on focus, tiles lift on hover, the submit arrow
+ *     travels on hover
+ * All of it sits behind `prefers-reduced-motion`.
+ *
+ * ── ONE HONEST DEPARTURE ──────────────────────────────────────────────────
+ *
+ * "Forgot password?" is in the design and is rendered, but this ERP has no
+ * reset flow — there is no outbound email anywhere in it, and a reset link
+ * that goes nowhere is worse than no link. It expands a sentence saying what
+ * actually works. `<details>` rather than script, so it works before
+ * hydration.
  */
+
+const BG = path.join(process.cwd(), "public", "login-bg.jpg");
+const HAS_PHOTO = existsSync(BG);
+
+const MODULES = [
+  { label: "Order Entry", Icon: IconClipboardList },
+  { label: "Operations", Icon: IconSettings },
+  { label: "CRM", Icon: IconUsers },
+  { label: "Help Slip", Icon: IconFileDescription },
+  { label: "Reports", Icon: IconChartBar },
+];
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -44,226 +78,301 @@ export default async function LoginPage({
   const { callbackUrl, error } = await searchParams;
 
   return (
-    <div className="grid min-h-screen bg-background lg:grid-cols-[1.05fr_1fr]">
-      {/* ═══ the company ═══════════════════════════════════════════════ */}
-      <aside className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-14">
-        <LoomBackdrop className="pointer-events-none absolute inset-0 size-full" />
-
-        {/* A wash rising from the bottom, so the copy never fights the weave for
-            the same pixels. It reaches full surface by 26% and clears by 82%,
-            which puts the headline and paragraph — 40% to 62% down — on a
-            ground about half opaque. At the original 4%/55% the shuttle pass
-            drew a bright line straight through the paragraph and read as
-            strikethrough. Both stops are tokens; a literal here is the classic
-            thing that survives into light mode and ruins it. */}
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#efe7da]">
+      {/* ═══ the fabric ═══════════════════════════════════════════════ */}
+      {HAS_PHOTO ? (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(to top, #04100f 30%, rgba(4,16,15,0.55) 62%, transparent 88%)",
-          }}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url(/login-bg.jpg)" }}
         />
+      ) : (
+        <SilkBackdrop className="absolute inset-0 size-full" />
+      )}
 
-        <div className="relative flex items-center gap-3">
-          <div
-            className="grid size-9 place-items-center rounded-[10px] text-[13px] font-bold text-[#04211d]"
-            style={{
-              background: "linear-gradient(155deg, var(--primary), #0d9488)",
-            }}
-          >
+      {/* Warm scrim. The headline is near-black on cloth that is bright in
+          places and dark in others, so the left third gets a soft lift —
+          without it the serif sits on cream in one spot and teal in another. */}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(100deg, rgba(252,249,243,0.88) 0%, rgba(252,249,243,0.58) 34%, rgba(252,249,243,0.12) 58%, rgba(252,249,243,0) 72%)",
+        }}
+      />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-6 py-8 lg:px-12 lg:py-10">
+        {/* ═══ wordmark ═══════════════════════════════════════════════ */}
+        <header
+          className="ld-reveal flex items-center gap-3.5"
+          style={{ "--ld-reveal-delay": "0ms" } as React.CSSProperties}
+        >
+          <span className="grid size-[52px] place-items-center rounded-[14px] bg-[#0d4f4a] text-[17px] font-bold tracking-wide text-white shadow-[0_6px_20px_rgba(13,79,74,0.30)]">
             LD
-          </div>
-          <div className="leading-tight">
-            <div className="text-[13.5px] font-bold text-white">
-              LD Silk Mills
-            </div>
-            <div className="text-[11.5px] text-white/55">ERP</div>
-          </div>
-        </div>
+          </span>
+          <span className="text-[22px] font-bold tracking-[-0.02em] text-[#123331]">
+            LD Silk Mills ERP
+          </span>
+        </header>
 
-        <div className="ld-reveal relative flex flex-col gap-4">
-          <h2 className="max-w-[15ch] text-[42px] leading-[1.05] font-extrabold tracking-[-0.035em] text-white">
-            One place for the whole mill.
-          </h2>
-          <p className="max-w-[46ch] text-[15px] leading-relaxed text-white/70">
-            Orders, customers, operations and the help slip — the systems the
-            floor already runs on, in a single sign-in.
-          </p>
+        <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[1.15fr_minmax(0,520px)] lg:gap-16 lg:py-4">
+          {/* ═══ the promise ══════════════════════════════════════════ */}
+          <section className="max-w-[560px]">
+            <h1
+              className="ld-reveal font-[family-name:var(--font-display)] text-[clamp(36px,4.6vw,58px)] leading-[1.08] font-normal tracking-[-0.015em] text-[#14312f]"
+              style={{ "--ld-reveal-delay": "80ms" } as React.CSSProperties}
+            >
+              Weave every thread.
+              <br />
+              <span className="text-[#0d6b62]">Power</span> every process.
+            </h1>
 
-          {/* The modules, as plain facts. Not feature cards: somebody signing
-              in already works here and does not need selling to. */}
-          <ul className="mt-2 flex flex-wrap gap-x-2 gap-y-2">
-            {["Order Entry", "CRM", "Operations", "Help Slip", "Reports"].map(
-              (m, i) => (
+            <div
+              className="ld-reveal mt-7 h-[3px] w-14 rounded-full bg-[#0d6b62]"
+              style={{ "--ld-reveal-delay": "160ms" } as React.CSSProperties}
+            />
+
+            <p
+              className="ld-reveal mt-6 max-w-[42ch] text-[16px] leading-relaxed text-[#3d4f4d]"
+              style={{ "--ld-reveal-delay": "220ms" } as React.CSSProperties}
+            >
+              A unified ERP that connects orders, operations, people and
+              performance — seamlessly.
+            </p>
+
+            <ul className="mt-9 flex flex-wrap gap-3">
+              {MODULES.map(({ label, Icon }, i) => (
                 <li
-                  key={m}
-                  className="ld-reveal rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1 text-[12px] font-medium text-white/80 backdrop-blur-sm"
+                  key={label}
+                  className="ld-reveal flex w-[92px] flex-col items-center gap-2 rounded-[14px] border border-white/70 bg-white/80 px-3 py-3.5 shadow-[0_4px_16px_rgba(20,49,47,0.07)] backdrop-blur-sm transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_10px_26px_rgba(20,49,47,0.14)] motion-reduce:hover:translate-y-0"
                   style={
                     {
-                      "--ld-reveal-delay": `${160 + i * 55}ms`,
+                      "--ld-reveal-delay": `${300 + i * 70}ms`,
                     } as React.CSSProperties
                   }
                 >
-                  {m}
+                  <Icon className="size-[22px] text-[#0d6b62]" stroke={1.6} />
+                  <span className="text-center text-[12px] font-medium text-[#2a423f]">
+                    {label}
+                  </span>
                 </li>
-              ),
-            )}
-          </ul>
-        </div>
+              ))}
+            </ul>
 
-        <p className="relative text-[11.5px] text-white/45">
-          Access is granted by an administrator. Nothing here is public.
-        </p>
-      </aside>
-
-      {/* ═══ the form ══════════════════════════════════════════════════ */}
-      <main className="flex items-center justify-center px-5 py-12 sm:px-8">
-        <div className="w-full max-w-[380px]">
-          {/* On a phone the brand panel is gone, so the mark comes here
-              instead — otherwise the first thing anybody sees is a bare
-              email box with no idea what it belongs to. */}
-          <div
-            className="ld-reveal mb-8 flex items-center gap-3 lg:hidden"
-            style={{ "--ld-reveal-delay": "0ms" } as React.CSSProperties}
-          >
             <div
-              className="grid size-10 place-items-center rounded-[10px] text-sm font-bold text-[#04211d]"
-              style={{
-                background: "linear-gradient(155deg, var(--primary), #0d9488)",
-              }}
+              className="ld-reveal mt-10 inline-flex items-center gap-2.5 rounded-full bg-[#16302e]/85 px-5 py-3 backdrop-blur-sm"
+              style={{ "--ld-reveal-delay": "700ms" } as React.CSSProperties}
             >
-              LD
+              <IconShieldCheck
+                className="size-[18px] text-[#8fd6c9]"
+                stroke={1.7}
+              />
+              <span className="text-[13.5px] font-medium text-white/90">
+                Secure. Reliable. Built for textile.
+              </span>
             </div>
-            <div className="leading-tight">
-              <div className="text-[15px] font-bold text-text-1">
-                LD Silk Mills
+          </section>
+
+          {/* ═══ the card ═════════════════════════════════════════════ */}
+          <section
+            className="ld-reveal w-full justify-self-center rounded-[26px] border border-white/70 bg-[#faf7f2]/92 p-7 shadow-[0_28px_70px_rgba(20,49,47,0.22)] backdrop-blur-xl sm:p-9 lg:justify-self-end"
+            style={{ "--ld-reveal-delay": "140ms" } as React.CSSProperties}
+          >
+            {/* The ringed emblem. The ring turns once every 40 seconds — slow
+                enough to read as "alive" rather than as a spinner saying
+                "wait". */}
+            <div className="flex justify-center">
+              <div className="relative grid size-[104px] place-items-center">
+                <span
+                  aria-hidden
+                  className="ld-orbit absolute inset-0 rounded-full border border-dashed border-[#0d4f4a]/25"
+                />
+                <span
+                  aria-hidden
+                  className="absolute inset-[11px] rounded-full border border-[#0d4f4a]/15"
+                />
+                <span className="grid size-[68px] place-items-center rounded-full bg-[#0d4f4a] text-[19px] font-bold tracking-wide text-white shadow-[0_10px_26px_rgba(13,79,74,0.34)]">
+                  LD
+                </span>
               </div>
-              <div className="text-[12px] text-text-3">ERP</div>
             </div>
-          </div>
 
-          <div
-            className="ld-reveal flex flex-col gap-1.5"
-            style={{ "--ld-reveal-delay": "60ms" } as React.CSSProperties}
-          >
-            <h1 className="text-[26px] leading-tight font-bold tracking-[-0.022em] text-text-1">
-              Sign in
-            </h1>
-            <p className="text-[13.5px] text-text-3">
-              Use your work Google account, or the email and password an
-              administrator gave you.
+            <h2 className="mt-5 text-center text-[27px] font-bold tracking-[-0.02em] text-[#14312f]">
+              Welcome back
+            </h2>
+            <p className="mt-1.5 text-center text-[14px] text-[#5a6b69]">
+              Sign in to continue to LD Silk Mills ERP
             </p>
-          </div>
 
-          {error === "invalid_credentials" && (
-            <p
-              role="alert"
-              className="ld-reveal mt-5 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2.5 text-[12.5px] text-status-red"
+            {error === "invalid_credentials" && (
+              <p
+                role="alert"
+                className="mt-5 rounded-xl border border-[#c2413a]/30 bg-[#c2413a]/10 px-3.5 py-2.5 text-[12.5px] text-[#a5342e]"
+              >
+                That email and password didn&apos;t work. If you have never set
+                one, continue with Google instead.
+              </p>
+            )}
+
+            <form
+              action={async () => {
+                "use server";
+                await signInWithGoogle(callbackUrl);
+              }}
+              className="mt-6"
             >
-              That email and password didn&apos;t work. If you have never set
-              one, sign in with Google instead.
-            </p>
-          )}
+              <button
+                type="submit"
+                className="group flex h-[52px] w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-[#dfd8cc] bg-white text-[15px] font-semibold text-[#14312f] shadow-[0_1px_2px_rgba(20,49,47,0.05)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-[#fcfbf8] hover:shadow-[0_4px_14px_rgba(20,49,47,0.10)] focus-visible:ring-3 focus-visible:ring-[#0d6b62]/35 focus-visible:outline-none active:scale-[0.995]"
+              >
+                <GoogleIcon className="size-[19px] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100" />
+                Continue with Google
+              </button>
+            </form>
 
-          <form
-            action={async () => {
-              "use server";
-              await signInWithGoogle(callbackUrl);
-            }}
-            className="ld-reveal mt-6"
-            style={{ "--ld-reveal-delay": "120ms" } as React.CSSProperties}
-          >
-            <Button
-              type="submit"
-              size="lg"
-              variant="outline"
-              // A quiet OUTLINE, not the teal fill it was. Google's mark is
-              // the recognisable thing on this button; a saturated background
-              // fights it, and filling both buttons would make neither the
-              // obvious one.
-              className="group h-11 w-full gap-2.5 border-border-strong text-[14px] font-semibold transition-colors hover:bg-surface-2"
-            >
-              <GoogleIcon className="size-[18px] transition-transform duration-300 group-hover:scale-110" />
-              Continue with Google
-            </Button>
-          </form>
-
-          <div
-            className="ld-reveal my-6 flex items-center gap-3"
-            style={{ "--ld-reveal-delay": "170ms" } as React.CSSProperties}
-          >
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
-              or
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          {/* Shown to everybody, always. Whether a given person HAS a password
-              is not something this form may reveal — an input that appeared
-              only for accounts with one would answer "does this person work
-              here?" to anybody who typed an address. */}
-          <form
-            action={async (formData: FormData) => {
-              "use server";
-              await signInWithPassword(
-                String(formData.get("email") ?? ""),
-                String(formData.get("password") ?? ""),
-                callbackUrl,
-              );
-            }}
-            className="ld-reveal flex flex-col gap-3"
-            style={{ "--ld-reveal-delay": "220ms" } as React.CSSProperties}
-          >
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12.5px] font-medium text-text-2">
-                Email
+            <div className="my-6 flex items-center gap-4">
+              <span className="h-px flex-1 bg-[#14312f]/12" />
+              <span className="text-[11.5px] font-semibold tracking-[0.12em] text-[#7b8988]">
+                OR
               </span>
-              <Input
-                name="email"
-                type="email"
-                autoComplete="username"
-                placeholder="you@ldsilkmills.com"
-                required
-                // 44px and 16px below sm: this is signed into from a phone on
-                // the floor, and anything under 16px makes iOS zoom on focus.
-                className="h-11 text-base sm:h-10 sm:text-[13.5px]"
-              />
-            </label>
+              <span className="h-px flex-1 bg-[#14312f]/12" />
+            </div>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12.5px] font-medium text-text-2">
-                Password
-              </span>
-              <PasswordInput
-                name="password"
-                autoComplete="current-password"
-                placeholder="Password"
-                required
-                className="h-11 text-base sm:h-10 sm:text-[13.5px]"
-              />
-            </label>
-
-            <Button
-              type="submit"
-              size="lg"
-              className="mt-1 h-11 w-full text-[14px] font-semibold transition-transform active:scale-[0.99]"
+            <form
+              action={async (formData: FormData) => {
+                "use server";
+                await signInWithPassword(
+                  String(formData.get("email") ?? ""),
+                  String(formData.get("password") ?? ""),
+                  callbackUrl,
+                );
+              }}
+              className="flex flex-col gap-4"
             >
-              Sign in
-            </Button>
-          </form>
+              <label className="flex flex-col gap-2">
+                <span className="text-[13px] font-semibold text-[#2a423f]">
+                  Email
+                </span>
+                <span className="relative block">
+                  <IconMail
+                    aria-hidden
+                    className="pointer-events-none absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-[#0d6b62]/70"
+                    stroke={1.7}
+                  />
+                  {/* 15px, never smaller: this is the screen most likely to be
+                      opened on a phone, and under 16px iOS zooms on focus and
+                      never zooms back. */}
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    placeholder="you@ldsilkmills.com"
+                    required
+                    aria-label="Email"
+                    className="h-[52px] w-full rounded-xl border border-[#dfd8cc] bg-white pr-4 pl-11 text-[16px] text-[#14312f] transition-[border-color,box-shadow] duration-200 outline-none placeholder:text-[#9aa5a3] focus:border-[#0d6b62] focus:ring-4 focus:ring-[#0d6b62]/15 sm:text-[15px]"
+                  />
+                </span>
+              </label>
 
-          <p
-            className="ld-reveal mt-8 text-[11.5px] text-text-3"
-            style={{ "--ld-reveal-delay": "280ms" } as React.CSSProperties}
-          >
-            Access is restricted to accounts an administrator has already set
-            up. If you cannot get in, ask them rather than trying another
-            address.
-          </p>
+              <label className="flex flex-col gap-2">
+                <span className="text-[13px] font-semibold text-[#2a423f]">
+                  Password
+                </span>
+                <span className="relative block">
+                  <IconLock
+                    aria-hidden
+                    className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[18px] -translate-y-1/2 text-[#0d6b62]/70"
+                    stroke={1.7}
+                  />
+                  <PasswordInput
+                    name="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••••••"
+                    required
+                    aria-label="Password"
+                    className="h-[52px] rounded-xl border-[#dfd8cc] bg-white pl-11 text-[16px] text-[#14312f] transition-[border-color,box-shadow] duration-200 placeholder:text-[#9aa5a3] focus-visible:border-[#0d6b62] focus-visible:ring-4 focus-visible:ring-[#0d6b62]/15 sm:text-[15px]"
+                  />
+                </span>
+              </label>
+
+              {/* In the design, and honest about what it can actually do. */}
+              <details className="-mt-1 self-end">
+                <summary className="cursor-pointer list-none text-[13px] font-medium text-[#0d6b62] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+                  Forgot password?
+                </summary>
+                <p className="mt-2 max-w-[38ch] rounded-lg bg-[#0d6b62]/10 px-3 py-2 text-right text-[12px] leading-relaxed text-[#3d4f4d]">
+                  There is no reset email. Ask an ERP administrator — they can
+                  set a new one for you from Settings in a few seconds.
+                </p>
+              </details>
+
+              <button
+                type="submit"
+                className="group relative mt-1 flex h-[56px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-[#0d4f4a] to-[#116b60] text-[15.5px] font-semibold text-white shadow-[0_10px_26px_rgba(13,79,74,0.28)] transition-[box-shadow,transform] duration-200 hover:shadow-[0_14px_34px_rgba(13,79,74,0.36)] focus-visible:ring-3 focus-visible:ring-[#0d6b62]/40 focus-visible:outline-none active:scale-[0.995]"
+              >
+                Sign in
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 right-0 grid w-[58px] place-items-center border-l border-white/15 bg-white/10"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="size-[19px] transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0"
+                  >
+                    <path
+                      d="M4 12h15m0 0-6-6m6 6-6 6"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </form>
+
+            <div className="mt-6 flex items-start gap-2.5 border-t border-[#14312f]/10 pt-5">
+              <IconShieldCheck
+                className="mt-px size-[19px] shrink-0 text-[#0d6b62]"
+                stroke={1.7}
+              />
+              <p className="text-[12.5px] leading-relaxed text-[#5a6b69]">
+                <span className="font-semibold text-[#2a423f]">
+                  Enterprise grade security.
+                </span>
+                <br />
+                Access is limited to accounts an administrator has set up, and
+                every request is checked against them.
+              </p>
+            </div>
+          </section>
         </div>
-      </main>
+
+        <footer
+          className="ld-reveal flex flex-col items-center gap-2 pb-2 lg:items-end"
+          style={{ "--ld-reveal-delay": "820ms" } as React.CSSProperties}
+        >
+          <span className="text-[11.5px] text-[#5a6b69]">
+            Best experienced in
+          </span>
+          <div className="flex items-center gap-6">
+            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
+              <ChromeIcon className="size-[18px]" />
+              Chrome
+            </span>
+            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
+              <EdgeIcon className="size-[18px]" />
+              Edge
+            </span>
+            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
+              <FirefoxIcon className="size-[18px]" />
+              Firefox
+            </span>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -286,6 +395,59 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
       <path
         fill="#EA4335"
         d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.63l3.98 3.09C6.22 6.88 8.87 4.77 12 4.77Z"
+      />
+    </svg>
+  );
+}
+
+function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12" r="11" fill="#fff" />
+      <path
+        fill="#EA4335"
+        d="M12 1a11 11 0 0 1 9.53 5.5H12a5.5 5.5 0 0 0-4.9 3L3.4 4.1A11 11 0 0 1 12 1Z"
+      />
+      <path
+        fill="#34A853"
+        d="M3.4 4.1 7.1 9.5A5.5 5.5 0 0 0 12 17.5l-3.5 5.2A11 11 0 0 1 3.4 4.1Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M21.53 6.5A11 11 0 0 1 8.5 22.7L12 17.5a5.5 5.5 0 0 0 4.77-8.25l4.76-2.75Z"
+      />
+      <circle cx="12" cy="12" r="4.4" fill="#4285F4" />
+    </svg>
+  );
+}
+
+function EdgeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12" r="11" fill="#0F7EC1" />
+      <path
+        fill="#3DD5B0"
+        d="M6 15.5c2.2 3.4 6.6 4.6 10.2 2.8-1.6 2.6-4.6 4-7.6 3.4A9.4 9.4 0 0 1 6 15.5Z"
+      />
+      <path
+        fill="#fff"
+        d="M4.2 9.2C5.6 5.3 9.7 3 13.8 3.9c3 .7 5.1 3 5.4 5.9H9.9c-2.4 0-4.4 1.4-5.7-.6Z"
+      />
+    </svg>
+  );
+}
+
+function FirefoxIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <circle cx="12" cy="12.6" r="10.4" fill="#FF7139" />
+      <path
+        fill="#FFBD4F"
+        d="M12 3.4a9.2 9.2 0 0 1 8.6 6c-1.7-2.3-4.3-3.4-7-2.9-2.4.5-4 2-4.6 4.2-.5 1.9 0 3.7 1.2 5-2.4-.6-4-2.5-4.4-4.9A9.2 9.2 0 0 1 12 3.4Z"
+      />
+      <path
+        fill="#FF4F5E"
+        d="M17.7 10.6c1.4 2.1 1.2 5-.6 6.9a6.6 6.6 0 0 1-8.3.9c2.6.6 5.2-.4 6.6-2.6 1.1-1.7 1.2-3.6.3-5.2Z"
       />
     </svg>
   );

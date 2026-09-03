@@ -348,10 +348,35 @@
   animation-delay: var(--ld-reveal-delay, 0ms);
 }
 
+/* ---------------------------------------------------------------------------
+ * ld-orbit — the login emblem's dashed ring.
+ *
+ * ONE TURN EVERY 40 SECONDS. That number is the whole point: fast enough that
+ * the mark reads as alive, slow enough that nobody mistakes it for a spinner
+ * saying "wait". Anything under about ten seconds becomes a loading indicator
+ * whether you meant it to or not.
+ *
+ * `linear`, because an eased rotation on a continuous loop visibly stutters at
+ * the seam where it restarts.
+ * ------------------------------------------------------------------------ */
+@keyframes ld-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility ld-orbit {
+  animation: ld-orbit 40s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ld-reveal {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  /* Stopped, not hidden — the ring is part of the mark, not decoration on it. */
+  .ld-orbit {
+    animation: none;
   }
 }
