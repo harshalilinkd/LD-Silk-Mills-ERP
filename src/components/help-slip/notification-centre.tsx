@@ -7,10 +7,15 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { IconBell, IconChecks } from "@tabler/icons-react";
-
-import { Bi } from "@/components/help-slip/bilingual";
 import {
+  IconBell,
+  IconCalendarEvent,
+  IconChecks,
+  IconHistory,
+} from "@tabler/icons-react";
+
+import {
+  CountChip,
   ListState,
   LoadMore,
   PageHeader,
@@ -22,9 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { Spinner } from "@/components/ui/spinner";
 import { helpSlipGet, helpSlipSend } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale, useHelpSlipSession } from "@/lib/help-slip/context";
+import { useHelpSlipSession } from "@/lib/help-slip/context";
 import { isToday, relativeTime } from "@/lib/help-slip/format";
-import type { HelpSlipLocale } from "@/lib/help-slip/meta";
 import { HELP_SLIP_STALE_TIME } from "@/lib/help-slip/use-unread-count";
 import type {
   NotificationRow,
@@ -39,6 +43,18 @@ import { cn } from "@/lib/utils";
  * the first minute or not at all — a full date breakdown would be a filing
  * system for something nobody files.
  *
+ * ── ONE LIST CARD, GROUPS ANNOUNCED INSIDE IT ─────────────────────────────
+ * The feed is a single ERP panel card, and every state of the screen is a face
+ * of that card: the rows, the spinner, the error, the empty. Nothing sits on
+ * the page ground — the ground is only ever visible BETWEEN cards, and a
+ * spinner or a lone "Nothing new" bell floating under the title is the loudest
+ * tell that a screen was not built in this system. `ListState` draws its
+ * states at the ERP's in-card block padding for exactly this reason.
+ *
+ * Each day group carries the ERP's tinted head strip — accent icon chip,
+ * heading, count — because a bare day label above a run of rows reads as a
+ * heading somebody left behind rather than as the top of a group.
+ *
  * ── "MARK ALL READ" IS A DECISION ─────────────────────────────────────────
  * It is not something that happens TO the reader on arrival. The standalone
  * app used to auto-clear on visiting this route, which destroyed the unread
@@ -51,9 +67,10 @@ import { cn } from "@/lib/utils";
  * A brand left border AND a heavier title. Around 8% of the factory cannot
  * tell two rows apart if a tint is the only difference — and a bare dot is
  * worse still, because it is one 6px mark competing with a whole row of text.
+ * Both marks are tokens — `border-l-primary` and a font weight — so both
+ * survive the theme flip; a wash tuned for one theme would not.
  */
 export function NotificationCentre() {
-  const locale = useHelpSlipLocale();
   const session = useHelpSlipSession();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -116,7 +133,9 @@ export function NotificationCentre() {
     );
   };
 
-  const beginOptimistic = async (fn: (n: NotificationRow) => NotificationRow) => {
+  const beginOptimistic = async (
+    fn: (n: NotificationRow) => NotificationRow,
+  ) => {
     // Without this an in-flight refetch can land after the optimistic write
     // and overwrite it with the pre-update server state.
     await queryClient.cancelQueries({ queryKey: key });
@@ -190,28 +209,20 @@ export function NotificationCentre() {
     const base = staff
       ? `/help-slip/all/${n.concernId}`
       : `/help-slip/concerns/${n.concernId}`;
-    router.push(
-      n.concernUpdateId ? `${base}?u=${n.concernUpdateId}` : base,
-    );
+    router.push(n.concernUpdateId ? `${base}?u=${n.concernUpdateId}` : base);
   };
 
   const { today, earlier } = splitByDay(items);
 
   return (
-    // `gap-5` is the ERP page rhythm (`flex flex-col gap-5`, every page file
-    // under order-entry/ and crm/). It replaces the `py-3` PageHeader used to
-    // carry: the header owns no padding of its own now, the page owns the seam.
-    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-5">
+    // The ERP page rhythm — `flex flex-col gap-5` between the h1 and the
+    // regions under it, on every page file under order-entry/. `PageHeader`
+    // owns no padding of its own, so the seam belongs to the root.
+    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-5 pb-6">
       <Reveal index={0}>
         <PageHeader
           titleEn="Notifications"
-          titleHi="सूचनाएँ"
-          subtitle={
-            <Bi
-              en="Updates on your concerns."
-              hi="आपकी शिकायतों पर अपडेट।"
-            />
-          }
+          subtitle="Updates on your concerns."
           actions={
             // Only when it would DO something.
             unreadShown > 0 ? (
@@ -220,10 +231,8 @@ export function NotificationCentre() {
                 variant="outline"
                 onClick={() => markAllRead.mutate()}
                 disabled={markAllRead.isPending}
-                // 44px + 16px text below md: the minimum touch target for a
-                // phone held on the factory floor, and anything under 16px
-                // makes iOS Safari auto-zoom on focus and never zoom back out.
-                // ERP-compact (36px / 13px) from md up.
+                // 44px below md: the minimum touch target for a phone held on
+                // the factory floor. ERP-compact (36px) from md up.
                 className="h-11 md:h-9"
               >
                 {markAllRead.isPending ? (
@@ -235,15 +244,15 @@ export function NotificationCentre() {
                     aria-hidden
                   />
                 )}
-                <Bi en="Mark all read" hi="सब पढ़ा हुआ करें" />
+                Mark all read
               </Button>
             ) : null
           }
         />
       </Reveal>
 
-      <div className="flex flex-col gap-4 pb-6">
-        <Reveal index={1}>
+      <Reveal index={1}>
+        <Panel>
           <ListState
             loading={q.isPending}
             error={q.isError ? (q.error as Error).message : null}
@@ -252,16 +261,13 @@ export function NotificationCentre() {
             empty={{
               icon: IconBell,
               titleEn: "Nothing new.",
-              titleHi: "कुछ नया नहीं।",
               bodyEn:
                 "When a coordinator answers one of your concerns, you'll hear about it here.",
-              bodyHi:
-                "जब कोऑर्डिनेटर आपकी किसी शिकायत का जवाब देंगे, आपको यहाँ पता चलेगा।",
             }}
           >
             <div
               className={cn(
-                "flex flex-col gap-4 transition-opacity",
+                "flex flex-col transition-opacity",
                 q.isFetching && !q.isFetchingNextPage && !q.isPending
                   ? "opacity-60"
                   : null,
@@ -269,56 +275,65 @@ export function NotificationCentre() {
             >
               {today.length > 0 ? (
                 <Group
-                  labelEn="Today"
-                  labelHi="आज"
+                  label="Today"
+                  icon={<IconCalendarEvent />}
                   items={today}
-                  locale={locale}
                   onOpen={open}
                 />
               ) : null}
               {earlier.length > 0 ? (
                 <Group
-                  labelEn="Earlier"
-                  labelHi="इससे पहले"
+                  label="Earlier"
+                  icon={<IconHistory />}
                   items={earlier}
-                  locale={locale}
                   onOpen={open}
                 />
               ) : null}
             </div>
           </ListState>
-        </Reveal>
 
-        {q.hasNextPage ? (
-          <LoadMore
-            onClick={() => void q.fetchNextPage()}
-            loading={q.isFetchingNextPage}
-            label="Load more"
-            labelHi="और दिखाएँ"
-          />
-        ) : null}
-      </div>
+          {q.hasNextPage ? (
+            // The ERP puts its pager INSIDE the list card, on a solid top rule,
+            // never adrift beneath it.
+            <div className="border-t border-border px-4 sm:px-5">
+              <LoadMore
+                onClick={() => void q.fetchNextPage()}
+                loading={q.isFetchingNextPage}
+                label="Load more"
+              />
+            </div>
+          ) : null}
+        </Panel>
+      </Reveal>
     </div>
   );
 }
 
-/** One card per group — the day label lives INSIDE it, not floating above. */
+/**
+ * One day group: the ERP's tinted head strip over its rows.
+ *
+ * `border-t` on every group but the first is the seam between two groups
+ * sharing one card — the strip already draws its own bottom rule, so the top
+ * one is the only thing missing.
+ */
 function Group({
-  labelEn,
-  labelHi,
+  label,
+  icon,
   items,
-  locale,
   onOpen,
 }: {
-  labelEn: string;
-  labelHi: string;
+  label: string;
+  icon: React.ReactNode;
   items: NotificationRow[];
-  locale: HelpSlipLocale;
   onOpen: (n: NotificationRow) => void;
 }) {
   return (
-    <Panel className="overflow-hidden">
-      <PanelHead titleEn={labelEn} titleHi={labelHi} />
+    <section className="border-t border-border first:border-t-0">
+      <PanelHead
+        titleEn={label}
+        icon={icon}
+        aside={<CountChip>{items.length}</CountChip>}
+      />
       <ul className="flex flex-col">
         {items.map((n) => (
           <li key={n.id} className="border-b border-border last:border-0">
@@ -329,10 +344,13 @@ function Group({
                 // 44px below md: the minimum touch target for a phone held on
                 // the factory floor. (No font guard needed — this row is not a
                 // text-entry control, so there is no iOS auto-zoom to defeat.)
-                // ERP `Td` density (px-3 py-2.5) from md up, where the row is
-                // read with a mouse and the compact rhythm is what makes this
-                // look like Order Entry.
-                "flex min-h-11 w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left transition-colors outline-none md:min-h-0 md:px-3 md:py-2.5",
+                // ERP `Td` density (py-2.5) from md up, where the row is read
+                // with a mouse and the compact rhythm is what makes this look
+                // like Order Entry.
+                //
+                // `px-4 sm:px-5` is the head strip's own inset, so a row's text
+                // starts exactly under its group's heading.
+                "flex min-h-11 w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left transition-colors outline-none sm:px-5 md:min-h-0 md:py-2.5",
                 "hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset",
                 // A brand edge AND a heavier title. Never colour alone, and
                 // never a bare dot.
@@ -342,7 +360,7 @@ function Group({
               <span className="flex items-baseline justify-between gap-3">
                 <span
                   className={cn(
-                    "deva text-text-1",
+                    "min-w-0 text-text-1",
                     T.bodySm,
                     !n.readAt && "font-semibold",
                   )}
@@ -355,19 +373,17 @@ function Group({
                     T.caption,
                   )}
                 >
-                  {relativeTime(n.createdAt, locale)}
+                  {relativeTime(n.createdAt)}
                 </span>
               </span>
-              <span
-                className={cn("deva line-clamp-2 text-text-2", T.bodySm)}
-              >
+              <span className={cn("line-clamp-2 text-text-2", T.bodySm)}>
                 {n.message}
               </span>
             </button>
           </li>
         ))}
       </ul>
-    </Panel>
+    </section>
   );
 }
 

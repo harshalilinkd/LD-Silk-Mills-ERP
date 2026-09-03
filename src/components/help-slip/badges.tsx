@@ -3,7 +3,6 @@ import {
   OVERDUE_META,
   priorityMeta,
   statusMeta,
-  type HelpSlipLocale,
 } from "@/lib/help-slip/meta";
 import { cn } from "@/lib/utils";
 
@@ -13,18 +12,34 @@ import { cn } from "@/lib/utils";
  * in this file that maps a status to anything, and there should not be one
  * anywhere else either.
  *
- * Geometry follows the ERP's `ui/status-badge.tsx` (radius 99px /
- * `rounded-pill`, tinted fill + solid hue text) rather than the source's
- * `rounded-full` + `text-caption`, which is the same shape one token system
- * over.
+ * ── THE GEOMETRY IS `ui/status-badge.tsx`, TO THE PIXEL ───────────────────
+ * `rounded-pill`, `px-2 py-[3px]`, `text-[10.5px] leading-none font-semibold`,
+ * a tinted fill under the solid hue — and UPPERCASE, which is what the ERP
+ * badge renders (it prints its enum raw: `COMPLETED`, `PARTIALLY COMPLETED`).
+ * Help Slip's labels are sentence case in `meta.ts` because they are also read
+ * aloud, so the casing is applied here rather than baked into the data.
  *
- * ONE deliberate departure from `ui/status-badge.tsx`: the `sm` label stays at
- * 11px rather than dropping to 10.5px. These labels may be Devanagari, and the
- * Hindi gloss renders at 0.85em — 10.5 × 0.85 puts it under 9px, which is
- * unreadable on a mid-range phone. `md` takes the ERP's 11.5px.
+ * This file used to hold the `sm` label at 11px and refuse the ERP's 10.5,
+ * because the Devanagari gloss rendered at 0.85em and 10.5 would have set it
+ * under 9px. There is no gloss now, so there is no floor and no departure left
+ * to justify: the badge is the ERP's badge.
+ *
+ * `md` is the same pill one step up, for a detail header — where it sits
+ * beside a 22px title rather than inside a 13px table row.
  */
 
 type Size = "sm" | "md";
+
+const PILL_BASE =
+  "inline-flex items-center gap-1 leading-none font-semibold whitespace-nowrap uppercase";
+
+/** `sm` is `ui/status-badge.tsx` verbatim; `md` is the detail-header step. */
+const PILL_SIZE = {
+  sm: "px-2 py-[3px] text-[10.5px]",
+  md: "px-2.5 py-1 text-[11px]",
+} as const;
+
+const GLYPH_SIZE = { sm: "size-3", md: "size-3.5" } as const;
 
 /**
  * A soft-filled PILL: icon + label + tint, and no border.
@@ -44,15 +59,10 @@ type Size = "sm" | "md";
 export function StatusBadge({
   status,
   size = "sm",
-  locale = "en",
-  bilingual = false,
   className,
 }: {
   status: string | null | undefined;
   size?: Size;
-  locale?: HelpSlipLocale;
-  /** Shows both, as "Resolved · हल हो गया". For a detail header, not a row. */
-  bilingual?: boolean;
   className?: string;
 }) {
   const meta = statusMeta(status);
@@ -61,8 +71,9 @@ export function StatusBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center rounded-pill bg-chip px-2 py-[3px] font-semibold text-text-3",
-          size === "sm" ? "text-[11px]" : "text-[11.5px]",
+          PILL_BASE,
+          PILL_SIZE[size],
+          "rounded-pill bg-chip text-text-3",
           className,
         )}
       >
@@ -76,27 +87,20 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-pill font-semibold whitespace-nowrap",
-        size === "sm"
-          ? "px-2 py-[3px] text-[11px] leading-none"
-          : "px-2.5 py-1 text-[11.5px] leading-none",
+        PILL_BASE,
+        PILL_SIZE[size],
+        "rounded-pill",
         meta.fgClass,
         meta.bgClass,
         className,
       )}
     >
       <Icon
-        className={cn("shrink-0", size === "sm" ? "size-3" : "size-3.5")}
+        className={cn("shrink-0", GLYPH_SIZE[size])}
         stroke={1.6}
         aria-hidden
       />
-      <span className="deva">
-        {bilingual
-          ? `${meta.labelEn} · ${meta.labelHi}`
-          : locale === "hi"
-            ? meta.labelHi
-            : meta.labelEn}
-      </span>
+      {meta.labelEn}
     </span>
   );
 }
@@ -111,31 +115,30 @@ export function StatusBadge({
  */
 export function OverdueBadge({
   size = "sm",
-  locale = "en",
   className,
 }: {
   size?: Size;
-  locale?: HelpSlipLocale;
   className?: string;
 }) {
   const Icon = OVERDUE_META.icon;
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-field border font-semibold whitespace-nowrap",
-        size === "sm"
-          ? "px-2 py-[3px] text-[11px] leading-none"
-          : "px-2.5 py-1 text-[11.5px] leading-none",
+        PILL_BASE,
+        PILL_SIZE[size],
+        "rounded-pill border",
         OVERDUE_META.fgClass,
         OVERDUE_META.bgClass,
         OVERDUE_META.borderClass,
         className,
       )}
     >
-      <Icon className="size-3 shrink-0" stroke={1.6} aria-hidden />
-      <span className="deva">
-        {locale === "hi" ? OVERDUE_META.labelHi : OVERDUE_META.labelEn}
-      </span>
+      <Icon
+        className={cn("shrink-0", GLYPH_SIZE[size])}
+        stroke={1.6}
+        aria-hidden
+      />
+      {OVERDUE_META.labelEn}
     </span>
   );
 }
@@ -156,12 +159,10 @@ export function OverdueBadge({
  */
 export function PriorityChip({
   priority,
-  locale = "en",
   alwaysShow = false,
   className,
 }: {
   priority: string | null | undefined;
-  locale?: HelpSlipLocale;
   /** Force a chip for low/normal. Nothing in these screens needs this. */
   alwaysShow?: boolean;
   className?: string;
@@ -176,7 +177,9 @@ export function PriorityChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-field border bg-transparent px-2 py-[3px] text-[11px] leading-none font-semibold whitespace-nowrap",
+        PILL_BASE,
+        PILL_SIZE.sm,
+        "rounded-pill border bg-transparent",
         outline,
         className,
       )}
@@ -189,9 +192,7 @@ export function PriorityChip({
       ) : Icon ? (
         <Icon className="size-3 shrink-0" stroke={1.6} aria-hidden />
       ) : null}
-      <span className="deva">
-        {locale === "hi" ? meta.labelHi : meta.labelEn}
-      </span>
+      {meta.labelEn}
     </span>
   );
 }

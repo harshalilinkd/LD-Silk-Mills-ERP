@@ -11,12 +11,13 @@ import {
   PriorityChip,
   StatusBadge,
 } from "@/components/help-slip/badges";
-import { Bi } from "@/components/help-slip/bilingual";
 import {
   ALL_PRIORITIES,
   ALL_STATUSES,
   CheckRow,
   DateRangeFields,
+  FILTER_TOOLBAR,
+  FILTER_WELL,
   FilterGroup,
   FilterSelect,
   FilterSheet,
@@ -25,10 +26,12 @@ import {
   priorityOptions,
 } from "@/components/help-slip/filters";
 import {
+  CountChip,
   ListState,
   LoadMore,
   PageHeader,
   Panel,
+  PanelHead,
   SearchField,
   SortHeader,
 } from "@/components/help-slip/page-parts";
@@ -38,7 +41,6 @@ import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
 import type { ConcernStatus } from "@/db/help-slip/schema";
 import { helpSlipGet } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale } from "@/lib/help-slip/context";
 import { departmentOf, relativeTime } from "@/lib/help-slip/format";
 import { PRIORITY_META, STATUS_META } from "@/lib/help-slip/meta";
 import { useDebouncedValue } from "@/lib/help-slip/use-debounced-value";
@@ -61,6 +63,9 @@ import {
 } from "@/lib/help-slip/types";
 import { cn } from "@/lib/utils";
 
+/** The filter well's caption — order-filters.tsx's `LABEL_CLASS`, verbatim. */
+const WELL_LABEL = "text-[11px] font-medium text-text-2";
+
 /**
  * All concerns — the coordinator's ARCHIVE.
  *
@@ -77,11 +82,16 @@ import { cn } from "@/lib/utils";
  * somebody, and a URL is how you send it.
  *
  * Page size 25.
+ *
+ * ── LAYOUT ────────────────────────────────────────────────────────────────
+ * Three regions, in the ERP's own list order (§E.1): toolbar → filter well →
+ * the list panel. Every one of them is a bordered card on `bg-surface`;
+ * nothing sits on the page ground, which is the structural difference between
+ * this module and the rest of the ERP and the whole reason for the rebuild.
  */
 export function AllConcerns() {
   const router = useRouter();
   const params = useSearchParams();
-  const locale = useHelpSlipLocale();
 
   const filters = React.useMemo(() => filtersFromParams(params), [params]);
 
@@ -157,40 +167,34 @@ export function AllConcerns() {
   );
 
   const assigneeSelectOptions = [
-    { value: "", label: "Anyone", labelHi: "कोई भी" },
-    {
-      value: ASSIGNEE_UNASSIGNED,
-      label: "Unassigned",
-      labelHi: "किसी को नहीं",
-    },
+    { value: "", label: "Anyone" },
+    { value: ASSIGNEE_UNASSIGNED, label: "Unassigned" },
     ...assignees.map((a) => ({ value: a.id, label: a.name })),
   ];
 
   return (
-    <div className="flex flex-col">
+    // `gap-5` — the ERP page rhythm, and now load-bearing: `PageHeader` carries
+    // no bottom padding of its own, so this root is the only thing separating
+    // the title from the first card.
+    <div className="flex flex-col gap-5 pb-6">
       <Reveal index={0}>
         <PageHeader
           titleEn="All concerns"
-          titleHi="सभी शिकायतें"
-          subtitle={
-            <Bi
-              en="Everything on record. The dashboard is for what needs you now."
-              hi="रिकॉर्ड की हर शिकायत। डैशबोर्ड में वही है जिस पर अभी काम चाहिए।"
-            />
-          }
+          subtitle="Everything on record. The dashboard is for what needs you now."
           meta={total > 0 ? `Showing ${rows.length} of ${total}` : null}
         />
       </Reveal>
 
-      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
-          The seam between the toolbar and the list is 20px here as it is in
-          Order Entry. */}
-      <div className="flex flex-col gap-5 pb-6">
-        {/* ═══ controls ═══════════════════════════════════════════════ *
-         * Search, the five filter dimensions and Clear share ONE row and one
-         * baseline. On two rows they read as two unrelated toolbars.        */}
-        <Reveal index={1}>
-          <div className="flex flex-wrap items-center gap-2">
+      {/* ═══ controls ═══════════════════════════════════════════════════ *
+       * TOOLBAR then WELL, the ERP's own two-part filter region (§E.2/§D.6).
+       * The toolbar CARDS the controls somebody reaches on every visit —
+       * search, the status pills, the way out — and the recessed well below it
+       * holds the four narrowing dimensions in a grid with visible captions,
+       * because four unlabelled selects in one wrapping row is a puzzle rather
+       * than a filter bar. Below `md` the whole well is the bottom sheet.    */}
+      <Reveal index={1}>
+        <div className="flex flex-col gap-2.5">
+          <div className={FILTER_TOOLBAR}>
             <SearchField
               value={term}
               onChange={setTerm}
@@ -207,7 +211,7 @@ export function AllConcerns() {
                   setDraft({ ...DEFAULT_PC_FILTERS, search: draft.search })
                 }
               >
-                <FilterGroup labelEn="Status" labelHi="स्थिति">
+                <FilterGroup labelEn="Status">
                   <div className="flex flex-col">
                     {ALL_STATUSES.map((s) => (
                       <CheckRow
@@ -222,13 +226,12 @@ export function AllConcerns() {
                           })
                         }
                         labelEn={STATUS_META[s].labelEn}
-                        labelHi={STATUS_META[s].labelHi}
                       />
                     ))}
                   </div>
                 </FilterGroup>
 
-                <FilterGroup labelEn="Priority" labelHi="प्राथमिकता">
+                <FilterGroup labelEn="Priority">
                   <div className="flex flex-col">
                     {ALL_PRIORITIES.map((p) => (
                       <CheckRow
@@ -243,13 +246,12 @@ export function AllConcerns() {
                           })
                         }
                         labelEn={PRIORITY_META[p].labelEn}
-                        labelHi={PRIORITY_META[p].labelHi}
                       />
                     ))}
                   </div>
                 </FilterGroup>
 
-                <FilterGroup labelEn="Department" labelHi="विभाग">
+                <FilterGroup labelEn="Department">
                   <FilterSelect
                     ariaLabel="Department"
                     value={draft.departmentId ?? ""}
@@ -257,26 +259,23 @@ export function AllConcerns() {
                       setDraft({ ...draft, departmentId: v || null })
                     }
                     options={departmentOptions(departments, "Any department")}
-                    locale={locale}
                     className="w-full"
                   />
                 </FilterGroup>
 
-                <FilterGroup labelEn="Assigned to" labelHi="किसे सौंपी गई">
+                <FilterGroup labelEn="Assigned to">
                   <FilterSelect
                     ariaLabel="Assigned to"
                     value={draft.assignee ?? ""}
-                    onChange={(v) => setDraft({ ...draft, assignee: v || null })}
+                    onChange={(v) =>
+                      setDraft({ ...draft, assignee: v || null })
+                    }
                     options={assigneeSelectOptions}
-                    locale={locale}
                     className="w-full"
                   />
                 </FilterGroup>
 
-                <FilterGroup
-                  labelEn="Filed between"
-                  labelHi="दर्ज होने की तारीख़"
-                >
+                <FilterGroup labelEn="Filed between">
                   <DateRangeFields
                     from={draft.from}
                     to={draft.to}
@@ -286,268 +285,290 @@ export function AllConcerns() {
               </FilterSheet>
             </div>
 
-            {/* From 768, all five dimensions inline.
-                The source's desktop toolbar carries four of them and leaves
-                priority to the phone sheet only; a screen that advertises five
-                filter dimensions should reach all five where it is widest. */}
-            <div className="hidden flex-wrap items-center gap-2 md:flex">
-              <StatusPills
-                value={filters.status}
-                onChange={(status) => apply({ ...filters, status })}
-                locale={locale}
-              />
-              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-              <FilterSelect
-                ariaLabel="Department"
-                value={filters.departmentId ?? ""}
-                onChange={(v) =>
-                  apply({ ...filters, departmentId: v || null })
-                }
-                options={departmentOptions(departments, "Any department")}
-                locale={locale}
-              />
-              <FilterSelect
-                ariaLabel="Assigned to"
-                value={filters.assignee ?? ""}
-                onChange={(v) => apply({ ...filters, assignee: v || null })}
-                options={assigneeSelectOptions}
-                locale={locale}
-              />
-              {/* Single-select: a coordinator narrowing by priority almost
-                  always means "just Urgent" or "just High", not a combination.
-                  The sheet keeps the multi-select for the rare case. */}
-              <FilterSelect
-                ariaLabel="Priority"
-                value={filters.priority[0] ?? ""}
-                onChange={(v) =>
-                  apply({
-                    ...filters,
-                    priority: v ? [v as (typeof ALL_PRIORITIES)[number]] : [],
-                  })
-                }
-                options={priorityOptions("All priorities", locale)}
-                locale={locale}
-              />
-              <DateRangeFields
-                from={filters.from}
-                to={filters.to}
-                onChange={(range) => apply({ ...filters, ...range })}
-                labelFrom="Filed from"
-                labelTo="Filed to"
-              />
-            </div>
+            {/* Status is the dimension a coordinator changes constantly, so it
+                stays in the toolbar where the search is, not down in the well. */}
+            <StatusPills
+              value={filters.status}
+              onChange={(status) => apply({ ...filters, status })}
+              className="hidden md:flex"
+            />
 
             {filtered ? (
               <button
                 type="button"
                 onClick={clearAll}
+                // 44px below md, ERP-compact from md up. A bare text link is a
+                // 20px touch target on a phone held on the factory floor.
                 className={cn(
-                  "deva cursor-pointer text-accent-text underline underline-offset-2",
+                  "inline-flex h-11 shrink-0 cursor-pointer items-center rounded-field px-2 text-accent-text underline underline-offset-2 outline-none transition-colors hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40 md:h-9",
                   T.bodySm,
                 )}
               >
-                <Bi en="Clear filters" hi="फ़िल्टर हटाएँ" />
+                Clear filters
               </button>
             ) : null}
           </div>
-        </Reveal>
 
-        {/* ═══ the list ═══════════════════════════════════════════════ */}
-        <Reveal index={2}>
-          <div className="flex flex-col gap-3">
-            <Panel
-              className={cn(
-                "overflow-hidden transition-opacity",
-                q.isFetching && !q.isFetchingNextPage && !q.isPending
-                  ? "opacity-60"
-                  : null,
-              )}
-            >
-              <ListState
-                loading={q.isPending}
-                error={q.isError ? (q.error as Error).message : null}
-                onRetry={() => void q.refetch()}
-                isEmpty={rows.length === 0}
-                empty={
-                  filtered
-                    ? {
-                        icon: IconSearch,
-                        titleEn: "No concerns match these filters.",
-                        titleHi: "इन फ़िल्टर से कोई शिकायत नहीं मिली।",
-                        bodyEn: "Try a wider date range, or clear the filters.",
-                        bodyHi: "तारीख़ की सीमा बढ़ाएँ, या फ़िल्टर हटा दें।",
-                        action: { label: "Clear filters", onClick: clearAll },
-                      }
-                    : {
-                        icon: IconClipboardList,
-                        titleEn: "No concerns on record yet.",
-                        titleHi: "अभी कोई शिकायत दर्ज नहीं है।",
-                        bodyEn:
-                          "The first one an employee files will appear here.",
-                        bodyHi:
-                          "कर्मचारी जो पहली शिकायत दर्ज करेंगे वह यहाँ दिखेगी।",
-                      }
-                }
-              >
-                {/* ── cards, < 768 ──────────────────────────────────── */}
-                <ul className="flex flex-col gap-2.5 p-3 md:hidden">
-                  {rows.map((row) => (
-                    <li key={row.id}>
-                      {/* Staff land in the WORKSPACE, not the employee's view:
-                          this is the archive a coordinator opens in order to
-                          do something about a concern.
+          {/* The recessed well, not a second card: it belongs to the toolbar
+              region rather than beside the list, and a card inside a card
+              reads as two things when it is one. From 768 only — below that
+              these five dimensions live in the sheet above. */}
+          <div className={cn(FILTER_WELL, "hidden md:block")}>
+            <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className={WELL_LABEL}>Department</span>
+                <FilterSelect
+                  ariaLabel="Department"
+                  value={filters.departmentId ?? ""}
+                  onChange={(v) =>
+                    apply({ ...filters, departmentId: v || null })
+                  }
+                  options={departmentOptions(departments, "Any department")}
+                  className="w-full"
+                />
+              </div>
 
-                          Order Entry's mobile row card, verbatim
-                          (`orders/orders-dashboard.tsx`'s OrderCard): surface
-                          ground, border-strong on hover, and a press scale.
-                          It carries its own `shadow-sm` because `Panel` no
-                          longer does — a shadow marks a press TARGET here, not
-                          a panel. */}
-                      <Link
-                        href={`/help-slip/all/${row.id}`}
-                        className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
-                      >
-                      <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className={WELL_LABEL}>Assigned to</span>
+                <FilterSelect
+                  ariaLabel="Assigned to"
+                  value={filters.assignee ?? ""}
+                  onChange={(v) => apply({ ...filters, assignee: v || null })}
+                  options={assigneeSelectOptions}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Single-select: a coordinator narrowing by priority almost
+                  always means "just Urgent" or "just High", not a combination.
+                  The sheet keeps the multi-select for the rare case. */}
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className={WELL_LABEL}>Priority</span>
+                <FilterSelect
+                  ariaLabel="Priority"
+                  value={filters.priority[0] ?? ""}
+                  onChange={(v) =>
+                    apply({
+                      ...filters,
+                      priority: v ? [v as (typeof ALL_PRIORITIES)[number]] : [],
+                    })
+                  }
+                  options={priorityOptions("All priorities")}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className={WELL_LABEL}>Filed between</span>
+                <DateRangeFields
+                  from={filters.from}
+                  to={filters.to}
+                  onChange={(range) => apply({ ...filters, ...range })}
+                  labelFrom="Filed from"
+                  labelTo="Filed to"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </Reveal>
+
+      {/* ═══ the list ═══════════════════════════════════════════════════ */}
+      <Reveal index={2}>
+        <Panel
+          className={cn(
+            "transition-opacity",
+            q.isFetching && !q.isFetchingNextPage && !q.isPending
+              ? "opacity-60"
+              : null,
+          )}
+        >
+          <PanelHead
+            titleEn="Concerns on record"
+            icon={<IconClipboardList stroke={1.6} />}
+            aside={total > 0 ? <CountChip>{total}</CountChip> : null}
+          />
+
+          <ListState
+            loading={q.isPending}
+            error={q.isError ? (q.error as Error).message : null}
+            onRetry={() => void q.refetch()}
+            isEmpty={rows.length === 0}
+            empty={
+              filtered
+                ? {
+                    icon: IconSearch,
+                    titleEn: "No concerns match these filters.",
+                    bodyEn: "Try a wider date range, or clear the filters.",
+                    action: { label: "Clear filters", onClick: clearAll },
+                  }
+                : {
+                    icon: IconClipboardList,
+                    titleEn: "No concerns on record yet.",
+                    bodyEn: "The first one an employee files will appear here.",
+                  }
+            }
+          >
+            {/* ── cards, < 768 ──────────────────────────────────────── */}
+            <ul className="flex flex-col gap-2.5 p-3 md:hidden">
+              {rows.map((row) => (
+                <li key={row.id}>
+                  {/* Staff land in the WORKSPACE, not the employee's view:
+                      this is the archive a coordinator opens in order to do
+                      something about a concern.
+
+                      Order Entry's mobile row card, verbatim
+                      (`orders/orders-dashboard.tsx`'s OrderCard): surface
+                      ground, border-strong on hover, and a press scale. It
+                      carries its own `shadow-sm` because `Panel` no longer
+                      does — a shadow marks a press TARGET here, not a
+                      panel. */}
+                  <Link
+                    href={`/help-slip/all/${row.id}`}
+                    className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
+                  >
+                    {/* Identity row: what it is on the left, what state it is
+                        in on the right — the ERP mobile row card, §E.4. */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <span className={cn("num text-text-3", T.caption)}>
                           {row.concernNumber}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <StatusBadge status={row.status} locale={locale} />
-                          {row.isOverdue ? (
-                            <OverdueBadge locale={locale} />
-                          ) : null}
-                        </span>
+                        <p
+                          className={cn(
+                            "mt-0.5 line-clamp-2 text-text-1",
+                            T.h3,
+                          )}
+                        >
+                          {row.title}
+                        </p>
                       </div>
+                      <span className="flex shrink-0 flex-col items-end gap-1">
+                        <StatusBadge status={row.status} />
+                        {row.isOverdue ? <OverdueBadge /> : null}
+                      </span>
+                    </div>
 
-                      <p className={cn("deva line-clamp-2 text-text-1", T.h3)}>
-                        {row.title}
-                      </p>
-
-                      <p className={cn("deva text-text-3", T.caption)}>
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center gap-x-3 gap-y-1 text-text-3",
+                        T.caption,
+                      )}
+                    >
+                      <span className="min-w-0 truncate">
                         {row.employeeName ?? "—"}
-                        {" · "}
-                        {departmentOf(row, locale)}
-                        {" · "}
-                        {relativeTime(row.createdAt, locale)}
-                      </p>
+                      </span>
+                      <span>{departmentOf(row)}</span>
+                      <span className="num">{relativeTime(row.createdAt)}</span>
+                    </div>
 
-                      <p
+                    <div
+                      className={cn(
+                        "flex flex-wrap items-center gap-2",
+                        T.caption,
+                      )}
+                    >
+                      <PriorityChip priority={row.priority} />
+                      <span
                         className={cn(
-                          "deva flex flex-wrap items-center gap-2",
-                          T.caption,
+                          "ml-auto",
+                          !row.assignedToName && "text-text-3",
                         )}
                       >
-                        <PriorityChip
-                          priority={row.priority}
-                          locale={locale}
-                        />
-                        <span
+                        {row.assignedToName ?? "Unassigned"}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            {/* ── table, ≥ 768. Seven columns. ──────────────────────── */}
+            <div className="hidden md:block">
+              <HScroll bodyClassName="overflow-x-auto">
+                <Table>
+                  <THead>
+                    <tr>
+                      <Th>{th("concern_number", "ID")}</Th>
+                      <Th className="w-full">{th("title", "Title")}</Th>
+                      <Th className="hidden lg:table-cell">
+                        {th("employee_name", "Raised by")}
+                      </Th>
+                      <Th className="hidden xl:table-cell">
+                        {th("department_name", "Department")}
+                      </Th>
+                      <Th>{th("status", "Status")}</Th>
+                      <Th className="hidden lg:table-cell">Assigned</Th>
+                      <Th>{th("last_public_update_at", "Last update")}</Th>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {rows.map((row) => (
+                      // `relative`, so the ID cell's link can cover the
+                      // whole row — one real <Link>, whole-row target.
+                      <Tr key={row.id} className="relative">
+                        <Td className="num whitespace-nowrap">
+                          <Link
+                            href={`/help-slip/all/${row.id}`}
+                            aria-label={`${row.concernNumber}: ${row.title}`}
+                            className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
+                          >
+                            {row.concernNumber}
+                          </Link>
+                        </Td>
+                        <Td className="max-w-0">
+                          <span className="flex items-center gap-2">
+                            <span className="line-clamp-1">{row.title}</span>
+                            <PriorityChip priority={row.priority} />
+                          </span>
+                        </Td>
+                        <Td className="hidden whitespace-nowrap lg:table-cell">
+                          {row.employeeName ?? "—"}
+                        </Td>
+                        <Td className="hidden whitespace-nowrap xl:table-cell">
+                          {departmentOf(row)}
+                        </Td>
+                        <Td>
+                          <span className="flex flex-wrap items-center gap-1">
+                            <StatusBadge status={row.status} />
+                            {row.isOverdue ? <OverdueBadge /> : null}
+                          </span>
+                        </Td>
+                        <Td
                           className={cn(
+                            "hidden whitespace-nowrap lg:table-cell",
                             !row.assignedToName && "text-text-3",
                           )}
                         >
                           {row.assignedToName ?? "Unassigned"}
-                        </span>
-                      </p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                        </Td>
+                        <Td className="num whitespace-nowrap text-text-3">
+                          {row.lastPublicUpdateAt
+                            ? relativeTime(row.lastPublicUpdateAt)
+                            : "—"}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </TBody>
+                </Table>
+              </HScroll>
+            </div>
+          </ListState>
 
-                {/* ── table, ≥ 768. Seven columns. ──────────────────── */}
-                <div className="hidden md:block">
-                  <HScroll bodyClassName="overflow-x-auto">
-                    <Table>
-                      <THead>
-                        <tr>
-                          <Th>{th("concern_number", "ID")}</Th>
-                          <Th className="w-full">{th("title", "Title")}</Th>
-                          <Th className="hidden lg:table-cell">
-                            {th("employee_name", "Raised by")}
-                          </Th>
-                          <Th className="hidden xl:table-cell">
-                            {th("department_name", "Department")}
-                          </Th>
-                          <Th>{th("status", "Status")}</Th>
-                          <Th className="hidden lg:table-cell">Assigned</Th>
-                          <Th>{th("last_public_update_at", "Last update")}</Th>
-                        </tr>
-                      </THead>
-                      <TBody>
-                        {rows.map((row) => (
-                          // `relative`, so the ID cell's link can cover the
-                          // whole row — one real <Link>, whole-row target.
-                          <Tr key={row.id} className="relative">
-                            <Td className="num whitespace-nowrap">
-                              <Link
-                                href={`/help-slip/all/${row.id}`}
-                                aria-label={`${row.concernNumber}: ${row.title}`}
-                                className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
-                              >
-                                {row.concernNumber}
-                              </Link>
-                            </Td>
-                            <Td className="max-w-0">
-                              <span className="flex items-center gap-2">
-                                <span className="deva line-clamp-1">
-                                  {row.title}
-                                </span>
-                                <PriorityChip
-                                  priority={row.priority}
-                                  locale={locale}
-                                />
-                              </span>
-                            </Td>
-                            <Td className="deva hidden whitespace-nowrap lg:table-cell">
-                              {row.employeeName ?? "—"}
-                            </Td>
-                            <Td className="deva hidden whitespace-nowrap xl:table-cell">
-                              {departmentOf(row, locale)}
-                            </Td>
-                            <Td>
-                              <span className="flex flex-wrap items-center gap-1">
-                                <StatusBadge
-                                  status={row.status}
-                                  locale={locale}
-                                />
-                                {row.isOverdue ? (
-                                  <OverdueBadge locale={locale} />
-                                ) : null}
-                              </span>
-                            </Td>
-                            <Td
-                              className={cn(
-                                "deva hidden whitespace-nowrap lg:table-cell",
-                                !row.assignedToName && "text-text-3",
-                              )}
-                            >
-                              {row.assignedToName ?? "Unassigned"}
-                            </Td>
-                            <Td className="deva whitespace-nowrap text-text-3">
-                              {row.lastPublicUpdateAt
-                                ? relativeTime(row.lastPublicUpdateAt, locale)
-                                : "—"}
-                            </Td>
-                          </Tr>
-                        ))}
-                      </TBody>
-                    </Table>
-                  </HScroll>
-                </div>
-              </ListState>
-            </Panel>
-
-            {q.hasNextPage ? (
+          {/* The pager slot, on a solid card footer (§E.6). It used to sit on
+              the page ground under the card, which is the one place in the ERP
+              a control never sits. `LoadMore` brings its own `py-3`. */}
+          {q.hasNextPage ? (
+            <div className="border-t border-border px-4">
               <LoadMore
                 onClick={() => void q.fetchNextPage()}
                 loading={q.isFetchingNextPage}
                 label="Load more"
-                labelHi="और दिखाएँ"
               />
-            ) : null}
-          </div>
-        </Reveal>
-      </div>
+            </div>
+          ) : null}
+        </Panel>
+      </Reveal>
     </div>
   );
 }

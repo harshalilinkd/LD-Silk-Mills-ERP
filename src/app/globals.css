@@ -7,14 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Manrope first, Mukta second — the browser resolves fonts PER GLYPH, so
-     Latin comes from Manrope and Devanagari (Help Slip's Hindi half) falls
-     through to Mukta. One declaration, no `.deva { font-family }` needed, and
-     a screen with no Hindi on it never pays for the Devanagari file.
-     Manrope's own metric-adjusted fallback sits inside var(--font-manrope)
-     and carries no Devanagari, so it is skipped for those glyphs. */
-  --font-sans: var(--font-manrope), var(--font-mukta), ui-sans-serif,
-    system-ui, sans-serif;
+  /* Manrope only — Latin is all this ERP renders. next/font bakes a
+     metric-adjusted fallback into var(--font-manrope), so the generic tail
+     below is a last resort that is reached only if that also fails. */
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-ibm-plex-mono);
   --font-heading: var(--font-manrope);
 
@@ -251,44 +247,6 @@
   font-feature-settings:
     "tnum" 1,
     "pnum" 0;
-}
-
-/* ---------------------------------------------------------------------------
- * `.deva` — any element that MAY contain Devanagari (Help Slip, bilingual EN/HI)
- *
- * Three declarations, and all three are load-bearing:
- *
- *  - `line-height: 1.65`. Matras sit above AND below the baseline (ि ी ै ॉ)
- *    and CLIP at 1.4. The result looks subtly broken in a way that is very
- *    hard to diagnose later, because nothing errors and the Latin beside it
- *    looks fine. 1.65 is the floor, not a preference.
- *  - `text-transform: none` and `letter-spacing: normal`. Devanagari has no
- *    case, and tracking shatters conjuncts. Uppercase + tracking is scoped to
- *    Latin-only strings (table column headers, which are English by design);
- *    if a bilingual label ever inherits either from an ancestor, `.deva`
- *    takes it back off.
- * ------------------------------------------------------------------------ */
-@utility deva {
-  line-height: 1.65;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-/* ---------------------------------------------------------------------------
- * `.hi` — the Hindi half of a bilingual label. Pair with `.deva`.
- *
- * Hindi SUPPORTS the English beside it; it never competes with it. 0.85em,
- * weight 400, `--text-3` — so "Resolved (हल हो गया)" reads as one thing with a
- * gloss rather than as two competing labels.
- *
- * `em`, not a fixed size: it has to hold at every size it is used at. 0.85em
- * under a 24px title is 20px and under a 13px caption it is 11px; a fixed step
- * off the type scale would be right in one and wrong in the other.
- * ------------------------------------------------------------------------ */
-@utility hi {
-  font-size: 0.85em;
-  font-weight: 400;
-  color: var(--text-3);
 }
 
 /* ---------------------------------------------------------------------------

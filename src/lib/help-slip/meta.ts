@@ -22,8 +22,8 @@ import type {
  *  How a Help Slip enum LOOKS and READS. The single source of truth.
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Ported verbatim (EN + HI + icon) from the standalone app's
- * `src/lib/statusMeta.ts` and `src/lib/roleMeta.ts`. The colours are
+ * Ported (EN + icon) from the standalone app's `src/lib/statusMeta.ts` and
+ * `src/lib/roleMeta.ts` — this module is English-only. The colours are
  * translated to this repo's tokens (docs/DESIGN.md) rather than copied — the
  * source ships its own `--status-*-fg/bg/bd` triplets and its hexes would be
  * invisible in one of our two themes.
@@ -59,7 +59,6 @@ import type {
 export type StatusMeta = {
   icon: Icon;
   labelEn: string;
-  labelHi: string;
   /** What the employee should understand it to mean. */
   meaningEn: string;
   /** Foreground (icon + label) on the soft fill. */
@@ -83,7 +82,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
   new: {
     icon: IconCircleDot,
     labelEn: "New",
-    labelHi: "नया",
     meaningEn: "Received. Not opened yet.",
     fgClass: "text-status-blue",
     bgClass: "bg-status-blue-dim",
@@ -93,7 +91,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
   in_progress: {
     icon: IconLoader2,
     labelEn: "In Progress",
-    labelHi: "चालू है",
     meaningEn: "Someone is working on it.",
     fgClass: "text-status-amber",
     bgClass: "bg-status-amber-dim",
@@ -103,7 +100,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
   waiting: {
     icon: IconPlayerPause,
     labelEn: "Waiting",
-    labelHi: "रुका हुआ",
     meaningEn: "Blocked — the reason is shown below.",
     fgClass: "text-status-purple",
     bgClass: "bg-status-purple-dim",
@@ -113,7 +109,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
   resolved: {
     icon: IconCircleCheck,
     labelEn: "Resolved",
-    labelHi: "हल हो गया",
     meaningEn: "Fixed. Read what was done.",
     fgClass: "text-status-green",
     bgClass: "bg-status-green-dim",
@@ -123,7 +118,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
   closed: {
     icon: IconArchive,
     labelEn: "Closed",
-    labelHi: "बंद",
     meaningEn: "Finished, no further action.",
     // Grey, not a hue — the same call `StatusBadge`'s PENDING makes in
     // src/components/ui/status-badge.tsx. "Closed" is the absence of further
@@ -146,7 +140,6 @@ export const STATUS_META: Record<ConcernStatus, StatusMeta> = {
 export const OVERDUE_META: StatusMeta = {
   icon: IconAlertTriangle,
   labelEn: "Overdue",
-  labelHi: "देरी",
   meaningEn: "Past its due date and still open.",
   fgClass: "text-status-red",
   bgClass: "bg-status-red-dim",
@@ -159,7 +152,6 @@ export const OVERDUE_META: StatusMeta = {
 export type PriorityMeta = {
   icon: Icon | null;
   labelEn: string;
-  labelHi: string;
   /**
    * null for `low` and `normal`. ~80% of rows carry no priority chip at all,
    * which is exactly what keeps the ones that do carry weight. Priority is
@@ -175,28 +167,24 @@ export const PRIORITY_META: Record<ConcernPriority, PriorityMeta> = {
   low: {
     icon: null,
     labelEn: "Low",
-    labelHi: "कम",
     chipClass: null,
     showDot: false,
   },
   normal: {
     icon: null,
     labelEn: "Normal",
-    labelHi: "सामान्य",
     chipClass: null,
     showDot: false,
   },
   high: {
     icon: IconFlag,
     labelEn: "High",
-    labelHi: "ज़्यादा",
     chipClass: "border-status-amber text-status-amber",
     showDot: false,
   },
   urgent: {
     icon: IconFlag,
     labelEn: "Urgent",
-    labelHi: "अर्जेंट",
     chipClass: "border-status-red text-status-red",
     showDot: true,
   },
@@ -210,14 +198,14 @@ export const PRIORITY_RANK: Record<ConcernPriority, number> = {
   low: 3,
 };
 
-export type EnumMeta = { labelEn: string; labelHi: string };
+export type EnumMeta = { labelEn: string };
 
 export const ROLE_META: Record<UserRole, EnumMeta> = {
-  employee: { labelEn: "Employee", labelHi: "कर्मचारी" },
+  employee: { labelEn: "Employee" },
   // The house calls them the PC. Spelled out here because a profile line is
   // read once, by someone who may never have heard the abbreviation.
-  pc: { labelEn: "Process Coordinator", labelHi: "प्रोसेस कोऑर्डिनेटर" },
-  admin: { labelEn: "Admin", labelHi: "एडमिन" },
+  pc: { labelEn: "Process Coordinator" },
+  admin: { labelEn: "Admin" },
 };
 
 /**
@@ -225,46 +213,47 @@ export const ROLE_META: Record<UserRole, EnumMeta> = {
  * `awaiting_vendor` is a storage value and "A vendor" is the answer to the
  * question the dialog actually asks — "waiting for what?".
  *
- * Ported verbatim (EN + HI) from the source's `ws.reason.*` strings.
+ * Ported from the source's `ws.reason.*` strings.
  */
 export const WAIT_REASON_META: Record<WaitReason, EnumMeta> = {
-  awaiting_employee: { labelEn: "The employee", labelHi: "कर्मचारी" },
-  awaiting_vendor: { labelEn: "A vendor", labelHi: "वेंडर" },
-  awaiting_approval: { labelEn: "An approval", labelHi: "मंज़ूरी" },
-  awaiting_parts: { labelEn: "Parts", labelHi: "पुर्ज़े" },
-  other: { labelEn: "Something else", labelHi: "कुछ और" },
+  awaiting_employee: { labelEn: "The employee" },
+  awaiting_vendor: { labelEn: "A vendor" },
+  awaiting_approval: { labelEn: "An approval" },
+  awaiting_parts: { labelEn: "Parts" },
+  other: { labelEn: "Something else" },
 };
 
 /**
  * What a timeline row SAYS. The source keeps these in its i18n dictionary and
- * wires them in through `timelineLabels()`; this module renders EN + HI inline
- * everywhere instead, so each entry is the pair and `<Bi>` places it.
+ * wires them in through `timelineLabels()`; this module has no dictionary, so
+ * the strings live here and the screens read them straight off this object.
+ *
+ * Each entry stays an `{ en }` OBJECT rather than a bare string: timeline.tsx
+ * and pc-workspace.tsx both read `.en`, and flattening the shape would be a
+ * rename across two screens that buys nothing.
  *
  * "Accepted your 2nd solution" is the line this entire product exists to
  * produce, so the three ordinals are written out rather than interpolated —
- * English ordinals are irregular and the Hindi forms are separate words, not a
- * number with a suffix.
+ * English ordinals are irregular, and "1st/2nd/3rd" assembled from a number is
+ * how a "3th" eventually reaches somebody's screen.
  */
 export const TIMELINE_COPY = {
-  today: { en: "Today", hi: "आज" },
-  yesterday: { en: "Yesterday", hi: "कल" },
-  filed: { en: "Submitted", hi: "दर्ज किया गया" },
-  you: { en: "You", hi: "आपने" },
-  internalNote: {
-    en: "Internal note — the employee cannot see this",
-    hi: "आंतरिक नोट — कर्मचारी को नहीं दिखता",
-  },
+  today: { en: "Today" },
+  yesterday: { en: "Yesterday" },
+  filed: { en: "Submitted" },
+  you: { en: "You" },
+  internalNote: { en: "Internal note — the employee cannot see this" },
   accepted: [
-    { en: "Accepted your 1st solution", hi: "आपका पहला समाधान माना गया" },
-    { en: "Accepted your 2nd solution", hi: "आपका दूसरा समाधान माना गया" },
-    { en: "Accepted your 3rd solution", hi: "आपका तीसरा समाधान माना गया" },
+    { en: "Accepted your 1st solution" },
+    { en: "Accepted your 2nd solution" },
+    { en: "Accepted your 3rd solution" },
   ],
 } as const;
 
 export const ACCOUNT_STATUS_META: Record<AccountStatus, EnumMeta> = {
-  active: { labelEn: "Active", labelHi: "सक्रिय" },
-  inactive: { labelEn: "Inactive", labelHi: "निष्क्रिय" },
-  suspended: { labelEn: "Suspended", labelHi: "निलंबित" },
+  active: { labelEn: "Active" },
+  inactive: { labelEn: "Inactive" },
+  suspended: { labelEn: "Suspended" },
 };
 
 /**
@@ -277,10 +266,7 @@ export const ACCOUNT_STATUS_META: Record<AccountStatus, EnumMeta> = {
  * role this system does not have: the roles are Employee, Process Coordinator
  * and Admin, and this is a flag on top of one of them.
  */
-export const HR_ACCESS_META: EnumMeta = {
-  labelEn: "Confidential access",
-  labelHi: "गोपनीय पहुँच",
-};
+export const HR_ACCESS_META: EnumMeta = { labelEn: "Confidential access" };
 
 export const EM_DASH = "—";
 
@@ -297,58 +283,56 @@ export function priorityMeta(
   return PRIORITY_META[priority as ConcernPriority] ?? null;
 }
 
-function read(
-  meta: EnumMeta | undefined | null,
-  locale: HelpSlipLocale,
-): string {
+function read(meta: EnumMeta | undefined | null): string {
   if (!meta) return EM_DASH;
-  return locale === "hi" ? meta.labelHi : meta.labelEn;
+  return meta.labelEn;
 }
 
-export type HelpSlipLocale = "en" | "hi";
+/**
+ * One member, and it stays a named type rather than collapsing to `"en"` at
+ * every use: `format.ts` keys `INTL_LOCALE` off it, and the label functions
+ * below still declare it, so a second locale would come back through this one
+ * name rather than through a dozen inline unions.
+ */
+export type HelpSlipLocale = "en";
 
-export function statusLabel(
-  status: string | null | undefined,
-  locale: HelpSlipLocale = "en",
-): string {
+/**
+ * The six label functions below have no callers today — the components read
+ * `.labelEn` off the META maps directly. They are kept, rather than deleted as
+ * dead surface, because Help Slip Settings is the next thing built and its
+ * Users & Access screen needs exactly `roleLabel`, `accountStatusLabel` and
+ * `hrAccessLabel`. Deleting them now to re-add them unchanged is churn.
+ *
+ * Their `locale` parameter is gone: it was inert once the Hindi went, and an
+ * unused parameter is a lint error, not documentation.
+ */
+export function statusLabel(status: string | null | undefined): string {
   const meta = statusMeta(status);
   if (!meta) return EM_DASH;
-  return locale === "hi" ? meta.labelHi : meta.labelEn;
+  return meta.labelEn;
 }
 
-export function priorityLabel(
-  priority: string | null | undefined,
-  locale: HelpSlipLocale = "en",
-): string {
+export function priorityLabel(priority: string | null | undefined): string {
   const meta = priorityMeta(priority);
   if (!meta) return EM_DASH;
-  return locale === "hi" ? meta.labelHi : meta.labelEn;
+  return meta.labelEn;
 }
 
-export function roleLabel(
-  role: string | null | undefined,
-  locale: HelpSlipLocale = "en",
-): string {
+export function roleLabel(role: string | null | undefined): string {
   if (!role) return EM_DASH;
-  return read(ROLE_META[role as UserRole], locale);
+  return read(ROLE_META[role as UserRole]);
 }
 
-export function accountStatusLabel(
-  status: string | null | undefined,
-  locale: HelpSlipLocale = "en",
-): string {
+export function accountStatusLabel(status: string | null | undefined): string {
   if (!status) return EM_DASH;
-  return read(ACCOUNT_STATUS_META[status as AccountStatus], locale);
+  return read(ACCOUNT_STATUS_META[status as AccountStatus]);
 }
 
-export function hrAccessLabel(locale: HelpSlipLocale = "en"): string {
-  return read(HR_ACCESS_META, locale);
+export function hrAccessLabel(): string {
+  return read(HR_ACCESS_META);
 }
 
-export function waitReasonLabel(
-  reason: string | null | undefined,
-  locale: HelpSlipLocale = "en",
-): string {
+export function waitReasonLabel(reason: string | null | undefined): string {
   if (!reason) return EM_DASH;
-  return read(WAIT_REASON_META[reason as WaitReason], locale);
+  return read(WAIT_REASON_META[reason as WaitReason]);
 }

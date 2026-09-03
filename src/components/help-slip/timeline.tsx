@@ -3,17 +3,11 @@
 import * as React from "react";
 import { IconAlertTriangle, IconLock } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { absoluteTime, relativeTime } from "@/lib/help-slip/format";
-import {
-  STATUS_META,
-  TIMELINE_COPY,
-  statusMeta,
-  type HelpSlipLocale,
-} from "@/lib/help-slip/meta";
+import { STATUS_META, TIMELINE_COPY, statusMeta } from "@/lib/help-slip/meta";
 import type { TimelineEvent } from "@/lib/help-slip/types";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +21,11 @@ import { cn } from "@/lib/utils";
  * audit log — oldest first, day-grouped the way a chat thread is. An audit log
  * reads as a machine talking about you; a thread reads as somebody answering
  * you.
+ *
+ * It renders INSIDE a `<Panel>` supplied by the screen (concern-detail,
+ * pc-workspace), so it draws no card of its own — the ERP's rule is that a
+ * region is carded once, and a card inside a card is how a detail page starts
+ * looking like a stack of boxes.
  *
  * Geometry, from the source and unchanged:
  *
@@ -71,7 +70,6 @@ export type TimelineProps = {
    * ambiguity it exists to remove.
    */
   events: TimelineEvent[];
-  locale: HelpSlipLocale;
   /** Whether the READER may see internal notes. False is the safe default. */
   canSeeInternal?: boolean;
   loading?: boolean;
@@ -87,7 +85,6 @@ export type TimelineProps = {
 
 export function Timeline({
   events,
-  locale,
   canSeeInternal = false,
   loading = false,
   error = null,
@@ -116,7 +113,9 @@ export function Timeline({
     // scrollIntoView({ behavior: 'smooth' }) overrides the CSS scroll-behavior
     // a global reduced-motion block would set, so the preference is honoured
     // HERE or not at all.
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     node.scrollIntoView({
       behavior: reduced ? "auto" : "smooth",
       // 'center', because a node somebody was SENT to should not arrive flush
@@ -134,7 +133,7 @@ export function Timeline({
         className="flex flex-col"
       >
         {[0, 1, 2].map((i) => (
-          <div key={i} className="relative pb-5 pl-8">
+          <div key={i} className="relative pb-4 pl-8">
             {i < 2 ? (
               <span
                 aria-hidden
@@ -160,25 +159,41 @@ export function Timeline({
   if (error) {
     // A failed fetch must never render as "nothing has happened yet" — they
     // look identical to the reader and only one of them means try again.
+    //
+    // The ERP's notice strip (docs: the error tone of the banner recipe), so a
+    // failure inside a panel reads as the same object it does everywhere else
+    // in the app rather than as loose red text.
     return (
-      <div role="alert" className="flex flex-col items-start gap-2 py-2">
-        <p
-          className={cn(
-            "deva flex items-center gap-2 font-semibold text-text-1",
-            T.bodySm,
-          )}
-        >
-          <IconAlertTriangle
-            className="size-[18px] shrink-0 text-status-red"
-            stroke={1.6}
-            aria-hidden
-          />
-          <Bi en="We couldn't load the updates." hi="अपडेट लोड नहीं हो सके।" />
-        </p>
-        <p className={cn("deva max-w-[48ch] text-text-3", T.caption)}>{error}</p>
+      <div
+        role="alert"
+        className={cn(
+          "flex flex-wrap items-start gap-2 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2",
+          T.bodySm,
+        )}
+      >
+        <IconAlertTriangle
+          className="mt-[1px] size-4 shrink-0 text-status-red"
+          stroke={1.6}
+          aria-hidden
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <p className="font-semibold text-status-red">
+            We couldn&apos;t load the updates.
+          </p>
+          <p className={cn("max-w-[60ch] text-text-2", T.caption)}>{error}</p>
+        </div>
         {onRetry ? (
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-            <Bi en="Try again" hi="दोबारा कोशिश करें" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRetry}
+            // 44px below md — `size="sm"` is a 28px button, which is not a
+            // touch target on a phone held on the factory floor. ERP-compact
+            // from md up.
+            className="h-11 shrink-0 md:h-8"
+          >
+            Try again
           </Button>
         ) : null}
       </div>
@@ -196,11 +211,8 @@ export function Timeline({
      * the header's raised-on date.
      */
     return (
-      <p className={cn("deva text-text-3", T.bodySm)}>
-        <Bi
-          en="Nothing has happened yet. Every update will appear here."
-          hi="अभी कुछ नहीं हुआ। हर अपडेट यहाँ दिखेगा।"
-        />
+      <p className={cn("text-text-3", T.bodySm)}>
+        Nothing has happened yet. Every update will appear here.
       </p>
     );
   }
@@ -213,14 +225,11 @@ export function Timeline({
             {/* Sticky day divider, on its OWN solid background: the rail runs
                 underneath it, and a transparent divider would have a 2px line
                 drawn through the words as the thread scrolls past.
-                No uppercase or tracking here, unlike a table header — this
-                string can be Devanagari ("आज"), which has no case and whose
-                conjuncts tracking shatters. */}
+                Uppercase and tracked — the ERP's bare section label, for a
+                marker that separates content rather than titling it. */}
             <h3 className="sticky top-0 z-10 -mx-1 bg-surface px-1 py-1.5">
-              <span
-                className={cn("deva font-semibold text-text-2", T.caption)}
-              >
-                <Bi en={group.label.en} hi={group.label.hi} />
+              <span className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+                {group.label}
               </span>
             </h3>
 
@@ -230,7 +239,6 @@ export function Timeline({
                   key={event.id}
                   ref={event.id === targetId ? targetRef : undefined}
                   event={event}
-                  locale={locale}
                   isTarget={event.id === targetId}
                   isLast={
                     group === groups[groups.length - 1] &&
@@ -250,14 +258,14 @@ export function Timeline({
 
 type NodeProps = {
   event: TimelineEvent;
-  locale: HelpSlipLocale;
   isTarget: boolean;
   isLast: boolean;
 };
 
 const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
-  function TimelineNode({ event, locale, isTarget, isLast }, ref) {
-    const isStatus = event.type === "status_change" || event.type === "resolution";
+  function TimelineNode({ event, isTarget, isLast }, ref) {
+    const isStatus =
+      event.type === "status_change" || event.type === "resolution";
     const meta = statusMeta(event.newStatus);
     const isResolved =
       event.type === "resolution" || event.newStatus === "resolved";
@@ -269,7 +277,11 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
         // link works from anywhere and not only from the row that was tapped.
         id={`update-${event.id}`}
         className={cn(
-          "relative pb-4 pl-8",
+          "relative pl-8",
+          // The last row stops short: a full row gap under the final node is
+          // dead space inside the card, and the ERP's own timeline closes on
+          // `pb-1`.
+          isLast ? "pb-1" : "pb-4",
           // A deep link that lands in the middle of a long thread has to say
           // WHICH node it meant, or the scroll position is the only clue and
           // it is gone the moment somebody nudges the page. A tint on an
@@ -314,12 +326,12 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
         <div className="flex flex-col gap-1.5">
           <p
             className={cn(
-              "deva flex flex-wrap items-baseline gap-x-2 text-text-1",
+              "flex flex-wrap items-baseline gap-x-2 text-text-1",
               T.bodySm,
             )}
           >
             <span className="font-medium">
-              <Describe event={event} locale={locale} />
+              <Describe event={event} />
             </span>
             {/*
               ABSOLUTE in the label, relative in the tooltip.
@@ -329,49 +341,46 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
             */}
             <time
               dateTime={event.createdAt}
-              title={relativeTime(event.createdAt, locale)}
+              title={relativeTime(event.createdAt)}
               className={cn("num shrink-0 text-text-3", T.caption)}
             >
-              {absoluteTime(event.createdAt, locale)}
+              {absoluteTime(event.createdAt)}
             </time>
           </p>
 
           {event.isInternal ? (
             <p
-              className={cn(
-                "deva flex items-center gap-1.5 text-text-3",
-                T.caption,
-              )}
+              className={cn("flex items-center gap-1.5 text-text-3", T.caption)}
             >
-              <IconLock className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
-              <Bi
-                en={TIMELINE_COPY.internalNote.en}
-                hi={TIMELINE_COPY.internalNote.hi}
+              <IconLock
+                className="size-3.5 shrink-0"
+                stroke={1.6}
+                aria-hidden
               />
+              {TIMELINE_COPY.internalNote.en}
             </p>
           ) : null}
 
           {event.message ? (
             <div
               className={cn(
-                "rounded-field border px-3 py-2.5",
-                // A real border, not a tinted fill alone — the bubble has to
-                // read as its own object against a card it shares a
-                // background family with.
+                "rounded-field px-3 py-2.5",
+                // An internal note carries THREE independent signals, none of
+                // them colour-only: the dashed rail above, the lock line above,
+                // and this 3px SOLID amber left rule over a different ground —
+                // the ERP's "different in kind" callout, which is a left bar
+                // and no full border. The rule must stay SOLID: it shipped
+                // dashed once by accident and read as a rendering fault.
                 //
-                // An internal note carries FOUR independent signals, none of
-                // them colour-only and none of them a status hue (every hue on
-                // this rail is already a status): the dashed rail above, the
-                // lock line above, this dashed edge + 3px left rule — the ERP's
-                // "different in kind" callout — and a different ground.
+                // A public update is the ordinary bubble: a real border, not a
+                // tinted fill alone, so it reads as its own object against a
+                // card it shares a background family with.
                 event.isInternal
-                  ? "border-dashed border-border-strong border-l-[3px] [border-left-style:solid] border-l-status-amber bg-chip"
-                  : "border-border bg-surface-2",
+                  ? "border-l-[3px] border-l-status-amber bg-chip"
+                  : "border border-border bg-surface-2",
               )}
             >
-              <p
-                className={cn("deva whitespace-pre-wrap text-text-1", T.body)}
-              >
+              <p className={cn("whitespace-pre-wrap text-text-1", T.body)}>
                 {event.message}
               </p>
             </div>
@@ -391,56 +400,42 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
  * it NAMES the position rather than saying "a solution was accepted".
  *
  * The ordinals are written out rather than built from an index: English
- * ordinals are irregular and the Hindi forms are separate words, not a number
- * with a suffix.
+ * ordinals are irregular, and "1st/2nd/3rd" assembled from a number is how a
+ * "3th" eventually reaches somebody's screen.
  */
-function Describe({
-  event,
-  locale,
-}: {
-  event: TimelineEvent;
-  locale: HelpSlipLocale;
-}) {
+function Describe({ event }: { event: TimelineEvent }) {
   const position = event.acceptedSolutionPosition;
   if (position && position >= 1 && position <= 3) {
     const copy = TIMELINE_COPY.accepted[position - 1];
-    if (copy) return <Bi en={copy.en} hi={copy.hi} />;
+    if (copy) return <>{copy.en}</>;
   }
 
   if (event.type === "assignment") {
     const who = event.isOwnAction ? TIMELINE_COPY.you.en : event.actorName;
-    return <Bi en={`Assigned to ${who}`} />;
+    return <>Assigned to {who}</>;
   }
 
   if (event.type === "comment") {
     return (
-      <Bi
-        en={event.isOwnAction ? "You commented" : `${event.actorName} commented`}
-        hi={event.isOwnAction ? "आपने टिप्पणी की" : undefined}
-      />
+      <>
+        {event.isOwnAction ? "You commented" : `${event.actorName} commented`}
+      </>
     );
   }
 
   if (event.newStatus) {
     const meta = STATUS_META[event.newStatus];
-    return (
-      <Bi
-        en={`Marked ${meta.labelEn}`}
-        hi={locale === "hi" ? `${meta.labelHi} किया गया` : meta.labelHi}
-      />
-    );
+    return <>Marked {meta.labelEn}</>;
   }
 
-  return <Bi en={TIMELINE_COPY.filed.en} hi={TIMELINE_COPY.filed.hi} />;
+  return <>{TIMELINE_COPY.filed.en}</>;
 }
-
-// ───────────────────────────────────────────────────────────────────────────
 
 // ───────────────────────────────────────────────────────────────────────────
 
 type DayGroup = {
   key: string;
-  label: { en: string; hi: string };
+  label: string;
   events: TimelineEvent[];
 };
 
@@ -467,23 +462,17 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function dayLabel(date: Date): { en: string; hi: string } {
+function dayLabel(date: Date): string {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
 
-  if (dayKey(date) === dayKey(today)) return { ...TIMELINE_COPY.today };
-  if (dayKey(date) === dayKey(yesterday)) return { ...TIMELINE_COPY.yesterday };
+  if (dayKey(date) === dayKey(today)) return TIMELINE_COPY.today.en;
+  if (dayKey(date) === dayKey(yesterday)) return TIMELINE_COPY.yesterday.en;
 
-  const en = new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(date);
-  const hi = new Intl.DateTimeFormat("hi-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-  return { en, hi };
 }

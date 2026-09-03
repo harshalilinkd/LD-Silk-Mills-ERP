@@ -7,7 +7,6 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { CONTROL, T } from "@/components/help-slip/type-scale";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Button } from "@/components/ui/button";
@@ -15,53 +14,62 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 /**
- * The chrome every Help Slip screen shares: a page header, a panel, a search
- * box, a load-more button, and the three list states.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  The ERP's page vocabulary, as Help Slip components.
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * The last one is the reason this file exists. The source app's rule is that
- * "every list, table and timeline ships loading + empty (both kinds) + error
- * in the same step as its happy path", and the CRM port here says the same
- * thing in different words: a failed request must NEVER render as "no
- * results" — they look identical to the reader and only one of them means try
- * again. `<ListState>` makes the four cases one decision at one call site.
+ * A page header, three card shapes, a metadata strip, a search box, a
+ * load-more button and the four list states.
  *
- * "Both kinds" of empty is the part that gets dropped. A list with no rows
- * because nothing has been filed is good news and says so; a list with no rows
- * because five filters are on is a dead end and needs a way out of it. They
- * are different screens.
+ * The cards are the point. The complaint this file answers is that Help Slip
+ * "still looks outdated", and the measurement behind it was structural, not
+ * typographic: at 1440px the Order Entry new-order form is two bordered cards
+ * and four multi-column grids; the Help Slip form was two cards and a single
+ * 720px column. So the rule here is the ERP's rule — NOTHING FLOATS. Every
+ * logical group is a bordered card on `bg-surface`, every card announces
+ * itself with an accent icon chip and a bold heading, and the page ground is
+ * only ever visible BETWEEN cards.
+ *
+ * `<ListState>` is the other reason this file exists. The source app's rule is
+ * that "every list, table and timeline ships loading + empty (both kinds) +
+ * error in the same step as its happy path": a failed request must NEVER
+ * render as "no results" — they look identical to the reader and only one of
+ * them means try again. "Both kinds" of empty is the part that gets dropped. A
+ * list with no rows because nothing has been filed is good news and says so; a
+ * list with no rows because five filters are on is a dead end and needs a way
+ * out of it. They are different screens.
  */
 
 // ─── page header ───────────────────────────────────────────────────────────
 
+/**
+ * The ERP page heading, verbatim: a 22/700/-0.01em title, a 13px subtitle
+ * under it, and an action cluster hard right that wraps under the title on a
+ * phone rather than squeezing it.
+ *
+ * IT CARRIES NO PADDING OF ITS OWN. The space between the header and the first
+ * region belongs to the page root, which must be `flex flex-col gap-5` — the
+ * same root every Order Entry screen uses. A header owning its own bottom
+ * padding double-spaces itself the moment the root gets that gap.
+ */
 export function PageHeader({
   titleEn,
-  titleHi,
   subtitle,
   meta,
   actions,
 }: {
   titleEn: string;
-  titleHi?: string;
   subtitle?: React.ReactNode;
   /** "Showing 12 of 40" — a live region, so it is announced when it changes. */
   meta?: React.ReactNode;
   actions?: React.ReactNode;
 }) {
   return (
-    // `pb-2` keeps the header off the first content block. The ERP puts that
-    // space on the page ROOT (a `flex flex-col gap-5` wrapping the h1 and the
-    // content), but these screens' roots carry no gap, so a header with no
-    // padding of its own sat flush against the table beneath it on seven of
-    // eight screens. Owning the space here fixes all of them at once and means
-    // a new screen cannot forget to.
-    <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
+    <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h1 className={cn("deva text-text-1", T.h1)}>
-          {titleEn}
-          {titleHi ? <span className="deva hi"> ({titleHi})</span> : null}
-        </h1>
+        <h1 className={cn("text-text-1", T.h1)}>{titleEn}</h1>
         {subtitle ? (
-          <p className={cn("deva mt-1 text-text-3", T.body)}>{subtitle}</p>
+          <p className={cn("mt-1 text-text-3", T.body)}>{subtitle}</p>
         ) : null}
         {meta ? (
           <p
@@ -73,20 +81,117 @@ export function PageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 items-center gap-3">{actions}</div>
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
       ) : null}
     </div>
   );
 }
 
-// ─── panel ─────────────────────────────────────────────────────────────────
+// ─── the card head chip ────────────────────────────────────────────────────
 
 /**
- * A card. `bg-surface` + one hairline border — a border, never a shadow.
+ * The accent icon chip both card heads share: 28px, an accent wash, an
+ * accent-text glyph. The form-card variant adds a 15%-alpha inset ring for
+ * definition (the wash alone is faint on the light theme); the panel-card
+ * variant does not, exactly as the ERP ships them.
+ */
+function HeadChip({
+  icon,
+  variant,
+}: {
+  icon: React.ReactNode;
+  variant: "form" | "panel";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-7 shrink-0 place-items-center bg-accent text-accent-text",
+        variant === "form"
+          ? "rounded-[9px] ring-1 ring-accent-text/15 ring-inset [&_svg]:size-4"
+          : "rounded-lg [&_svg]:size-[15px]",
+      )}
+    >
+      {icon}
+    </span>
+  );
+}
+
+// ─── section card (the form card) ──────────────────────────────────────────
+
+/**
+ * THE ERP FORM CARD — the shape a group of fields lives in.
  *
- * `shadow-sm` is the ERP's mark of a card you can press, so it is not baked in
- * here: the three Help Slip surfaces that ARE press targets (the PC toolbar
- * card, the mobile row cards, the `<details>` summary) add it at the call site.
+ * `flex flex-col gap-3` with exactly two children in the common case: the head
+ * row and a `<FieldGrid>` (form-parts.tsx). `p-3 sm:p-4` is the whole padding
+ * story — density steps once, at `sm`, and there is no `lg:` step anywhere in
+ * the ERP.
+ *
+ * `border-border`, not `border-border-strong`: the strong border plus
+ * `shadow-sm` is reserved for a repeatable block the user can add and remove
+ * (an Nth solution row, an Nth fabric row). A single section is the hairline.
+ *
+ * The head is inline and UNRULED — the card's own `gap-3` separates it from
+ * the grid. `aside` is the right-hand slot: a count chip, a link, a status
+ * pill, a small button.
+ */
+export function SectionCard({
+  title,
+  icon,
+  aside,
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"section">, "title"> & {
+  title?: React.ReactNode;
+  /** A Tabler glyph. The chip sizes it to 16px, so pass it bare. */
+  icon?: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  const head = title || icon || aside;
+  return (
+    <section
+      className={cn(
+        "flex flex-col gap-3 rounded-card border border-border bg-surface p-3 sm:p-4",
+        className,
+      )}
+      {...props}
+    >
+      {head ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {icon ? <HeadChip icon={icon} variant="form" /> : null}
+            {title ? (
+              <h2 className={cn("min-w-0 text-text-1", T.h3)}>{title}</h2>
+            ) : null}
+          </div>
+          {aside ? <div className="shrink-0">{aside}</div> : null}
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The dashed footer rule inside a section card — "controls that act on THIS
+ * card", visibly distinct from the solid rule that separates content.
+ */
+export const CARD_FOOTER_ROW =
+  "relative mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-border-strong pt-3";
+
+// ─── panel card ────────────────────────────────────────────────────────────
+
+/**
+ * THE ERP PANEL CARD — a header strip over a flush body: a table, a list, a
+ * timeline, a chart.
+ *
+ * `overflow-hidden` is load-bearing twice over: it clips a table's square
+ * corners to the card radius, and it is the only thing stopping `PanelHead`'s
+ * tinted strip painting square corners over the rounded border.
+ *
+ * `shadow-sm` is the ERP's mark of a card you can PRESS, so it is not baked in
+ * here: the Help Slip surfaces that are press targets add it at the call site.
  */
 export function Panel({
   className,
@@ -94,34 +199,143 @@ export function Panel({
 }: React.ComponentProps<"section">) {
   return (
     <section
-      className={cn("rounded-card border border-border bg-surface", className)}
+      className={cn(
+        "overflow-hidden rounded-card border border-border bg-surface",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-/** The header row inside a Panel: a title, and optionally a link on the right. */
+/**
+ * The panel card's head: a TINTED, RULED strip.
+ *
+ * `bg-surface-2/40` + `border-b border-border/70` is what makes a panel read as
+ * a panel rather than as a heading somebody left on the page. The body below
+ * then sits flush and supplies its own padding, so a table's `px-3` cells line
+ * up under the head's `px-4`.
+ *
+ * `ml-auto` on the aside, never `justify-between`: the row is `flex-wrap`, and
+ * `justify-between` on a wrapped row strands the aside on a line of its own.
+ *
+ * The heading is 15/600 here and 14.5/700 on a `SectionCard`. Both ship in the
+ * ERP and each belongs to its own head recipe — a tinted strip over a table,
+ * versus an unruled row over a field grid. Do not mix them.
+ */
 export function PanelHead({
   titleEn,
-  titleHi,
   note,
+  icon,
+  aside,
   children,
 }: {
   titleEn: string;
-  titleHi?: string;
+  /** An inline subtitle BESIDE the title, never under it. */
   note?: React.ReactNode;
+  /** A Tabler glyph. The chip sizes it to 15px, so pass it bare. */
+  icon?: React.ReactNode;
+  /** The right-hand slot. `children` lands here too, for older call sites. */
+  aside?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  const right = aside ?? children;
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border px-4 py-3 sm:px-5 sm:py-3.5">
-      <h2 className={cn("deva text-text-1", T.h3)}>
-        {titleEn}
-        {titleHi ? <span className="deva hi"> ({titleHi})</span> : null}
-      </h2>
+    // `rounded-t-card` so the strip clips ITSELF. `Panel` carries
+    // `overflow-hidden`, which would do it — but a panel holding a chart has to
+    // turn that off (a tooltip at the first or last point is drawn outside the
+    // plot box), and without this the tinted strip would then square off the
+    // card's top corners.
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-t-card border-b border-border/70 bg-surface-2/40 px-4 py-3 sm:px-5">
+      {icon ? <HeadChip icon={icon} variant="panel" /> : null}
+      <h2 className={cn("text-text-1", T.h2)}>{titleEn}</h2>
       {note ? (
-        <span className={cn("deva text-text-3", T.caption)}>{note}</span>
+        <span className="text-[12px] font-medium text-text-2">{note}</span>
       ) : null}
+      {right ? <div className="ml-auto shrink-0">{right}</div> : null}
+    </div>
+  );
+}
+
+/** A count beside a heading. Pairs with `PanelHead` / `SectionCard`'s aside. */
+export function CountChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="num rounded-pill bg-chip px-2 py-0.5 text-[12px] font-semibold text-text-2">
       {children}
+    </span>
+  );
+}
+
+// ─── metadata strip (detail screens) ───────────────────────────────────────
+
+/**
+ * THE ERP METADATA STRIP — the band of facts that sits directly under a detail
+ * screen's record header, before the body sections.
+ *
+ * ONE column on a phone, two from `sm`, then `cols` from `md`. The ERP's own
+ * literal is `grid-cols-2 … sm:grid-cols-4`, but two columns at 320px gives
+ * each track ~130px, which truncates a coordinator's full name and wraps
+ * "Raised" onto two lines — and this module's below-`sm` rule outranks the
+ * ERP's density, because this is the employee's phone-first detail screen.
+ *
+ * It is a card like everything else, because a bare row of label/value pairs
+ * on the page ground is exactly the "floating" tell this rebuild removes.
+ *
+ * The labels are `uppercase tracking-[0.04em]`, which is the ERP literal and
+ * which only became legal here when the Hindi went: Devanagari has no case and
+ * tracking shatters conjuncts, so this strip previously needed a substitute
+ * recipe. It does not any more.
+ */
+export function MetaStrip({
+  cols = 4,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  /** Columns from `md` up. Always 1 below `sm`, 2 between. */
+  cols?: 2 | 3 | 4;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-3.5 rounded-card border border-border bg-surface px-5 py-[18px] sm:grid-cols-2",
+        cols === 3 ? "md:grid-cols-3" : cols === 4 ? "md:grid-cols-4" : "",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One fact inside a `MetaStrip`.
+ *
+ * A missing value renders `—`, never a blank: an empty cell reads as a
+ * rendering bug, and on a detail screen "we do not have this" is information.
+ */
+export function MetaItem({
+  label,
+  numeric,
+  className,
+  children,
+}: {
+  label: React.ReactNode;
+  /** Figures, dates, IDs, counts — anything that wants tabular digits. */
+  numeric?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const empty = children === null || children === undefined || children === "";
+  return (
+    <div className={cn("min-w-0", className)}>
+      <div className="text-[11px] tracking-[0.04em] text-text-3 uppercase">
+        {label}
+      </div>
+      <div className={cn("mt-0.5 text-[13px] text-text-1", numeric && "num")}>
+        {empty ? "—" : children}
+      </div>
     </div>
   );
 }
@@ -168,7 +382,7 @@ export function SearchField({
         enterKeyHint="search"
         autoCapitalize="none"
         autoCorrect="off"
-        className={cn(CONTROL, "deva w-full pl-10 md:pl-8")}
+        className={cn(CONTROL, "w-full pl-10 md:pl-8")}
       />
     </div>
   );
@@ -188,12 +402,10 @@ export function LoadMore({
   onClick,
   loading,
   label,
-  labelHi,
 }: {
   onClick: () => void;
   loading: boolean;
   label: string;
-  labelHi?: string;
 }) {
   return (
     <div className="flex justify-center py-3">
@@ -208,7 +420,7 @@ export function LoadMore({
         className="h-11 w-full md:h-9 md:w-auto"
       >
         {loading ? <Spinner /> : null}
-        <Bi en={label} hi={labelHi} />
+        {label}
       </Button>
     </div>
   );
@@ -219,9 +431,7 @@ export function LoadMore({
 export type EmptyCopy = {
   icon: TablerIcon;
   titleEn: string;
-  titleHi?: string;
   bodyEn?: string;
-  bodyHi?: string;
   action?: { label: string; onClick: () => void };
 };
 
@@ -253,7 +463,7 @@ export function ListState({
     return (
       <div className="flex items-center justify-center gap-2 px-4 py-10 text-text-2">
         <Spinner />
-        <span className={cn("deva", T.body)}>{loadingLabel}</span>
+        <span className={T.body}>{loadingLabel}</span>
       </div>
     );
   }
@@ -269,15 +479,20 @@ export function ListState({
           stroke={1.6}
           aria-hidden
         />
-        <p className={cn("deva font-semibold text-text-1", T.body)}>
-          <Bi
-            en="We couldn't load this."
-            hi="यह लोड नहीं हो सका।"
-          />
+        <p className={cn("font-semibold text-text-1", T.body)}>
+          We couldn&apos;t load this.
         </p>
-        <p className={cn("deva max-w-[60ch] text-text-2", T.bodySm)}>{error}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          <Bi en="Try again" hi="दोबारा कोशिश करें" />
+        <p className={cn("max-w-[60ch] text-text-2", T.bodySm)}>{error}</p>
+        {/* 44px below md. `size="sm"` is h-7, and this is the phone's ONLY
+            recovery path from a failed load — six screens render it. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRetry}
+          className="h-11 md:h-8"
+        >
+          Try again
         </Button>
       </div>
     );
@@ -288,17 +503,19 @@ export function ListState({
       <div className="flex flex-col items-center gap-3 pb-6">
         <EmptyState
           icon={empty.icon}
-          title={<Bi en={empty.titleEn} hi={empty.titleHi} />}
-          description={
-            empty.bodyEn ? <Bi en={empty.bodyEn} hi={empty.bodyHi} /> : undefined
-          }
+          title={empty.titleEn}
+          description={empty.bodyEn}
         />
         {empty.action ? (
+          /* 44px below md. This slot carries "Raise a concern" on an empty My
+             concerns, and "Clear filters" — the only way out of a filter set
+             that matches nothing. Neither may be a 28px target on a phone. */
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={empty.action.onClick}
+            className="h-11 md:h-8"
           >
             {empty.action.label}
           </Button>
@@ -315,12 +532,9 @@ export function ListState({
 /**
  * A `<Th>`'s inner button.
  *
- * Column headers are the ONE place in this module that carry uppercase and
- * letter-spacing (docs/DESIGN.md's table rule), and they are therefore
- * English-only BY DESIGN — the same call the source app makes. Devanagari has
- * no case and tracking shatters conjuncts, so a Hindi column header set this
- * way would be broken, not merely translated. Everything else on the row is
- * bilingual.
+ * Column headers carry uppercase and letter-spacing (docs/DESIGN.md's table
+ * rule, and the shipped `ui/data-table.tsx`) — a muted, un-cased table header
+ * is one of the loudest "not the ERP" tells there is.
  */
 export function SortHeader({
   label,
@@ -342,9 +556,6 @@ export function SortHeader({
       // The browser's own stylesheet sets `text-transform: none` on <button>,
       // which beats the inherited value — so a sortable header rendered as
       // "Raised by" next to a plain one rendering "ASSIGNED", in the same row.
-      // Safe on this element specifically: column headers are English-only by
-      // design (see the note above), which is the whole reason casing is
-      // allowed here at all.
       className="inline-flex cursor-pointer items-center gap-1 tracking-[0.04em] uppercase outline-none hover:text-accent-text focus-visible:text-accent-text"
     >
       {label}

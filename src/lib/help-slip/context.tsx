@@ -55,8 +55,3 @@ export function useHelpSlipSession(): HelpSlipClientSession {
   }
   return ctx;
 }
-
-/** The reader's language. `profiles.locale` is free text; anything else is EN. */
-export function useHelpSlipLocale(): "en" | "hi" {
-  return useHelpSlipSession().locale === "hi" ? "hi" : "en";
-}

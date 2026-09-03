@@ -3,7 +3,6 @@
 import * as React from "react";
 import { IconFilter } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { CONTROL, T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +17,7 @@ import {
   type ConcernPriority,
   type ConcernStatus,
 } from "@/db/help-slip/schema";
-import { PRIORITY_META, STATUS_META, type HelpSlipLocale } from "@/lib/help-slip/meta";
+import { PRIORITY_META, STATUS_META } from "@/lib/help-slip/meta";
 import type { DepartmentOption } from "@/lib/help-slip/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +45,32 @@ const ALL_STATUSES = CONCERN_STATUSES;
 // Urgent" or "just High", so the two they want are the two they reach first.
 const ALL_PRIORITIES: ConcernPriority[] = ["urgent", "high", "normal", "low"];
 
+// ─── the two containers a filter row lives in ──────────────────────────────
+
+/**
+ * THE ERP TOOLBAR, as a class string: search, pills and selects sit INSIDE a
+ * card. They do not float on the page ground.
+ *
+ * This is the module's loudest structural tell and the cheapest to fix. Four
+ * of the six Order Entry list screens card their toolbar (§E.2 / §J.3), and
+ * `ListFallback` already draws a carded toolbar skeleton — so a bare row here
+ * would also mean the page changes shape the moment the data lands.
+ *
+ * `shadow-sm` and no `hover:` — the card is a container, not a press target.
+ */
+export const FILTER_TOOLBAR =
+  "flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm";
+
+/**
+ * THE RECESSED WELL for a second, expandable row of filters.
+ *
+ * `rounded-field` + `bg-surface-2`, not a card: it lives INSIDE the toolbar
+ * region rather than beside the cards, and a card within a card reads as two
+ * things when it is one.
+ */
+export const FILTER_WELL =
+  "rounded-field border border-border bg-surface-2 p-3";
+
 // ─── status pills ──────────────────────────────────────────────────────────
 
 /**
@@ -58,18 +83,14 @@ const ALL_PRIORITIES: ConcernPriority[] = ["urgent", "high", "normal", "low"];
 export function StatusPills({
   value,
   onChange,
-  locale,
   className,
 }: {
   value: ConcernStatus[];
   onChange: (next: ConcernStatus[]) => void;
-  locale: HelpSlipLocale;
   className?: string;
 }) {
   const toggle = (s: ConcernStatus) =>
-    onChange(
-      value.includes(s) ? value.filter((x) => x !== s) : [...value, s],
-    );
+    onChange(value.includes(s) ? value.filter((x) => x !== s) : [...value, s]);
 
   return (
     <div
@@ -90,21 +111,25 @@ export function StatusPills({
             className={cn(
               // 44px + 16px text below md: the minimum touch target for a
               // phone held on the factory floor, and the size the labels stay
-              // readable at out there. ERP-compact from md up — `ui/segmented`'s
+              // readable at out there. ERP-compact from md up — ui/segmented's
               // md geometry (h-8 / px-3 / 13px), which is where the "this
               // module looks like a different app" complaint lives. Still an
               // `aria-pressed` MULTI-select, not a `Segmented` (that control is
               // single-select with a roving tabindex): only the geometry
               // converged, never the behaviour.
-              "deva inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:gap-1.5 md:px-2.5 md:text-[13px]",
+              "inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:px-3 md:text-[13px]",
               "focus-visible:ring-3 focus-visible:ring-ring/40",
               on
                 ? "border-primary bg-accent text-accent-text"
                 : "border-border bg-surface text-text-2 hover:border-border-strong hover:text-text-1",
             )}
           >
-            <Glyph className="size-4 shrink-0 md:size-3.5" stroke={1.6} aria-hidden />
-            {locale === "hi" ? meta.labelHi : meta.labelEn}
+            <Glyph
+              className="size-4 shrink-0 md:size-3.5"
+              stroke={1.6}
+              aria-hidden
+            />
+            {meta.labelEn}
           </button>
         );
       })}
@@ -114,7 +139,10 @@ export function StatusPills({
 
 // ─── native selects ────────────────────────────────────────────────────────
 
-export type SelectOption = { value: string; label: string; labelHi?: string };
+export type SelectOption = {
+  value: string;
+  label: string;
+};
 
 /**
  * A native `<select>` with its label in `aria-label` rather than above it.
@@ -133,14 +161,12 @@ export function FilterSelect({
   value,
   onChange,
   options,
-  locale,
   className,
 }: {
   ariaLabel: string;
   value: string;
   onChange: (next: string) => void;
   options: SelectOption[];
-  locale: HelpSlipLocale;
   className?: string;
 }) {
   const active = value !== "";
@@ -154,8 +180,8 @@ export function FilterSelect({
         // on the factory floor, and anything under 16px makes iOS Safari
         // auto-zoom on focus — a `<select>` triggers that exactly as an
         // `<input>` does — and never zoom back out. ERP-compact (36px / 13px)
-        // from md up: `orders-dashboard`'s `h-9 … text-[13px]` toolbar select.
-        "deva h-11 max-w-full cursor-pointer rounded-field border px-3 text-base transition-colors outline-none md:h-9 md:px-2.5 md:text-[13px]",
+        // from md up: orders-dashboard's `h-9 … text-[13px]` toolbar select.
+        "h-11 max-w-full cursor-pointer rounded-field border px-3 text-base transition-colors outline-none md:h-9 md:px-2.5 md:text-[13px]",
         "focus-visible:ring-3 focus-visible:ring-ring/40",
         active
           ? "border-primary bg-accent text-accent-text"
@@ -165,37 +191,35 @@ export function FilterSelect({
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
-          {locale === "hi" && o.labelHi ? o.labelHi : o.label}
+          {o.label}
         </option>
       ))}
     </select>
   );
 }
 
+/**
+ * A department prints `name`, and only `name`.
+ *
+ * `name_hi` is still on the row and the legacy Help Slip app still reads it.
+ * This ERP does not, and it is never concatenated into a label here.
+ */
 export function departmentOptions(
   departments: DepartmentOption[],
   anyLabel: string,
 ): SelectOption[] {
   return [
     { value: "", label: anyLabel },
-    ...departments.map((d) => ({
-      value: d.id,
-      label: d.name,
-      labelHi: d.nameHi ?? undefined,
-    })),
+    ...departments.map((d) => ({ value: d.id, label: d.name })),
   ];
 }
 
-export function priorityOptions(
-  anyLabel: string,
-  locale: HelpSlipLocale,
-): SelectOption[] {
+export function priorityOptions(anyLabel: string): SelectOption[] {
   return [
     { value: "", label: anyLabel },
     ...ALL_PRIORITIES.map((p) => ({
       value: p,
-      label:
-        locale === "hi" ? PRIORITY_META[p].labelHi : PRIORITY_META[p].labelEn,
+      label: PRIORITY_META[p].labelEn,
     })),
   ];
 }
@@ -292,7 +316,7 @@ export function FilterSheet({
         className="h-11 shrink-0"
       >
         <IconFilter className="size-4" stroke={1.6} aria-hidden />
-        <Bi en="Filters" hi="फ़िल्टर" />
+        Filters
         {activeCount > 0 ? (
           <span className="num ml-1 rounded-pill bg-accent px-1.5 py-px text-[11px] font-semibold text-accent-text">
             {activeCount}
@@ -303,12 +327,10 @@ export function FilterSheet({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[85vh] overflow-y-auto rounded-t-card"
+          className="max-h-[85dvh] overflow-y-auto rounded-t-card"
         >
           <SheetHeader>
-            <SheetTitle className={cn("deva", T.h3)}>
-              <Bi en="Filters" hi="फ़िल्टर" />
-            </SheetTitle>
+            <SheetTitle className={T.h3}>Filters</SheetTitle>
           </SheetHeader>
 
           <div className="flex flex-col gap-4 px-4">{children}</div>
@@ -320,7 +342,7 @@ export function FilterSheet({
               onClick={onReset}
               className="h-11 flex-1"
             >
-              <Bi en="Reset" hi="रीसेट करें" />
+              Reset
             </Button>
             <Button
               type="button"
@@ -330,7 +352,7 @@ export function FilterSheet({
               }}
               className="h-11 flex-1"
             >
-              <Bi en="Apply" hi="लागू करें" />
+              Apply
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -342,18 +364,14 @@ export function FilterSheet({
 /** A labelled group inside the sheet. */
 export function FilterGroup({
   labelEn,
-  labelHi,
   children,
 }: {
   labelEn: string;
-  labelHi?: string;
   children: React.ReactNode;
 }) {
   return (
     <fieldset>
-      <legend className={cn("deva mb-2 text-text-1", T.label)}>
-        <Bi en={labelEn} hi={labelHi} />
-      </legend>
+      <legend className={cn("mb-2 text-text-1", T.label)}>{labelEn}</legend>
       {children}
     </fieldset>
   );
@@ -364,12 +382,10 @@ export function CheckRow({
   checked,
   onToggle,
   labelEn,
-  labelHi,
 }: {
   checked: boolean;
   onToggle: () => void;
   labelEn: string;
-  labelHi?: string;
 }) {
   return (
     <label className="flex min-h-11 cursor-pointer items-center gap-3">
@@ -379,9 +395,7 @@ export function CheckRow({
         onChange={onToggle}
         className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
       />
-      <span className={cn("deva text-text-1", T.body)}>
-        <Bi en={labelEn} hi={labelHi} />
-      </span>
+      <span className={cn("text-text-1", T.body)}>{labelEn}</span>
     </label>
   );
 }

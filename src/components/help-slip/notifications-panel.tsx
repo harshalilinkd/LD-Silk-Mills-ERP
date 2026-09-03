@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { IconAlertTriangle, IconBell } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { Panel, PanelHead } from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { relativeTime } from "@/lib/help-slip/format";
-import type { HelpSlipLocale } from "@/lib/help-slip/meta";
 import type { NotificationRow } from "@/lib/help-slip/types";
 import { cn } from "@/lib/utils";
 
@@ -23,33 +21,36 @@ import { cn } from "@/lib/utils";
  * Its data rides in the dashboard's single request — this component takes
  * rows as props rather than fetching. A panel that ran its own query would be
  * a second pinned connection for five rows the dashboard had already read.
+ *
+ * It is a PANEL CARD: a tinted, ruled head with an accent icon chip over a
+ * flush body. The head is what makes a card announce itself, and the body sits
+ * flush so a row's `px-4` lines up under the head's.
  */
 export function NotificationsPanel({
   items,
   loading,
   error,
   onRetry,
-  locale,
 }: {
   items: NotificationRow[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  locale: HelpSlipLocale;
 }) {
   return (
-    <Panel className="flex flex-col overflow-hidden">
-      <PanelHead titleEn="Notifications" titleHi="सूचनाएँ">
-        <Link
-          href="/help-slip/notifications"
-          className={cn(
-            "deva text-accent-text hover:underline",
-            T.bodySm,
-          )}
-        >
-          <Bi en="View all" hi="सभी देखें" />
-        </Link>
-      </PanelHead>
+    <Panel className="flex flex-col">
+      <PanelHead
+        titleEn="Notifications"
+        icon={<IconBell />}
+        aside={
+          <Link
+            href="/help-slip/notifications"
+            className={cn("text-accent-text hover:underline", T.bodySm)}
+          >
+            View all
+          </Link>
+        }
+      />
 
       {loading ? (
         <div
@@ -69,53 +70,45 @@ export function NotificationsPanel({
         /* A failed fetch used to fall through to `data ?? []` in the source,
            which rendered the exact same "Nothing new" row as a genuinely empty
            inbox. The two read identically and only one of them means try
-           again. */
-        <div role="alert" className="flex items-center gap-3 px-5 py-4">
-          {/* A 36×36 SQUARE at `rounded-lg`, not a circle: docs/DESIGN.md's
-              icon tile. A circular tile is the one shape nothing else in the
-              ERP uses, so it reads as another product's component. */}
-          <span
-            aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-lg bg-status-red-dim text-status-red"
-          >
-            <IconAlertTriangle className="size-[18px]" stroke={1.6} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className={cn("deva block text-text-2", T.bodySm)}>
-              <Bi
-                en="We couldn't load this."
-                hi="यह लोड नहीं हो सका।"
-              />
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={onRetry}
+           again.
+
+           The ERP's notice strip: a 16px leading glyph, the sentence, and the
+           action as a trailing underlined button. */
+        <div className="p-3">
+          <div
+            role="alert"
             className={cn(
-              "deva shrink-0 cursor-pointer text-accent-text hover:underline",
+              "flex items-start gap-2 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2",
               T.bodySm,
             )}
           >
-            <Bi en="Try again" hi="दोबारा कोशिश करें" />
-          </button>
+            <IconAlertTriangle
+              className="mt-[1px] size-4 shrink-0 text-status-red"
+              stroke={1.6}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 text-status-red">
+              We couldn&apos;t load this.
+            </span>
+            {/* `min-h-11` below md, not `h-11`: this sits in a flex row beside
+                the message, so a fixed height would stretch the strip. The
+                inline look is unchanged — only the tap box grows. */}
+            <button
+              type="button"
+              onClick={onRetry}
+              className="flex min-h-11 shrink-0 cursor-pointer items-center font-semibold text-status-red underline-offset-2 hover:underline md:min-h-0"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       ) : items.length === 0 ? (
-        /* ONE ROW, left-aligned, at the top of the card.
+        /* ONE LINE, left-aligned, at the top of the card.
            Not a 200px illustration: this panel sits beside Recent under
            `items-start`, and a centred bell announcing that nothing has
            happened would be the largest thing on the dashboard and the one
-           with the least to say. A fact this small gets a line. */
-        <div className="flex items-center gap-3 px-5 py-4">
-          <span
-            aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-text"
-          >
-            <IconBell className="size-[18px]" stroke={1.6} />
-          </span>
-          <span className={cn("deva min-w-0 text-text-2", T.bodySm)}>
-            <Bi en="Nothing new." hi="कुछ नया नहीं।" />
-          </span>
-        </div>
+           with the least to say. The head already carries the bell. */
+        <p className={cn("px-4 py-4 text-text-2", T.bodySm)}>Nothing new.</p>
       ) : (
         <ul className="flex flex-col">
           {items.map((n) => (
@@ -145,23 +138,18 @@ export function NotificationsPanel({
               >
                 <span
                   className={cn(
-                    "deva text-text-1",
+                    "text-text-1",
                     T.bodySm,
                     !n.readAt && "font-semibold",
                   )}
                 >
                   {n.title}
                 </span>
-                <span
-                  className={cn(
-                    "deva line-clamp-1 text-text-3",
-                    T.caption,
-                  )}
-                >
+                <span className={cn("line-clamp-1 text-text-3", T.caption)}>
                   {n.message}
                 </span>
                 <span className={cn("num text-text-3", T.caption)}>
-                  {relativeTime(n.createdAt, locale)}
+                  {relativeTime(n.createdAt)}
                 </span>
               </Link>
             </li>

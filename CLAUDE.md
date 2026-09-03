@@ -213,7 +213,15 @@ and is the contract of record.
   — dashboard (forks by role), Raise a concern, My concerns, All concerns,
   concern detail, the coordinator workspace, Notifications. Ported from
   `github.com/harshalilinkd/LD-Help-Slip`; reads/writes the same live
-  `ld_help_slip` schema. Bilingual EN/HI throughout.
+  `ld_help_slip` schema. **English only** — the module was bilingual EN/HI when
+  first ported, and that was removed wholesale in Sep 2026 because no other
+  module in this ERP has Hindi. Do not reintroduce it: no `<Bi>`, no `.deva`
+  or `.hi` classes, no `labelHi`/`titleHi`/`helperHi` props, no Devanagari
+  font. `departments.name_hi` and `profiles.locale` still exist in the
+  database (the standalone app is still live and reads them) — we simply
+  never read them. `departments.name_hi` was cleared to NULL on the user's
+  explicit instruction; the previous values are in
+  `scratchpad/ld_help_slip-backup-before-english-only.json`.
 
 ## Help Slip — RLS is the security boundary, and we bypass it by default
 **Read `src/db/help-slip/rls.ts` before writing any query against

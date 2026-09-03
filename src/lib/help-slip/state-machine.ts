@@ -121,11 +121,12 @@ export function requirementsFor(
  * what would make it available rather than just being grey.
  *
  * The source returns translation keys here and looks them up in its
- * dictionary. This module has no dictionary (the screens render EN + HI
- * inline, the way the rest of the port does), so the pair comes back as an
- * object and the caller feeds it straight to `<Bi>`.
+ * dictionary. This module has no dictionary, so the sentence itself comes
+ * back — wrapped in an `{ en }` OBJECT rather than returned bare, because
+ * pc-workspace.tsx reads `reason.en` and `reason?.en` in several places and
+ * flattening the shape would be a rename on that screen for no gain.
  */
-export type BlockedReason = { en: string; hi: string };
+export type BlockedReason = { en: string };
 
 export function blockedReason(
   from: ConcernStatus,
@@ -134,21 +135,15 @@ export function blockedReason(
 ): BlockedReason | null {
   if (canTransition(from, to, context)) return null;
   if (from === "closed") {
-    return { en: "This concern is closed.", hi: "यह शिकायत बंद है।" };
+    return { en: "This concern is closed." };
   }
   if (from === "resolved" && to === "in_progress") {
-    return {
-      en: "Too long since it was resolved to reopen.",
-      hi: "हल हुए इतना समय हो गया कि दोबारा नहीं खोला जा सकता।",
-    };
+    return { en: "Too long since it was resolved to reopen." };
   }
   if (from === to) {
-    return { en: "Already there.", hi: "पहले से ही वहीं है।" };
+    return { en: "Already there." };
   }
-  return {
-    en: "Not possible from the current status.",
-    hi: "मौजूदा स्थिति से यह संभव नहीं।",
-  };
+  return { en: "Not possible from the current status." };
 }
 
 /**

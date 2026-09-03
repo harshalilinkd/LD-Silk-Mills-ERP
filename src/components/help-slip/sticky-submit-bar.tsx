@@ -31,6 +31,15 @@ import { useKeyboardInset } from "@/lib/help-slip/use-keyboard-inset";
  * Below 768 only. Above that there is no software keyboard to dodge, the
  * shell's sidebar occupies the left 264px (so a full-bleed fixed bar would be
  * wrong anyway), and the submit button lives in the form itself.
+ *
+ * SURFACE, not the page ground: the ERP's sticky action bar is a translucent
+ * `bg-surface/95` over a blur with a hairline top border, so the content
+ * scrolling under it stays faintly visible and the bar still reads as a solid
+ * object. `bg-background` made it the same colour as the gap between the
+ * cards, which is the one thing a bar sitting ON the cards must not be.
+ *
+ * Whatever is passed in keeps a 44px touch target below `md` — this bar exists
+ * only below `md`, so there is no compact variant to fall back to.
  */
 export function StickySubmitBar({ children }: { children: React.ReactNode }) {
   const inset = useKeyboardInset();
@@ -41,7 +50,7 @@ export function StickySubmitBar({ children }: { children: React.ReactNode }) {
       <div aria-hidden className="h-20 md:hidden" />
 
       <div
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-[6px] md:hidden"
         style={{
           paddingBottom: "env(safe-area-inset-bottom)",
           transform: inset > 0 ? `translateY(-${inset}px)` : undefined,

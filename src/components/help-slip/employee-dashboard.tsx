@@ -8,37 +8,44 @@ import {
   IconBell,
   IconCircleCheck,
   IconClock,
+  IconHistory,
   IconInbox,
   IconLoader2,
   IconMoodSmile,
   IconPlus,
 } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { StatusBadge, OverdueBadge } from "@/components/help-slip/badges";
 import { KpiStrip, type Kpi } from "@/components/help-slip/kpi-strip";
 import { NotificationsPanel } from "@/components/help-slip/notifications-panel";
-import { ListState, Panel, PanelHead } from "@/components/help-slip/page-parts";
+import {
+  CountChip,
+  ListState,
+  Panel,
+  PanelHead,
+} from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
 import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
 import { helpSlipGet } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale, useHelpSlipSession } from "@/lib/help-slip/context";
+import { useHelpSlipSession } from "@/lib/help-slip/context";
 import {
   departmentOf,
   greetingFor,
   relativeTime,
 } from "@/lib/help-slip/format";
-import { HELP_SLIP_STALE_TIME, useUnreadCount } from "@/lib/help-slip/use-unread-count";
+import {
+  HELP_SLIP_STALE_TIME,
+  useUnreadCount,
+} from "@/lib/help-slip/use-unread-count";
 import {
   KPI_BUCKETS,
   type ConcernRow,
   type EmployeeDashboardPayload,
   type KpiBucket,
 } from "@/lib/help-slip/types";
-import type { HelpSlipLocale } from "@/lib/help-slip/meta";
 import { cn } from "@/lib/utils";
 
 /**
@@ -49,15 +56,23 @@ import { cn } from "@/lib/utils";
  * Written phone-first. Everything desktop is additive: nothing here is a
  * shrunk-down 1440 layout.
  *
+ * ── THE SHAPE IS THE ERP DASHBOARD'S ──────────────────────────────────────
+ * Three top-level regions, `gap-5` apart, each one `<Reveal>`-staggered in
+ * page order: the header, the KPI row, then a panel grid. That is
+ * dashboard-view.tsx's own skeleton, and it is what `DashboardFallback`
+ * draws while this loads — header block, KPI strip, one card.
+ *
+ * Nothing floats. The counts are cards, Recent is a panel card with a tinted,
+ * ruled head that announces itself with an accent icon chip, and the page
+ * ground shows only BETWEEN cards.
+ *
  * ── THE PRIMARY CONTROL ───────────────────────────────────────────────────
- * "Raise a concern" is the most important control in the source app, and it is
- * back now that the form exists. It sits in the greeting row, ahead of the
- * KPIs: somebody who opened this app in order to report something should not
- * have to read four numbers first.
+ * "Raise a concern" is the most important control in the source app. It sits
+ * in the greeting row, ahead of the KPIs: somebody who opened this app in
+ * order to report something should not have to read four numbers first.
  */
 export function EmployeeDashboard() {
   const session = useHelpSlipSession();
-  const locale = useHelpSlipLocale();
   const router = useRouter();
 
   const q = useQuery({
@@ -74,10 +89,9 @@ export function EmployeeDashboard() {
 
   const greeting = greetingFor();
   const firstName = session.fullName.split(" ")[0] ?? "";
-  const departmentName =
-    (locale === "hi" ? data?.departmentNameHi : data?.departmentName) ??
-    data?.departmentName ??
-    null;
+  // `departments.name` and nothing else. The `name_hi` column still exists for
+  // the legacy app; this module never reads it and never concatenates it.
+  const departmentName = data?.departmentName ?? null;
 
   const goToBucket = (bucket: KpiBucket | "total") =>
     router.push(
@@ -98,7 +112,6 @@ export function EmployeeDashboard() {
     {
       key: "total",
       labelEn: "Total",
-      labelHi: "कुल",
       value: data?.kpis.total ?? 0,
       icon: IconInbox,
       tone: "violet",
@@ -107,7 +120,6 @@ export function EmployeeDashboard() {
     {
       key: "open",
       labelEn: "Open",
-      labelHi: "खुली",
       value: data?.kpis.open ?? 0,
       icon: IconClock,
       tone: "blue",
@@ -116,7 +128,6 @@ export function EmployeeDashboard() {
     {
       key: "inProgress",
       labelEn: "In Progress",
-      labelHi: "चालू",
       value: data?.kpis.inProgress ?? 0,
       icon: IconLoader2,
       tone: "amber",
@@ -125,7 +136,6 @@ export function EmployeeDashboard() {
     {
       key: "resolved",
       labelEn: "Resolved",
-      labelHi: "हल",
       value: data?.kpis.resolved ?? 0,
       icon: IconCircleCheck,
       tone: "green",
@@ -134,23 +144,20 @@ export function EmployeeDashboard() {
   ];
 
   return (
-    <div className="flex flex-col">
+    // The ERP page root: a vertical rhythm and nothing else. The scroll
+    // container and the page padding come from `(app)/layout.tsx`, and `gap-5`
+    // is the seam every Order Entry screen puts between its regions.
+    <div className="flex flex-col gap-5">
       {/* ─── 1. the greeting, and nothing else ──────────────────────────── */}
       <Reveal index={0}>
-        {/* `pb-2` matches PageHeader, which this screen hand-rolls rather than
-            uses (it has a greeting, not a title). */}
-        <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 md:flex-1">
-            <h1 className={cn("deva text-text-1", T.h1)}>
+            <h1 className={cn("text-text-1", T.h1)}>
               {greeting.en}
               {firstName ? `, ${firstName}` : ""}
-              <span className="deva hi"> ({greeting.hi})</span>
             </h1>
-            <p className={cn("deva mt-1 text-text-3", T.body)}>
-              <Bi
-                en="Here's an overview of your concerns"
-                hi="आपकी शिकायतों का ब्यौरा"
-              />
+            <p className={cn("mt-1 text-text-3", T.body)}>
+              Here&apos;s an overview of your concerns
               {departmentName ? ` · ${departmentName}` : ""}
             </p>
           </div>
@@ -172,7 +179,7 @@ export function EmployeeDashboard() {
               render={<Link href="/help-slip/concerns/new" />}
             >
               <IconPlus className="size-5 md:size-4" stroke={1.8} aria-hidden />
-              <Bi en="Raise a concern" hi="शिकायत दर्ज करें" />
+              Raise a concern
             </Button>
 
             {/* A quiet square, deliberately NOT a primary button. It
@@ -185,7 +192,9 @@ export function EmployeeDashboard() {
             <Link
               href="/help-slip/notifications"
               aria-label={
-                unread > 0 ? `Notifications (${unread} unread)` : "Notifications"
+                unread > 0
+                  ? `Notifications (${unread} unread)`
+                  : "Notifications"
               }
               className="relative hidden size-9 shrink-0 place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1 md:grid"
             >
@@ -204,75 +213,84 @@ export function EmployeeDashboard() {
         </div>
       </Reveal>
 
-      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
-          The seam between sections is 20px here as it is in Order Entry, and
-          the KPI strip and the Recent row still read as two different
-          questions ("what is true now" vs "what happened") because they are
-          two cards, not because 40px sits between them. */}
-      <div className="flex flex-col gap-5 pb-6">
-        <Reveal index={1}>
-          <KpiStrip
-            items={kpis}
-            loading={q.isPending}
-            error={q.isError}
-            errorLabel="Failed to load"
-            onSelect={(key) => goToBucket(key as KpiBucket | "total")}
-          />
-        </Reveal>
+      {/* ─── 2. the four counts ─────────────────────────────────────────── */}
+      <Reveal index={1}>
+        <KpiStrip
+          items={kpis}
+          loading={q.isPending}
+          error={q.isError}
+          errorLabel="Failed to load"
+          onSelect={(key) => goToBucket(key as KpiBucket | "total")}
+        />
+      </Reveal>
 
-        {/* ─── 2. Recent, with Notifications beside it ──────────────────── *
-         * A FIXED 20rem rail and everything else to the table. A 2fr/1fr
-         * split gives the notifications panel 600px of one-line entries on a
-         * wide monitor while the table — the thing with content in it — gets
-         * squeezed. `items-start` so the shorter of the two does not stretch
-         * to match the taller.                                              */}
-        <Reveal index={2}>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
-            <Panel className="overflow-hidden">
-              <PanelHead titleEn="Recent" titleHi="हाल की">
-                <Link
-                  href="/help-slip/concerns"
-                  className={cn(
-                    "deva text-accent-text hover:underline",
-                    T.bodySm,
-                  )}
-                >
-                  <Bi en="View all" hi="सभी देखें" />
-                </Link>
-              </PanelHead>
+      {/* ─── 3. Recent, with Notifications beside it ──────────────────── *
+       * `gap-3.5` is the ERP's dashboard panel-grid gap. A FIXED 20rem rail
+       * and everything else to the table: a 2fr/1fr split gives the
+       * notifications panel 600px of one-line entries on a wide monitor while
+       * the table — the thing with content in it — gets squeezed.
+       * `items-start` so the shorter of the two does not stretch to match the
+       * taller.                                                             */}
+      <Reveal index={2}>
+        <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+          <Panel>
+            {/* A card that announces itself: accent icon chip, heading, an
+                inline note beside it, and the count + "View all" in the right
+                slot. A bare heading over a table is the old screen. */}
+            <PanelHead
+              titleEn="Recent"
+              icon={<IconHistory />}
+              note="Newest first"
+              aside={
+                <div className="flex items-center gap-2.5">
+                  {/* Only once the payload is real: a "0" chip beside a
+                      spinner is a count of nothing, not a count of zero. */}
+                  {data ? <CountChip>{data.recent.length}</CountChip> : null}
+                  {/* A 12.5px link is a 19px tap target. It keeps its drawn
+                      size — it sits on a heading line — and buys the 44px
+                      below `md` from a transparent overlay, which is dropped
+                      from `md` up where a pointer is doing the aiming. */}
+                  <Link
+                    href="/help-slip/concerns"
+                    className={cn(
+                      "relative text-accent-text before:absolute before:-inset-3.5 before:content-[''] hover:underline md:before:hidden",
+                      T.bodySm,
+                    )}
+                  >
+                    View all
+                  </Link>
+                </div>
+              }
+            />
 
-              <ListState
-                loading={q.isPending}
-                error={error}
-                onRetry={() => void q.refetch()}
-                isEmpty={(data?.recent.length ?? 0) === 0}
-                empty={{
-                  icon: IconMoodSmile,
-                  titleEn: "You're all clear.",
-                  titleHi: "सब ठीक है।",
-                  bodyEn: "No open concerns right now.",
-                  bodyHi: "अभी कोई शिकायत नहीं है।",
-                }}
-              >
-                <RecentConcerns rows={data?.recent ?? []} locale={locale} />
-              </ListState>
-            </Panel>
+            <ListState
+              loading={q.isPending}
+              error={error}
+              onRetry={() => void q.refetch()}
+              isEmpty={(data?.recent.length ?? 0) === 0}
+              empty={{
+                icon: IconMoodSmile,
+                titleEn: "You're all clear.",
+                bodyEn: "No open concerns right now.",
+              }}
+            >
+              <RecentConcerns rows={data?.recent ?? []} />
+            </ListState>
+          </Panel>
 
-            {/* Below 1280 the notification centre is one click away in the
-                sidebar, and the vertical space is worth more than the
-                duplication. */}
-            <aside className="hidden xl:block">
-              <NotificationsPanel
-                items={data?.notifications ?? []}
-                loading={q.isPending}
-                error={error}
-                onRetry={() => void q.refetch()}
-                locale={locale}
-              />
-            </aside>
-          </div>
-        </Reveal>
-      </div>
+          {/* Below 1280 the notification centre is one click away in the
+              sidebar, and the vertical space is worth more than the
+              duplication. */}
+          <aside className="hidden xl:block">
+            <NotificationsPanel
+              items={data?.notifications ?? []}
+              loading={q.isPending}
+              error={error}
+              onRetry={() => void q.refetch()}
+            />
+          </aside>
+        </div>
+      </Reveal>
     </div>
   );
 }
@@ -281,17 +299,15 @@ export function EmployeeDashboard() {
  * One list, two renderings: cards below 768, a real table above it. Never a
  * fork — the same rows, the same order, the same components inside the cells.
  */
-function RecentConcerns({
-  rows,
-  locale,
-}: {
-  rows: ConcernRow[];
-  locale: HelpSlipLocale;
-}) {
+function RecentConcerns({ rows }: { rows: ConcernRow[] }) {
   return (
     <>
-      {/* ── cards, < 768 ───────────────────────────────────────────────── */}
-      <ul className="flex flex-col gap-2.5 p-3 md:hidden">
+      {/* ── cards, < 768 ───────────────────────────────────────────────── *
+       * A GRID, not a column: one-up on a phone, two-up from `sm`, which is
+       * the ERP's own `grid gap-2 sm:grid-cols-2` for a row of small record
+       * cards (dashboard-view's "Needs attention"). Single column below `sm`
+       * is the mobile guard and is not negotiable.                          */}
+      <ul className="grid gap-2.5 p-3 sm:grid-cols-2 md:hidden">
         {rows.map((row) => (
           <li key={row.id}>
             {/* The whole card is the link — a real one, so back, new-tab and
@@ -302,27 +318,43 @@ function RecentConcerns({
                 really IS a press target says so itself. */}
             <Link
               href={`/help-slip/concerns/${row.id}`}
-              className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
+              className="flex h-full flex-col rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className={cn("num text-text-3", T.caption)}>
-                  {row.concernNumber}
-                </span>
-                <span className="flex items-center gap-1">
-                  <StatusBadge status={row.status} locale={locale} />
-                  {row.isOverdue ? <OverdueBadge locale={locale} /> : null}
+              {/* Identity row: the ID over the title on the left, the status
+                  hard right — OrderCard's `flex items-start justify-between`. */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className={cn("num block text-text-3", T.caption)}>
+                    {row.concernNumber}
+                  </span>
+                  {/* 2-line clamp: a long title must not push the meta row off
+                      the card on a 360px screen. */}
+                  <p className={cn("line-clamp-2 text-text-1", T.h3)}>
+                    {row.title}
+                  </p>
+                </div>
+                <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                  <StatusBadge status={row.status} />
+                  {row.isOverdue ? <OverdueBadge /> : null}
                 </span>
               </div>
-              {/* 2-line clamp: a long title must not push the meta row off the
-                  card on a 360px screen. */}
-              <p className={cn("deva line-clamp-2 text-text-1", T.h3)}>
-                {row.title}
-              </p>
-              <p className={cn("deva text-text-3", T.caption)}>
-                {departmentOf(row, locale)}
-                {" · "}
-                {relativeTime(row.lastPublicUpdateAt ?? row.createdAt, locale)}
-              </p>
+
+              {/* Meta row: the ERP's `mt-2 flex flex-wrap … gap-x-3 gap-y-1`,
+                  with `ml-auto` pushing the age to the right edge the way
+                  OrderCard pushes the money. */}
+              <div
+                className={cn(
+                  "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-text-3",
+                  T.caption,
+                )}
+              >
+                <span className="min-w-0 truncate">
+                  {departmentOf(row)}
+                </span>
+                <span className="num ml-auto">
+                  {relativeTime(row.lastPublicUpdateAt ?? row.createdAt)}
+                </span>
+              </div>
             </Link>
           </li>
         ))}
@@ -358,22 +390,20 @@ function RecentConcerns({
                       {row.concernNumber}
                     </Link>
                   </Td>
-                  <Td className="deva max-w-0">
+                  <Td className="max-w-0">
                     <span className="line-clamp-1">{row.title}</span>
                   </Td>
-                  <Td className="deva hidden whitespace-nowrap lg:table-cell">
-                    {departmentOf(row, locale)}
+                  <Td className="hidden whitespace-nowrap lg:table-cell">
+                    {departmentOf(row)}
                   </Td>
-                  <Td className="deva whitespace-nowrap text-text-3">
-                    {relativeTime(
-                      row.lastPublicUpdateAt ?? row.createdAt,
-                      locale,
-                    )}
+                  {/* A date is a figure: `.num`, never a proportional face. */}
+                  <Td className="num whitespace-nowrap text-text-3">
+                    {relativeTime(row.lastPublicUpdateAt ?? row.createdAt)}
                   </Td>
                   <Td>
                     <span className="flex flex-wrap items-center gap-1">
-                      <StatusBadge status={row.status} locale={locale} />
-                      {row.isOverdue ? <OverdueBadge locale={locale} /> : null}
+                      <StatusBadge status={row.status} />
+                      {row.isOverdue ? <OverdueBadge /> : null}
                     </span>
                   </Td>
                 </Tr>
@@ -385,4 +415,3 @@ function RecentConcerns({
     </>
   );
 }
-

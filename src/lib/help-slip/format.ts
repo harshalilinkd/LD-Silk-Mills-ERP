@@ -5,16 +5,19 @@ import type { HelpSlipLocale } from "./meta";
  *
  * The source app does this with `date-fns` + `date-fns/locale`. We are under a
  * no-new-dependencies rule, and every function it used has an `Intl` answer
- * that ships with the runtime — `RelativeTimeFormat` even gives us Hindi
- * ("2 दिन पहले") for free, which a hand-rolled English-only string could not.
+ * that ships with the runtime — including "2 days ago", which is the one a
+ * hand-rolled formatter gets wrong at the plural and the boundary.
  */
 
 /** Everything is displayed in the factory's own time. */
 export const APP_TIME_ZONE = "Asia/Kolkata";
 
+/**
+ * `en-GB` and nothing else — this module is English-only, and `en-GB` is the
+ * form the factory reads: "4 Aug 2026", 24-hour clock, day before month.
+ */
 const INTL_LOCALE: Record<HelpSlipLocale, string> = {
   en: "en-GB",
-  hi: "hi-IN",
 };
 
 const MINUTE = 60_000;
@@ -143,12 +146,17 @@ export function hourInAppZone(now: Date = new Date()): number {
   return Number(parts.find((p) => p.type === "hour")?.value ?? 0);
 }
 
-export type Greeting = { en: string; hi: string };
+/**
+ * An `{ en }` object rather than a bare string: employee-dashboard.tsx reads
+ * `greeting.en`, and flattening it would be a rename on that screen for no
+ * gain.
+ */
+export type Greeting = { en: string };
 
 const GREETINGS = {
-  morning: { en: "Good morning", hi: "सुप्रभात" },
-  afternoon: { en: "Good afternoon", hi: "नमस्कार" },
-  evening: { en: "Good evening", hi: "शुभ संध्या" },
+  morning: { en: "Good morning" },
+  afternoon: { en: "Good afternoon" },
+  evening: { en: "Good evening" },
 } as const;
 
 export function greetingFor(now: Date = new Date()): Greeting {
@@ -166,16 +174,13 @@ export function greetingFor(now: Date = new Date()): Greeting {
  * and neither had a fallback, so a null snapshot rendered as a blank cell —
  * indistinguishable from a loading glitch. Every "nothing to show" value in
  * this module prints an em dash instead, and it does it from one place.
+ *
+ * `departments.name_hi` is still on the row and the legacy app still reads it.
+ * This one never does. The `locale` parameter is inert and stays only because
+ * several screens still pass `"en"`; it is optional so a call site can drop it.
  */
-export function departmentOf(
-  row: { departmentName: string | null; departmentNameHi: string | null },
-  locale: HelpSlipLocale,
-): string {
-  const name =
-    locale === "hi" && row.departmentNameHi
-      ? row.departmentNameHi
-      : row.departmentName;
-  return name ?? "—";
+export function departmentOf(row: { departmentName: string | null }): string {
+  return row.departmentName ?? "—";
 }
 
 /**

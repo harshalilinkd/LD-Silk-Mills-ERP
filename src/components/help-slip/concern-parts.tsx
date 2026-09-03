@@ -8,7 +8,6 @@ import {
   IconLock,
 } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +53,11 @@ import { cn } from "@/lib/utils";
  * them into one style is how "I have picked this" starts reading as "this was
  * already accepted".
  *
+ * Each row is the ERP's ROW CARD (§E.4): `rounded-card border bg-surface p-3
+ * text-left shadow-sm`, 10px apart, the border carrying the state. It is the
+ * same shape the Orders list draws its mobile rows in, which is the point —
+ * this is a list of records, not a list of paragraphs.
+ *
  * When `onPick` is given the list becomes a real `radiogroup` of `role=radio`
  * buttons, so arrow keys work and a screen reader announces "2 of 3" — a row
  * of clickable divs would give neither.
@@ -76,11 +80,8 @@ export function SolutionList({
 }) {
   if (solutions.length === 0) {
     return (
-      <p className={cn("deva text-text-3", T.bodySm)}>
-        <Bi
-          en="No solutions were suggested."
-          hi="कोई समाधान नहीं सुझाया गया।"
-        />
+      <p className={cn("text-text-3", T.bodySm)}>
+        No solutions were suggested.
       </p>
     );
   }
@@ -91,7 +92,7 @@ export function SolutionList({
     <ol
       role={selectable ? "radiogroup" : undefined}
       aria-labelledby={selectable ? labelledBy : undefined}
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2.5"
     >
       {solutions.map((s) => {
         const accepted = s.id === acceptedId;
@@ -119,33 +120,27 @@ export function SolutionList({
 
             <span className="min-w-0">
               <span
-                className={cn(
-                  "deva block whitespace-pre-line text-text-1",
-                  T.body,
-                )}
+                className={cn("block whitespace-pre-line text-text-1", T.body)}
               >
                 {s.body}
               </span>
               {accepted ? (
                 <span
                   className={cn(
-                    "deva mt-1 block font-semibold text-status-green",
+                    "mt-1 block font-semibold tracking-[0.04em] text-status-green uppercase",
                     T.caption,
                   )}
                 >
-                  <Bi
-                    en="Accepted by the coordinator"
-                    hi="कोऑर्डिनेटर ने माना"
-                  />
+                  Accepted by the coordinator
                 </span>
               ) : chosen ? (
                 <span
                   className={cn(
-                    "deva mt-1 block font-semibold text-accent-text",
+                    "mt-1 block font-semibold tracking-[0.04em] text-accent-text uppercase",
                     T.caption,
                   )}
                 >
-                  <Bi en="Selected" hi="चुना गया" />
+                  Selected
                 </span>
               ) : null}
             </span>
@@ -153,7 +148,7 @@ export function SolutionList({
         );
 
         const shell = cn(
-          "flex w-full gap-2.5 rounded-card border p-3 text-left transition-colors",
+          "flex w-full gap-2.5 rounded-card border p-3 text-left shadow-sm transition-colors",
           // The accepted one gets the ONLY green on the page: it is the payoff
           // of the entire product — the person who proposed the fix finding
           // out that it was theirs.
@@ -175,8 +170,10 @@ export function SolutionList({
                 onClick={() => onPick?.(chosen ? null : s.id)}
                 className={cn(
                   shell,
-                  "cursor-pointer outline-none",
-                  !accepted && !chosen && "hover:bg-surface-2",
+                  "cursor-pointer outline-none active:scale-[.99]",
+                  !accepted &&
+                    !chosen &&
+                    "hover:border-border-strong hover:bg-surface-2",
                   "focus-visible:ring-3 focus-visible:ring-ring/40",
                   "disabled:cursor-not-allowed disabled:opacity-60",
                 )}
@@ -203,26 +200,29 @@ export function SolutionList({
  * scrolled. Side by side, the label sits in a fixed column and the value
  * starts on the same baseline, so the block reads as a table at about half the
  * height.
+ *
+ * The label is the ERP's metadata-strip label (§F.3, and `MetaItem` in
+ * page-parts.tsx): 11px, uppercase, `tracking-[0.04em]`, on text-3. Both the
+ * case change and the tracking became legal the moment the Hindi came out —
+ * Devanagari has no case and its conjuncts shatter under letter-spacing, which
+ * is the only reason this rail used to be the odd one out in the module.
  */
 export function MetaRow({
   labelEn,
-  labelHi,
   children,
 }: {
   labelEn: string;
-  labelHi?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex items-baseline gap-3 border-b border-border py-1.5 last:border-b-0">
-      {/* No `uppercase`/`tracking` here, though the ERP's info-grid label
-          carries both: this label is bilingual and Devanagari shatters. */}
-      <dt className={cn("deva w-20 shrink-0 text-text-3", T.caption)}>
-        <Bi en={labelEn} hi={labelHi} />
+      {/* w-24, not w-20: uppercase is wider than sentence case, and
+          "COORDINATOR" wrapping to two lines would cost the rail exactly the
+          height this row shape exists to save. */}
+      <dt className="w-24 shrink-0 text-[11px] tracking-[0.04em] text-text-3 uppercase">
+        {labelEn}
       </dt>
-      <dd className={cn("deva min-w-0 flex-1 text-text-1", T.bodySm)}>
-        {children}
-      </dd>
+      <dd className={cn("min-w-0 flex-1 text-text-1", T.body)}>{children}</dd>
     </div>
   );
 }
@@ -268,9 +268,9 @@ export function ConcernNumber({
       <span
         className={cn(
           "num",
-          // `tracking-[-0.02em]` is legal on this span ONLY: it carries `.num`
-          // and no `.deva`, and its content is `LD-019` — a number, never
-          // Hindi. It is the ERP's mini-figure treatment.
+          // The ERP's mini-figure treatment. `tracking-[-0.02em]` belongs on
+          // this span and nowhere near a label: its content is `LD-019` — a
+          // number set in tabular figures, which tighten cleanly.
           large
             ? cn("text-text-1", "text-[24px] font-bold tracking-[-0.02em]")
             : cn("text-text-3", T.caption),
@@ -289,11 +289,17 @@ export function ConcernNumber({
         }}
         className={cn(
           "grid cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-chip hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40",
-          // 44px below md on the filed confirmation: the minimum touch target
-          // for a phone held on the factory floor. ERP-compact (36px) from md
-          // up. The inline `sm` affordance is a caption-scale glyph, not a
-          // primary control, and stays 24px at every width.
-          large ? "size-11 md:size-9" : "size-6",
+          // 44px below md: the minimum touch target for a phone held on the
+          // factory floor. ERP-compact (36px) from md up.
+          //
+          // The inline `sm` affordance has to stay 24px — it sits on a caption
+          // line beside an 11.5px number and a 44px box there would shove the
+          // header apart — so it buys its touch target with a transparent
+          // `::before` instead: 24px drawn, 44px tappable, zero layout. From
+          // `md` the pointer is a mouse and the overlay goes away.
+          large
+            ? "size-11 md:size-9"
+            : "relative size-6 before:absolute before:-inset-2.5 before:content-[''] md:before:hidden",
         )}
       >
         {copied ? (
@@ -325,17 +331,16 @@ export function ConcernNumber({
  * took. It says "Confidential", never "HR only", because this system has no HR
  * role — the rule is `can_see_hr()`: an admin, or a coordinator whose profile
  * carries the confidential-access flag.
+ *
+ * Drawn as the ERP's neutral pill, on badges.tsx's geometry: a marker that
+ * rides beside a status badge has to be built like one, or it reads as a
+ * stray line of caption text.
  */
 export function ConfidentialMark() {
   return (
-    <span
-      className={cn(
-        "deva inline-flex items-center gap-1 text-text-3",
-        T.caption,
-      )}
-    >
-      <IconLock className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
-      <Bi en="Confidential" hi="गोपनीय" />
+    <span className="inline-flex items-center gap-1 rounded-pill bg-chip px-2 py-[3px] text-[10.5px] leading-none font-semibold text-text-2 uppercase">
+      <IconLock className="size-3 shrink-0" stroke={1.6} aria-hidden />
+      Confidential
     </span>
   );
 }
@@ -346,11 +351,9 @@ export function ConfidentialMark() {
 export function SlaLabel({
   slaDueAt,
   status,
-  locale,
 }: {
   slaDueAt: string | null;
   status: string;
-  locale: "en" | "hi";
 }) {
   if (!slaDueAt) return <span className="text-text-3">—</span>;
   if (status === "resolved" || status === "closed") {
@@ -359,11 +362,12 @@ export function SlaLabel({
 
   const ms = new Date(slaDueAt).getTime() - Date.now();
   const hours = Math.floor(Math.abs(ms) / 3_600_000);
-  const short = hours >= 24 ? `${Math.floor(hours / 24)}d` : `${Math.max(hours, 0)}h`;
+  const short =
+    hours >= 24 ? `${Math.floor(hours / 24)}d` : `${Math.max(hours, 0)}h`;
 
   return (
     <span
-      title={absoluteTime(slaDueAt, locale)}
+      title={absoluteTime(slaDueAt)}
       className={cn(
         "num whitespace-nowrap",
         ms < 0 ? "font-semibold text-status-red" : "text-text-2",
@@ -381,15 +385,19 @@ export function SlaLabel({
  *
  * `error` sits INSIDE the dialog rather than as a toast behind it: the
  * refusal belongs to the thing being confirmed, and a message that appears
- * behind a modal is a message nobody reads.
+ * behind a modal is a message nobody reads. It is drawn as the ERP's notice
+ * strip (§E.8) — `flex items-start gap-2 rounded-field border px-3 py-2` on
+ * the red-dim fill — so a refusal here looks like a refusal everywhere else.
+ *
+ * `85dvh`, not `85vh`: on a phone `vh` is measured against the browser chrome
+ * expanded, so a dialog sized in `vh` is taller than the window it is in and
+ * its footer sits under the address bar.
  */
 export function HsModal({
   open,
   onOpenChange,
   titleEn,
-  titleHi,
   descriptionEn,
-  descriptionHi,
   error,
   footer,
   children,
@@ -397,34 +405,32 @@ export function HsModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   titleEn: string;
-  titleHi?: string;
   descriptionEn?: string;
-  descriptionHi?: string;
   error?: React.ReactNode;
   footer: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className={cn("deva", T.h3)}>
-            <Bi en={titleEn} hi={titleHi} />
-          </DialogTitle>
+          <DialogTitle className={T.h3}>{titleEn}</DialogTitle>
           {descriptionEn ? (
-            <DialogDescription className={cn("deva text-text-3", T.bodySm)}>
-              <Bi en={descriptionEn} hi={descriptionHi} />
+            <DialogDescription className={cn("text-text-3", T.bodySm)}>
+              {descriptionEn}
             </DialogDescription>
           ) : null}
         </DialogHeader>
 
-        {children ? <div className="flex flex-col gap-3">{children}</div> : null}
+        {children ? (
+          <div className="flex flex-col gap-4">{children}</div>
+        ) : null}
 
         {error ? (
           <p
             role="alert"
             className={cn(
-              "deva rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
+              "flex items-start gap-2 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
               T.bodySm,
             )}
           >
@@ -448,7 +454,7 @@ export function ModalCancel({ disabled }: { disabled?: boolean }) {
         <Button variant="outline" className="h-11 md:h-9" disabled={disabled} />
       }
     >
-      <Bi en="Cancel" hi="रद्द करें" />
+      Cancel
     </DialogClose>
   );
 }

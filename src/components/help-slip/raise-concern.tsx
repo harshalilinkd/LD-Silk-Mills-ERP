@@ -5,23 +5,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  IconAdjustments,
+  IconAlertTriangle,
+  IconBulb,
   IconChevronLeft,
   IconCircleCheck,
+  IconClipboardList,
   IconCloudOff,
+  IconHistory,
   IconPlus,
   IconX,
 } from "@tabler/icons-react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { ConcernNumber } from "@/components/help-slip/concern-parts";
 import {
   CheckboxField,
+  FieldGrid,
   FormAlert,
   SelectField,
+  SPAN_HALF,
   TextAreaField,
   TextField,
 } from "@/components/help-slip/form-parts";
-import { PageHeader, Panel } from "@/components/help-slip/page-parts";
+import {
+  CARD_FOOTER_ROW,
+  CountChip,
+  PageHeader,
+  SectionCard,
+} from "@/components/help-slip/page-parts";
 import { StickySubmitBar } from "@/components/help-slip/sticky-submit-bar";
 import { T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
@@ -36,7 +47,7 @@ import { Reveal } from "@/components/ui/reveal";
 import { Spinner } from "@/components/ui/spinner";
 import { PRIORITIES, type ConcernPriority } from "@/db/help-slip/schema";
 import { helpSlipGet, helpSlipSend } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale, useHelpSlipSession } from "@/lib/help-slip/context";
+import { useHelpSlipSession } from "@/lib/help-slip/context";
 import {
   clearDraft,
   draftKeyFor,
@@ -74,8 +85,10 @@ import { cn } from "@/lib/utils";
  * a factory floor. Everything below follows from that, and most of it is about
  * the phone rather than about the form:
  *
- *  - **ONE column, no wizard.** A three-step form for six fields turns one
+ *  - **ONE SCREEN, no wizard.** A three-step form for six fields turns one
  *    60-second task into three 30-second ones with two chances to abandon.
+ *    (One screen, not one column: on a desk the fields sit in the ERP's own
+ *    grid — see the shape note below.)
  *  - **The submit bar tracks `window.visualViewport`.** `position: fixed`
  *    alone gets buried under the Android keyboard — see `StickySubmitBar`.
  *  - **`clientRequestId` is minted once per mount** and sent with every
@@ -87,6 +100,16 @@ import { cn } from "@/lib/utils";
  *  - **There is no description field.** Deliberately. What went wrong is one
  *    line; the paragraph belongs in a suggested solution, and a one-line box
  *    is what says so without a word of instruction.
+ *
+ * ── THE SHAPE: THIS IS AN ERP FORM ────────────────────────────────────────
+ *
+ * Modelled directly on `order-entry/orders/order-form.tsx`, because the
+ * complaint this screen collected was that Help Slip "looks outdated" and the
+ * measurement behind it was structural: the new-order form is bordered cards
+ * of multi-column grids in a 1128px column; this was a 720px stack of naked
+ * full-width inputs. So: three `SectionCard`s with accent icon chips, fields
+ * in a `FieldGrid`, hints on the label row, and the ERP's fixed action bar at
+ * the bottom on a desk. The phone keeps its own pinned bar, unchanged.
  *
  * ── PHOTO ATTACHMENTS ARE NOT HERE ────────────────────────────────────────
  *
@@ -107,7 +130,6 @@ import { cn } from "@/lib/utils";
  */
 export function RaiseConcern() {
   const session = useHelpSlipSession();
-  const locale = useHelpSlipLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -158,7 +180,8 @@ export function RaiseConcern() {
   // nothing on screen saying why.
   const departments = useQuery({
     queryKey: ["help-slip", "departments"],
-    queryFn: () => helpSlipGet<DepartmentsPayload>("/api/help-slip/departments"),
+    queryFn: () =>
+      helpSlipGet<DepartmentsPayload>("/api/help-slip/departments"),
     staleTime: 10 * 60_000,
   });
 
@@ -166,10 +189,9 @@ export function RaiseConcern() {
     () =>
       (departments.data?.departments ?? []).map((d) => ({
         value: d.id,
-        // Inline `English (हिंदी)`, the same rule `<Bi>` applies everywhere
-        // else — a native <option> cannot hold two spans, so the parenthetical
-        // is built into the string.
-        label: d.nameHi ? `${d.name} (${d.nameHi})` : d.name,
+        // `name` only. `name_hi` stays in the database for the legacy app and
+        // is never read here — this ERP is English-only.
+        label: d.name,
       })),
     [departments.data],
   );
@@ -264,8 +286,8 @@ export function RaiseConcern() {
   // depend on it, and a list that drifts from the DOM would send somebody to
   // the wrong field.
   const order: { id: string; key: string; label: string }[] = [
-    { id: "raise-department", key: "departmentId", label: "Department (विभाग)" },
-    { id: "raise-title", key: "title", label: "What's the problem? (प्रॉब्लेम)" },
+    { id: "raise-department", key: "departmentId", label: "Department" },
+    { id: "raise-title", key: "title", label: "What's the problem?" },
     ...values.solutions.map((_s, i) => ({
       id: `raise-solution-${i + 1}`,
       key: `solutions.${i}`,
@@ -278,13 +300,20 @@ export function RaiseConcern() {
     .filter((f): f is typeof f & { error: string } => Boolean(f.error));
 
   function focusField(id: string) {
-    const el = formRef.current?.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
+    const el = formRef.current?.querySelector<HTMLElement>(
+      `#${CSS.escape(id)}`,
+    );
     if (!el) return;
     // Centre it rather than letting focus() scroll it to whatever edge it
     // likes: a field flush to the bottom of the viewport sits under the
     // keyboard.
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "center",
+    });
     el.focus({ preventScroll: true });
   }
 
@@ -359,15 +388,24 @@ export function RaiseConcern() {
       className="h-11 w-full px-5 text-base md:h-9 md:w-auto md:px-3 md:text-sm"
     >
       {submit.isPending ? <Spinner /> : null}
-      <Bi
-        en={submit.isPending ? "Sending…" : "Submit concern"}
-        hi={submit.isPending ? undefined : "जमा करें"}
-      />
+      {submit.isPending ? "Sending…" : "Submit concern"}
     </Button>
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col">
+    /*
+      1120px, centred, and the SAME width on the heading and on every card —
+      the ERP form pattern (order-form.tsx puts one `mx-auto w-full max-w-[…]`
+      on both, or the title floats left of its own cards).
+
+      Why 1120 and not this screen's old 720: at 1440px the Order Entry
+      new-order form gets 1440 − 264 sidebar − 48 page padding = 1128px of
+      content, so 1120 makes the two forms read at the same width on the same
+      monitor and stops the wider desks stretching six fields across 1500px.
+      The reading width that a 720px column was protecting belongs to prose,
+      and there is none here: every line is a label, a control or one clause.
+    */
+    <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5 md:pb-24">
       <Reveal index={0}>
         <Link
           href="/help-slip/concerns"
@@ -384,260 +422,249 @@ export function RaiseConcern() {
             stroke={1.6}
             aria-hidden
           />
-          <Bi en="My concerns" hi="मेरी शिकायतें" />
+          My concerns
         </Link>
 
         <PageHeader
           titleEn="Raise a concern"
-          titleHi="शिकायत दर्ज करें"
-          subtitle={
-            <Bi
-              en={`Filing as ${session.fullName}`}
-              hi={`${session.fullName} के रूप में दर्ज`}
-            />
-          }
+          subtitle={`Filing as ${session.fullName}`}
         />
       </Reveal>
 
-      <div className="flex flex-col gap-4 pb-6">
-        {/* ── offline: a banner, never a block ──────────────────────────── */}
-        {!online ? (
-          <Reveal index={1}>
-            <FormAlert tone="neutral" role="status">
-              <span className="flex items-start gap-2">
-                <IconCloudOff
-                  className="mt-0.5 size-5 shrink-0 text-text-3"
-                  stroke={1.6}
-                  aria-hidden
-                />
-                <Bi
-                  en="You're offline. Your draft is saved."
-                  hi="आप ऑफ़लाइन हैं। आपका ड्राफ़्ट सेव है।"
-                />
-              </span>
-            </FormAlert>
-          </Reveal>
-        ) : null}
+      {/* ── offline: a banner, never a block ────────────────────────────── */}
+      {!online ? (
+        <FormAlert tone="neutral" role="status">
+          <IconCloudOff
+            className="mt-[1px] size-4 shrink-0 text-text-3"
+            stroke={1.6}
+            aria-hidden
+          />
+          <span className="flex-1">
+            You&apos;re offline. Your draft is saved.
+          </span>
+        </FormAlert>
+      ) : null}
 
-        {queued ? (
-          <FormAlert tone="neutral" role="status">
-            <Bi
-              en="Saved. We'll send it the moment you're back online."
-              hi="सेव हो गया। कनेक्शन आते ही भेज देंगे।"
+      {queued ? (
+        <FormAlert tone="neutral" role="status">
+          Saved. We&apos;ll send it the moment you&apos;re back online.
+        </FormAlert>
+      ) : null}
+
+      {/* ── the draft: OFFERED, never forced ────────────────────────────── */}
+      {restorable ? (
+        <SectionCard title="Restore your draft?" icon={<IconHistory />}>
+          <p className={cn("text-text-3", T.bodySm)}>
+            You started this{" "}
+            <span className="num">
+              {relativeTime(new Date(restorable.savedAt).toISOString())}
+            </span>
+            .
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
+              onClick={() => {
+                setValues(restorable.values);
+                setRestorable(null);
+              }}
+            >
+              Restore
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
+              onClick={() => {
+                clearDraft(draftKey);
+                setRestorable(null);
+              }}
+            >
+              Start fresh
+            </Button>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      <form
+        id="raise-form"
+        ref={formRef}
+        noValidate
+        onSubmit={onSubmit}
+        // gap-3 between sibling cards inside one region — the ERP's ladder
+        // (gap-5 page root, gap-3 card to card).
+        className="flex flex-col gap-3"
+      >
+        {/* ── the summary, only once there are 2+ things to fix ─────────── */}
+        {problems.length >= 2 ? (
+          <FormAlert>
+            <IconAlertTriangle
+              className="mt-[1px] size-4 shrink-0"
+              stroke={1.6}
+              aria-hidden
             />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                Fix {problems.length} things before submitting
+              </p>
+              {/* No gap below `md`: each row is a 44px target there, so any
+                  space between them would read as separate blocks rather than
+                  one list. The ERP's list spacing returns from `md`. */}
+              <ul className="mt-2 flex flex-col md:gap-1">
+                {problems.map((f) => (
+                  <li key={f.id}>
+                    <a
+                      href={`#${f.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        focusField(f.id);
+                      }}
+                      // These links are the only way back to the field that
+                      // failed, on the one screen filled standing up: 44px
+                      // below md (factory-floor touch target), the ERP's own
+                      // line height at md+. Weight and rule are unchanged.
+                      className="flex min-h-11 items-center underline underline-offset-2 md:min-h-0"
+                    >
+                      {f.label} — {f.error}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </FormAlert>
         ) : null}
 
-        {/* ── the draft: OFFERED, never forced ──────────────────────────── */}
-        {restorable ? (
-          <Panel className="flex flex-col gap-2 p-3 sm:p-4">
-            <div>
-              <p className={cn("deva text-text-1", T.label)}>
-                <Bi en="Restore your draft?" hi="अपना ड्राफ़्ट वापस लाएँ?" />
-              </p>
-              <p className={cn("deva text-text-3", T.caption)}>
-                <Bi
-                  en={`You started this ${relativeTime(new Date(restorable.savedAt).toISOString(), "en")}.`}
-                  hi={`आपने इसे ${relativeTime(new Date(restorable.savedAt).toISOString(), "hi")} शुरू किया था।`}
-                />
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                // 44px below md (factory-floor touch target); ERP 36px at md+.
-                className="h-11 md:h-9"
-                onClick={() => {
-                  setValues(restorable.values);
-                  setRestorable(null);
-                }}
-              >
-                <Bi en="Restore" hi="वापस लाएँ" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                // 44px below md (factory-floor touch target); ERP 36px at md+.
-                className="h-11 md:h-9"
-                onClick={() => {
-                  clearDraft(draftKey);
-                  setRestorable(null);
-                }}
-              >
-                <Bi en="Start fresh" hi="नया शुरू करें" />
-              </Button>
-            </div>
-          </Panel>
-        ) : null}
-
-        <Reveal index={2}>
-          <form
-            id="raise-form"
-            ref={formRef}
-            noValidate
-            onSubmit={onSubmit}
-            className="flex flex-col gap-4"
-          >
-            {/* ── the summary, only once there are 2+ things to fix ─────── */}
-            {problems.length >= 2 ? (
-              <FormAlert>
-                <p className="deva font-semibold">
-                  <Bi
-                    en={`Fix ${problems.length} things before submitting`}
-                    hi={`जमा करने से पहले ${problems.length} चीज़ें ठीक करें`}
-                  />
-                </p>
-                <ul className="mt-2 flex flex-col gap-1">
-                  {problems.map((f) => (
-                    <li key={f.id}>
-                      <a
-                        href={`#${f.id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          focusField(f.id);
-                        }}
-                        className="deva underline underline-offset-2"
-                      >
-                        {f.label} — {f.error}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </FormAlert>
-            ) : null}
-
+        <Reveal index={1}>
+          <SectionCard title="Concern details" icon={<IconClipboardList />}>
             {/*
-              The Name line from the paper slip, FIRST because that is the
-              order it is printed in.
-
-              EMPTY by default, deliberately. Pre-filled with the signed-in
-              person's own name it read as a broken input: a box you cannot
-              meaningfully change, answering a question you did not ask. Blank,
-              it asks something real — who is this for — and the helper says
-              what happens if you skip it.
-
-              It is free text and it is NOT identity: `raise_concern` takes the
-              filer from `auth.uid()` inside the database either way.
+              Two columns from `sm`, one below it. Two, not the default three:
+              there are only three fields here, and a third empty track beside
+              Name and Department reads as a rendering fault rather than as
+              air.
             */}
-            <TextField
-              id="raise-name"
-              labelEn="Name"
-              labelHi="नाम"
-              helperEn="Who it's for. Leave blank to file under your name."
-              helperHi="यह किसके लिए है। खाली छोड़ें तो आपके नाम से।"
-              value={values.filedForName}
-              onChange={(v) => set({ filedForName: v })}
-              onBlur={() => blur("filedForName")}
-              error={errorFor("filedForName")}
-              maxLength={NAME_MAX}
-              autoCapitalize="words"
-              enterKeyHint="next"
-              disabled={busy}
-            />
+            <FieldGrid cols={2}>
+              {/*
+                The Name line from the paper slip, FIRST because that is the
+                order it is printed in.
 
-            <div className="flex flex-col gap-1">
-              <SelectField
-                id="raise-department"
-                labelEn="Department"
-                labelHi="विभाग"
-                helperEn="Change it if this is about another department."
-                helperHi="अगर यह किसी और विभाग की बात है तो बदल दें।"
-                placeholder="Choose a department (विभाग चुनें)"
-                options={departmentOptions}
-                value={values.departmentId}
-                onChange={(v) => set({ departmentId: v })}
-                onBlur={() => blur("departmentId")}
-                error={errorFor("departmentId")}
-                required
-                disabled={departments.isPending || busy}
+                EMPTY by default, deliberately. Pre-filled with the signed-in
+                person's own name it read as a broken input: a box you cannot
+                meaningfully change, answering a question you did not ask.
+                Blank, it asks something real — who is this for — and the hint
+                says what happens if you skip it.
+
+                It is free text and it is NOT identity: `raise_concern` takes
+                the filer from `auth.uid()` inside the database either way.
+              */}
+              <TextField
+                id="raise-name"
+                labelEn="Name"
+                helperEn="Leave blank to use your own."
+                value={values.filedForName}
+                onChange={(v) => set({ filedForName: v })}
+                onBlur={() => blur("filedForName")}
+                error={errorFor("filedForName")}
+                maxLength={NAME_MAX}
+                autoCapitalize="words"
+                enterKeyHint="next"
+                disabled={busy}
               />
-              {departments.isError ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="self-start"
-                  onClick={() => void departments.refetch()}
-                >
-                  <Bi en="Try again" hi="दोबारा कोशिश करें" />
-                </Button>
-              ) : null}
-            </div>
 
-            {/*
-              An Input, not a Textarea, and that is the whole design of this
-              screen in one control: the paragraph belongs in a suggested
-              solution, and a one-line box says so without a word of
-              instruction. There is no description field.
-            */}
-            <TextField
-              id="raise-title"
-              labelEn="What's the problem?"
-              labelHi="प्रॉब्लेम"
-              helperEn="One line. Your solutions go below."
-              helperHi="एक लाइन में। आपके समाधान नीचे लिखें।"
-              value={values.title}
-              onChange={(v) => set({ title: v })}
-              onBlur={() => blur("title")}
-              error={errorFor("title")}
-              required
-              softMax={TITLE_SOFT_MAX}
-              maxLength={TITLE_HARD_MAX}
-              autoCapitalize="sentences"
-              enterKeyHint="next"
-              disabled={busy}
-            />
-
-            {/* ══════════════════════════════════════════════════════════════
-                THE SUGGESTED SOLUTIONS.
-
-                The one raised section this form is allowed. It is the reason
-                the paper process worked and the reason this is not a
-                helpdesk, so it sits on its own plane rather than reading as
-                fields four to six.
-               ══════════════════════════════════════════════════════════════ */}
-            <Panel className="flex flex-col gap-3 p-3 sm:p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <div className="min-w-0">
-                  <h2 className={cn("deva text-text-1", T.h3)}>
-                    Your suggested solutions
-                    <span className="deva hi"> (आपके सुझाए समाधान)</span>
-                  </h2>
-                  <p className={cn("deva mt-0.5 text-text-3", T.caption)}>
-                    <Bi
-                      en="Like the help slip — tell us how you think it can be fixed."
-                      hi="हेल्प स्लिप की तरह — बताइए कि इसे कैसे ठीक किया जा सकता है।"
-                    />
-                  </p>
-                </div>
-
-                {/* An invitation, not an action on the form. Ghost, because it
-                    competes with nothing — the one primary CTA is Submit. */}
-                {values.solutions.length < MAX_SOLUTIONS ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <SelectField
+                  id="raise-department"
+                  labelEn="Department"
+                  helperEn="Change it if it's not yours."
+                  placeholder="Choose a department"
+                  options={departmentOptions}
+                  value={values.departmentId}
+                  onChange={(v) => set({ departmentId: v })}
+                  onBlur={() => blur("departmentId")}
+                  error={errorFor("departmentId")}
+                  required
+                  disabled={departments.isPending || busy}
+                />
+                {departments.isError ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    disabled={busy}
-                    onClick={() =>
-                      set({ solutions: [...values.solutions, ""] })
-                    }
-                    className="shrink-0"
+                    // 44px below md (factory-floor touch target); ERP 36px at
+                    // md+. `size="sm"` alone is 28px and unhittable on a phone.
+                    className="h-11 self-start md:h-9"
+                    onClick={() => void departments.refetch()}
                   >
-                    <IconPlus className="size-4" stroke={1.6} aria-hidden />
-                    <Bi en="Add another solution" hi="एक और समाधान जोड़ें" />
+                    Try again
                   </Button>
                 ) : null}
               </div>
 
+              {/*
+                An Input, not a Textarea, and that is the whole design of this
+                screen in one control: the paragraph belongs in a suggested
+                solution, and a one-line box says so without a word of
+                instruction. There is no description field.
+
+                SPAN_HALF is two tracks — on this two-column grid that is the
+                whole row, which is what a sentence-long question wants.
+              */}
+              <TextField
+                id="raise-title"
+                className={SPAN_HALF}
+                labelEn="What's the problem?"
+                helperEn="One line."
+                value={values.title}
+                onChange={(v) => set({ title: v })}
+                onBlur={() => blur("title")}
+                error={errorFor("title")}
+                required
+                softMax={TITLE_SOFT_MAX}
+                maxLength={TITLE_HARD_MAX}
+                autoCapitalize="sentences"
+                enterKeyHint="next"
+                disabled={busy}
+              />
+            </FieldGrid>
+          </SectionCard>
+        </Reveal>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            THE SUGGESTED SOLUTIONS.
+
+            The one raised section this form is allowed. It is the reason the
+            paper process worked and the reason this is not a helpdesk, so it
+            gets the ERP's EMPHASISED card (border-border-strong + shadow-sm,
+            §B.1) rather than the hairline every other section gets — the same
+            weight order-form gives a fabric block.
+           ══════════════════════════════════════════════════════════════════ */}
+        <Reveal index={2}>
+          <SectionCard
+            title="Your suggested solutions"
+            icon={<IconBulb />}
+            aside={
+              <CountChip>
+                {values.solutions.length}/{MAX_SOLUTIONS}
+              </CountChip>
+            }
+            className="border-border-strong shadow-sm"
+          >
+            <p className={cn("text-text-3", T.bodySm)}>
+              Like the help slip — tell us how you think it can be fixed.
+            </p>
+
+            {/* A column, not a grid: a solution is a paragraph, so every one
+                of these takes the whole row by definition. */}
+            <div className="flex flex-col gap-2">
               {values.solutions.map((body, index) => (
                 <div key={index} className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <TextAreaField
                       id={`raise-solution-${index + 1}`}
-                      labelEn={SOLUTION_LABELS[index]?.en ?? ""}
-                      labelHi={SOLUTION_LABELS[index]?.hi ?? ""}
+                      labelEn={SOLUTION_LABELS[index] ?? ""}
                       // Only the first is required — see the superRefine note
                       // in validation.ts. The other two are an invitation, not
                       // a demand.
@@ -669,17 +696,19 @@ export function RaiseConcern() {
                           ),
                         })
                       }
-                      aria-label={`Remove ${SOLUTION_LABELS[index]?.en ?? ""}`}
-                      // mt-7 clears the label line so the X sits beside the box
-                      // rather than beside the words above it — and it is still
-                      // exactly right on the new scale: a 13px label at .deva's
-                      // 1.65 line-height is 21.45px, plus Field's gap-[7px] =
-                      // 28.45px, which is what mt-7 (28px) clears.
+                      aria-label={`Remove ${SOLUTION_LABELS[index] ?? ""}`}
+                      // The offset clears the label line so the X sits beside
+                      // the box rather than beside the words above it. It is
+                      // re-derived for the English-only scale: a 13px label at
+                      // the document's 1.5 line-height is 19.5px (the hint now
+                      // shares that row and adds no height), plus Field's
+                      // gap-[7px] = 26.5px. It was 28px back when the label
+                      // line box was 1.65 rather than 1.5.
                       //
                       // 44px below md: the minimum touch target for a phone
                       // held on the factory floor. The ERP's 36px destructive
                       // icon button from md up.
-                      className="mt-7 grid size-11 shrink-0 cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-status-red-dim hover:text-status-red focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-40 md:size-9"
+                      className="mt-[26.5px] grid size-11 shrink-0 cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-status-red-dim hover:text-status-red focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-40 md:size-9"
                     >
                       <IconX
                         className="size-5 md:size-4"
@@ -690,62 +719,114 @@ export function RaiseConcern() {
                   ) : null}
                 </div>
               ))}
-            </Panel>
+            </div>
 
-            {/* ── how it is handled ────────────────────────────────────── */}
-            <PriorityField
-              value={values.priority}
-              onChange={(p) => set({ priority: p })}
-              locale={locale}
-              disabled={busy}
-            />
+            {/* The ERP's dashed card-footer rule: controls that act on THIS
+                card, visibly distinct from the solid rule that separates
+                content. The button is an invitation, not an action on the
+                form — ghost, because the one primary CTA is Submit.
 
-            {/*
-              D4. A permission, so it does not sit in the column looking like
-              one more ordinary field — it gets a label line of its own and its
-              own ground, so the pair above and below reads as two parallel
-              questions ("how urgent", "who can see it").
-            */}
-            <div className="flex flex-col gap-2">
-              <span className={cn("deva text-text-1", T.label)}>
-                Who can see it?
-                <span className="deva hi"> (कौन देख सकता है?)</span>
-              </span>
-              <div className="rounded-field border border-border bg-surface-2 px-3 py-2">
-                <CheckboxField
-                  id="raise-confidential"
-                  checked={values.confidential}
-                  onChange={(v) => set({ confidential: v })}
-                  labelEn="Confidential"
-                  labelHi="गोपनीय"
-                  descriptionEn="Only admins and coordinators with confidential access can open it — that may not include your own coordinator."
-                  descriptionHi="इसे सिर्फ़ एडमिन और गोपनीय पहुँच वाले कोऑर्डिनेटर खोल सकते हैं — इसमें आपके अपने कोऑर्डिनेटर शामिल हों या न हों।"
+                `mt-0` because the literal carries `mt-3` for a card that
+                stacks with margins; this one is a flex column and its own
+                `gap-3` already supplies that 12px. */}
+            <div className={cn(CARD_FOOTER_ROW, "mt-0")}>
+              <p className={cn("text-text-3", T.caption)}>
+                Up to <span className="num">{MAX_SOLUTIONS}</span>. Only the
+                first is required.
+              </p>
+              {values.solutions.length < MAX_SOLUTIONS ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   disabled={busy}
-                />
-              </div>
+                  onClick={() => set({ solutions: [...values.solutions, ""] })}
+                  // 44px below md (factory-floor touch target); ERP 36px at
+                  // md+. `size="sm"` alone is 28px — unhittable standing up,
+                  // and this was measured at 28px on a 390px phone.
+                  className="h-11 shrink-0 md:h-9"
+                >
+                  <IconPlus className="size-4" stroke={1.6} aria-hidden />
+                  Add another solution
+                </Button>
+              ) : null}
             </div>
-
-            {submit.isError ? (
-              <FormAlert>{(submit.error as Error).message}</FormAlert>
-            ) : null}
-
-            {/* The desktop submit. Its phone equivalent is the pinned bar
-                below, which is why this one is hidden under 768. */}
-            <div className="hidden md:flex md:items-center md:gap-3">
-              {submitButton}
-              <Button
-                type="button"
-                variant="ghost"
-                // 44px below md (factory-floor touch target); ERP 36px at md+.
-                className="h-11 md:h-9"
-                onClick={() => router.push("/help-slip/concerns")}
-              >
-                <Bi en="Cancel" hi="रद्द करें" />
-              </Button>
-            </div>
-          </form>
+          </SectionCard>
         </Reveal>
-      </div>
+
+        {/* ── how it is handled ─────────────────────────────────────────── */}
+        <Reveal index={3}>
+          <SectionCard title="How it's handled" icon={<IconAdjustments />}>
+            <FieldGrid cols={2}>
+              <PriorityField
+                value={values.priority}
+                onChange={(p) => set({ priority: p })}
+                disabled={busy}
+              />
+
+              {/*
+                D4. A permission, so it does not sit in the column looking like
+                one more ordinary field — it gets a label line of its own and
+                its own recessed ground, so the pair reads as two parallel
+                questions ("how urgent", "who can see it").
+              */}
+              <div className="flex min-w-0 flex-col gap-2">
+                <span className={cn("text-text-2", T.label)}>
+                  Who can see it?
+                </span>
+                <div className="rounded-field border border-border bg-surface-2 px-3 py-2">
+                  <CheckboxField
+                    id="raise-confidential"
+                    checked={values.confidential}
+                    onChange={(v) => set({ confidential: v })}
+                    labelEn="Confidential"
+                    descriptionEn="Only admins and coordinators with confidential access can open it — that may not include your own coordinator."
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+            </FieldGrid>
+          </SectionCard>
+        </Reveal>
+
+        {submit.isError ? (
+          <FormAlert>{(submit.error as Error).message}</FormAlert>
+        ) : null}
+
+        {/*
+          The DESKTOP action bar, pinned — the same ending order-form.tsx has,
+          so the two forms finish the same way. `md:left-[264px]` clears the
+          shell sidebar, which is `w-[264px]` and hidden below the same `md`.
+
+          Surface, not the page ground: a translucent `bg-surface/95` over a
+          blur with a hairline top border, so the cards stay faintly visible
+          under it and the bar still reads as a solid object. The root's
+          `md:pb-24` (96px ≈ the bar's 69px plus a card gap) is what keeps the
+          last card reachable above it.
+
+          Below md this is hidden and the phone's `StickySubmitBar` takes over
+          — that one also tracks the Android keyboard, which this does not need
+          to.
+        */}
+        <div className="fixed inset-x-0 bottom-0 z-30 hidden border-t border-border bg-surface/95 px-4 py-3 backdrop-blur-[6px] sm:px-[34px] sm:py-4 md:left-[264px] md:block">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+          />
+          <div className="mx-auto flex w-full max-w-[1120px] items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
+              onClick={() => router.push("/help-slip/concerns")}
+            >
+              Cancel
+            </Button>
+            {submitButton}
+          </div>
+        </div>
+      </form>
 
       {/* Phone only. Dodges the Android keyboard and keeps Submit reachable
           without scrolling to the end of the form. */}
@@ -776,17 +857,16 @@ export function RaiseConcern() {
  * minimum this module's `CONTROL` constant exists to enforce.
  *
  * Content-sized rather than full-bleed: four labels come to well under the
- * 328px a 360px phone leaves after the shell's gutters.
+ * 328px a 360px phone leaves after the shell's gutters, and they wrap to two
+ * rows rather than shrinking when the grid column is narrow.
  */
 function PriorityField({
   value,
   onChange,
-  locale,
   disabled,
 }: {
   value: ConcernPriority;
   onChange: (next: ConcernPriority) => void;
-  locale: "en" | "hi";
   disabled?: boolean;
 }) {
   const refs = React.useRef<(HTMLButtonElement | null)[]>([]);
@@ -799,10 +879,9 @@ function PriorityField({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <span id="raise-priority-label" className={cn("deva text-text-1", T.label)}>
+    <div className="flex min-w-0 flex-col gap-2">
+      <span id="raise-priority-label" className={cn("text-text-2", T.label)}>
         How urgent is it?
-        <span className="deva hi"> (कितना ज़रूरी है?)</span>
       </span>
 
       <div
@@ -837,7 +916,7 @@ function PriorityField({
               className={cn(
                 // 44px + 16px text below md (see this component's note above);
                 // ui/segmented.tsx's md geometry from md up.
-                "deva h-11 min-w-[76px] cursor-pointer rounded-field border px-4 text-base font-medium transition-colors outline-none md:h-8 md:min-w-[64px] md:px-3 md:text-[13px]",
+                "h-11 min-w-[76px] cursor-pointer rounded-field border px-4 text-base font-medium transition-colors outline-none md:h-8 md:min-w-[64px] md:px-3 md:text-[13px]",
                 "focus-visible:ring-3 focus-visible:ring-ring/40",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 selected
@@ -845,7 +924,7 @@ function PriorityField({
                   : "border-border bg-surface text-text-2 hover:bg-surface-2 hover:text-text-1",
               )}
             >
-              {locale === "hi" ? meta.labelHi : meta.labelEn}
+              {meta.labelEn}
             </button>
           );
         })}
@@ -854,11 +933,8 @@ function PriorityField({
       {/* The single line that prevents urgency inflation. Everything is urgent
           to the person reporting it; this says what the word costs everyone
           else. */}
-      <p className={cn("deva text-text-3", T.caption)}>
-        <Bi
-          en="Urgent is for work stoppages only."
-          hi="अर्जेंट सिर्फ़ तब जब काम रुक गया हो।"
-        />
+      <p className={cn("text-text-3", T.caption)}>
+        Urgent is for work stoppages only.
       </p>
     </div>
   );
@@ -904,9 +980,7 @@ function ConcernFiled({
     >
       <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className={cn("deva", T.h3)}>
-            <Bi en="Concern filed" hi="शिकायत दर्ज हो गई" />
-          </DialogTitle>
+          <DialogTitle className={T.h3}>Concern filed</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-3 py-2 text-center">
@@ -918,26 +992,17 @@ function ConcernFiled({
 
           <ConcernNumber value={result?.concernNumber ?? ""} size="lg" />
 
-          {/* Both languages, always, in both locales. This is the one sentence
-              every employee has to be able to read. */}
-          <div>
-            <p className={cn("deva text-text-2", T.bodySm)}>
-              We&apos;ll notify you when there&apos;s an update.
-            </p>
-            <p className={cn("deva text-text-3", T.caption)}>
-              अपडेट आते ही आपको बताया जाएगा।
-            </p>
-          </div>
+          <p className={cn("text-text-2", T.bodySm)}>
+            We&apos;ll notify you when there&apos;s an update.
+          </p>
 
           {/* An idempotent retry landed on a concern that already existed.
               Said out loud, because "filed" would otherwise read as a second
               one and somebody would go looking for the duplicate. */}
           {result && !result.created ? (
-            <p className={cn("deva text-text-3", T.caption)}>
-              <Bi
-                en="This was already filed — we've matched it to the one you sent."
-                hi="यह पहले ही दर्ज हो चुकी थी — वही शिकायत दिखाई जा रही है।"
-              />
+            <p className={cn("text-text-3", T.caption)}>
+              This was already filed — we&apos;ve matched it to the one you
+              sent.
             </p>
           ) : null}
         </div>
@@ -950,10 +1015,10 @@ function ConcernFiled({
             className="h-11 md:h-9"
             onClick={onHome}
           >
-            <Bi en="Back to home" hi="होम पर जाएँ" />
+            Back to home
           </Button>
           <Button type="button" className="h-11 md:h-9" onClick={onTrack}>
-            <Bi en="Track this concern" hi="शिकायत देखें" />
+            Track this concern
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -964,19 +1029,17 @@ function ConcernFiled({
 // ─── odds and ends ─────────────────────────────────────────────────────────
 
 /**
- * "1st / 2nd / 3rd solution", in both languages, as they appear on the slip.
- * Ordinals are irregular in English and are separate words in Hindi, so they
- * are written out rather than built from an index.
+ * "1st / 2nd / 3rd solution", as they appear on the slip. English ordinals are
+ * irregular, so they are written out rather than built from an index.
  */
-const SOLUTION_LABELS: { en: string; hi: string }[] = [
-  { en: "1st solution", hi: "पहला समाधान" },
-  { en: "2nd solution", hi: "दूसरा समाधान" },
-  { en: "3rd solution", hi: "तीसरा समाधान" },
+const SOLUTION_LABELS: string[] = [
+  "1st solution",
+  "2nd solution",
+  "3rd solution",
 ];
 
 function solutionLabel(index: number): string {
-  const l = SOLUTION_LABELS[index];
-  return l ? `${l.en} (${l.hi})` : "";
+  return SOLUTION_LABELS[index] ?? "";
 }
 
 /**
@@ -1001,7 +1064,9 @@ function newRequestId(): string {
   }
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
+    "",
+  );
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 

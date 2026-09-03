@@ -6,8 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   IconAlertTriangle,
+  IconBuildingFactory2,
+  IconChartLine,
   IconCircleCheck,
   IconClock,
+  IconGauge,
   IconInbox,
   IconLoader2,
   IconMoodSmile,
@@ -21,20 +24,23 @@ import {
   PriorityChip,
   StatusBadge,
 } from "@/components/help-slip/badges";
-import { Bi } from "@/components/help-slip/bilingual";
 import { BarList, TrendChart } from "@/components/help-slip/charts";
 import {
   DateRangeFields,
+  FILTER_TOOLBAR,
   FilterSelect,
   departmentOptions,
   priorityOptions,
 } from "@/components/help-slip/filters";
 import { KpiStrip, type Kpi } from "@/components/help-slip/kpi-strip";
 import {
+  CountChip,
   ListState,
   LoadMore,
   PageHeader,
   Panel,
+  PanelHead,
+  SectionCard,
 } from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
@@ -42,7 +48,6 @@ import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
 import type { ConcernPriority } from "@/db/help-slip/schema";
 import { helpSlipGet } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale } from "@/lib/help-slip/context";
 import {
   absoluteTime,
   dayKey,
@@ -92,6 +97,12 @@ import { cn } from "@/lib/utils";
  * moves the charts and leaves the counts alone — and the counts, being state,
  * would be wrong if it did not.
  *
+ * ── THE SHAPE OF THE PAGE ─────────────────────────────────────────────────
+ * Four regions, each a bordered card or a grid of them, 20px apart, exactly
+ * as `order-entry/dashboard/dashboard-view.tsx` lays out the same job: filter
+ * bar → KPI grid → panels → the list. Nothing on this screen sits on the page
+ * ground; the ground is only ever visible BETWEEN cards.
+ *
  * ── WHAT IS DELIBERATELY MISSING ──────────────────────────────────────────
  * The source's per-row quick actions (Start, Assign to me, and the phone's
  * "…" sheet) are WRITES. This phase is read screens; a Start button that
@@ -100,7 +111,6 @@ import { cn } from "@/lib/utils";
 export function PcDashboard() {
   const router = useRouter();
   const params = useSearchParams();
-  const locale = useHelpSlipLocale();
 
   const filters = React.useMemo(() => filtersFromParams(params), [params]);
   const today = dayKey(new Date());
@@ -166,7 +176,6 @@ export function PcDashboard() {
     {
       key: "new",
       labelEn: "New",
-      labelHi: "नई",
       value: counts?.new ?? 0,
       icon: IconInbox,
       tone: "violet",
@@ -174,7 +183,6 @@ export function PcDashboard() {
     {
       key: "in_progress",
       labelEn: "In Progress",
-      labelHi: "चालू",
       value: counts?.in_progress ?? 0,
       icon: IconLoader2,
       tone: "amber",
@@ -182,7 +190,6 @@ export function PcDashboard() {
     {
       key: "waiting",
       labelEn: "Waiting",
-      labelHi: "रुकी",
       value: counts?.waiting ?? 0,
       icon: IconPlayerPause,
       tone: "blue",
@@ -190,7 +197,6 @@ export function PcDashboard() {
     {
       key: "resolved",
       labelEn: "Resolved",
-      labelHi: "हल",
       value: counts?.resolved ?? 0,
       icon: IconCircleCheck,
       tone: "green",
@@ -198,7 +204,6 @@ export function PcDashboard() {
     {
       key: "overdue",
       labelEn: "Overdue",
-      labelHi: "देर",
       value: counts?.overdue ?? 0,
       icon: IconAlertTriangle,
       emphasis: "overdue",
@@ -206,204 +211,216 @@ export function PcDashboard() {
   ];
 
   const clearAll = () =>
-    write({ bucket: "open", departmentId: null, priority: [], needsReassignment: false }, range);
+    write(
+      {
+        bucket: "open",
+        departmentId: null,
+        priority: [],
+        needsReassignment: false,
+      },
+      range,
+    );
 
   return (
-    <div className="flex flex-col">
+    // The ERP page root, verbatim: `flex flex-col gap-5`. `PageHeader` carries
+    // no padding of its own, so this gap is the only thing spacing the title
+    // off the first card — and it is the same 20px seam Order Entry puts
+    // between every pair of regions.
+    <div className="flex flex-col gap-5 pb-6">
       <Reveal index={0}>
         <PageHeader
           titleEn="Dashboard"
-          titleHi="डैशबोर्ड"
-          subtitle={
-            <Bi en="What needs you now." hi="अभी आपकी ज़रूरत कहाँ है।" />
-          }
+          subtitle="What needs you now."
           meta={total > 0 ? `Showing ${rows.length} of ${total}` : null}
         />
       </Reveal>
 
-      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
-          The seam between sections is 20px here as it is in Order Entry: four
-          blocks answering four different questions — narrow it, what's true
-          now, what's been happening, what needs me — separated by being four
-          cards rather than by 40px of canvas. */}
-      <div className="flex flex-col gap-5 pb-6">
-        {/* ═══ 1. filters ═════════════════════════════════════════════ *
-         * A card, not bare controls on the canvas — every other block on this
-         * screen is a card and this row was the one thing floating. This is
-         * the ERP's toolbar card verbatim (crm/followup-queue.tsx's Region B):
-         * p-2.5 and shadow-sm, because a filter row is controls, not prose.  */}
-        <Reveal index={1}>
-          <Panel className="flex flex-wrap items-center gap-2 p-2.5 shadow-sm">
-            <FilterSelect
-              ariaLabel="Department"
-              value={filters.departmentId ?? ""}
-              onChange={(v) => apply({ ...filters, departmentId: v || null })}
-              options={departmentOptions(
-                first?.departments ?? [],
-                "All departments",
-              )}
-              locale={locale}
-            />
-            <FilterSelect
-              ariaLabel="Priority"
-              value={filters.priority[0] ?? ""}
-              onChange={(v) =>
-                apply({
-                  ...filters,
-                  priority: v ? [v as ConcernPriority] : [],
-                })
-              }
-              options={priorityOptions("All priorities", locale)}
-              locale={locale}
-            />
-
-            {/* 44px tap row below md: the minimum touch target for a phone
-                held on the factory floor. ERP density (36px) from md up. */}
-            <label className="flex min-h-11 cursor-pointer items-center gap-2 md:min-h-9">
-              <input
-                type="checkbox"
-                checked={filters.needsReassignment}
-                onChange={(e) =>
-                  apply({ ...filters, needsReassignment: e.target.checked })
-                }
-                className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
-              />
-              <span className={cn("deva text-text-2", T.body)}>
-                <Bi en="Needs reassignment" hi="दोबारा सौंपना है" />
-              </span>
-            </label>
-
-            <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-
-            <DateRangePresets
-              from={range.from}
-              to={range.to}
-              today={today}
-              onChange={setRange}
-            />
-
-            {filtered || activeQueueFilterCount(filters) > 0 ? (
-              <button
-                type="button"
-                onClick={clearAll}
-                className={cn(
-                  "deva cursor-pointer text-accent-text underline underline-offset-2",
-                  T.bodySm,
-                )}
-              >
-                <Bi en="Clear filters" hi="फ़िल्टर हटाएँ" />
-              </button>
-            ) : null}
-          </Panel>
-        </Reveal>
-
-        {/* ═══ 2. the five cells, each a filter ═══════════════════════ */}
-        <Reveal index={2}>
-          <KpiStrip
-            items={kpis}
-            loading={q.isPending}
-            // A failed count fetch used to render five confident zeroes — the
-            // one lie this screen could tell a coordinator about their own
-            // workload. Now it says so instead.
-            error={q.isError}
-            errorLabel="Failed to load"
-            // 'open' is the resting state and has no cell, so nothing looks
-            // selected until the coordinator actually picks a view.
-            activeKey={filters.bucket === "open" ? null : filters.bucket}
-            onSelect={(key) => {
-              const bucket = key as QueueBucket;
-              // Pressing the active cell again returns to the open queue,
-              // which is the only way back without hunting for a Clear.
+      {/* ═══ 1. filters ═════════════════════════════════════════════ *
+       * The ERP toolbar CARD (filters.tsx's FILTER_TOOLBAR, verbatim from
+       * crm/followup-queue.tsx): p-2.5 and shadow-sm, because a filter row is
+       * controls, not prose. A bare row of controls beside carded content is
+       * the loudest "floating on the page background" tell there is — and
+       * `ListFallback` already draws a carded toolbar skeleton, so a bare row
+       * would also mean the page changed shape when the data landed.        */}
+      <Reveal index={1}>
+        <div className={FILTER_TOOLBAR}>
+          <FilterSelect
+            ariaLabel="Department"
+            value={filters.departmentId ?? ""}
+            onChange={(v) => apply({ ...filters, departmentId: v || null })}
+            options={departmentOptions(
+              first?.departments ?? [],
+              "All departments",
+            )}
+          />
+          <FilterSelect
+            ariaLabel="Priority"
+            value={filters.priority[0] ?? ""}
+            onChange={(v) =>
               apply({
                 ...filters,
-                bucket: filters.bucket === bucket ? "open" : bucket,
-              });
-            }}
+                priority: v ? [v as ConcernPriority] : [],
+              })
+            }
+            options={priorityOptions("All priorities")}
           />
-        </Reveal>
 
-        {/* ═══ 3. what has been happening ═════════════════════════════ */}
-        <Reveal index={3}>
-          <InsightsPanels
-            insights={first?.insights}
-            loading={q.isPending}
-            error={q.isError ? (q.error as Error).message : null}
-            onRetry={() => void q.refetch()}
-            locale={locale}
-            requested={debouncedRange}
+          {/* 44px tap row below md: the minimum touch target for a phone
+              held on the factory floor. ERP density (36px) from md up. */}
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 md:min-h-9">
+            <input
+              type="checkbox"
+              checked={filters.needsReassignment}
+              onChange={(e) =>
+                apply({ ...filters, needsReassignment: e.target.checked })
+              }
+              className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
+            />
+            <span className={cn("text-text-2", T.body)}>
+              Needs reassignment
+            </span>
+          </label>
+
+          <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+
+          <DateRangePresets
+            from={range.from}
+            to={range.to}
+            today={today}
+            onChange={setRange}
           />
-        </Reveal>
 
-        {/* ═══ 4. needs attention ═════════════════════════════════════ */}
-        <Reveal index={4}>
-          <section
-            aria-labelledby="hs-queue-heading"
-            className="flex flex-col gap-3"
-          >
-            <h2 id="hs-queue-heading" className={cn("deva text-text-1", T.h3)}>
-              <Bi en="Needs attention" hi="ध्यान चाहिए" />
-            </h2>
-
-            <Panel
+          {filtered || activeQueueFilterCount(filters) > 0 ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              // Hard right, as the ERP's filter well puts its Clear. A text
+              // button is still an interactive control: 44px below md, the
+              // ERP's 36px from md up.
               className={cn(
-                "overflow-hidden transition-opacity",
-                q.isFetching && !q.isFetchingNextPage && !q.isPending
-                  ? "opacity-60"
-                  : null,
+                "ml-auto inline-flex h-11 shrink-0 cursor-pointer items-center text-accent-text underline underline-offset-2 md:h-9",
+                T.bodySm,
               )}
             >
-              <ListState
-                loading={q.isPending}
-                error={q.isError ? (q.error as Error).message : null}
-                onRetry={() => void q.refetch()}
-                isEmpty={rows.length === 0}
-                empty={
-                  filtered
-                    ? {
-                        icon: IconSearch,
-                        titleEn: "No concerns match these filters.",
-                        titleHi: "इन फ़िल्टर से कोई शिकायत नहीं मिली।",
-                        bodyEn: "Widen the filters, or clear them.",
-                        bodyHi: "फ़िल्टर बढ़ाएँ, या हटा दें।",
-                        action: { label: "Clear filters", onClick: clearAll },
-                      }
-                    : {
-                        icon: IconMoodSmile,
-                        titleEn: "Everything is under control.",
-                        titleHi: "सब कुछ नियंत्रण में है।",
-                        bodyEn: "Nothing is waiting on you right now.",
-                        bodyHi: "अभी आपके पास कुछ लंबित नहीं है।",
-                      }
-                }
-              >
-                <QueueRows rows={rows} locale={locale} />
-              </ListState>
-            </Panel>
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      </Reveal>
 
+      {/* ═══ 2. the five cells, each a filter ═══════════════════════ */}
+      <Reveal index={2}>
+        <KpiStrip
+          items={kpis}
+          loading={q.isPending}
+          // A failed count fetch used to render five confident zeroes — the
+          // one lie this screen could tell a coordinator about their own
+          // workload. Now it says so instead.
+          error={q.isError}
+          errorLabel="Failed to load"
+          // 'open' is the resting state and has no cell, so nothing looks
+          // selected until the coordinator actually picks a view.
+          activeKey={filters.bucket === "open" ? null : filters.bucket}
+          onSelect={(key) => {
+            const bucket = key as QueueBucket;
+            // Pressing the active cell again returns to the open queue,
+            // which is the only way back without hunting for a Clear.
+            apply({
+              ...filters,
+              bucket: filters.bucket === bucket ? "open" : bucket,
+            });
+          }}
+        />
+      </Reveal>
+
+      {/* ═══ 3. what has been happening ═════════════════════════════ */}
+      <Reveal index={3}>
+        <InsightsPanels
+          insights={first?.insights}
+          loading={q.isPending}
+          error={q.isError ? (q.error as Error).message : null}
+          onRetry={() => void q.refetch()}
+          requested={debouncedRange}
+        />
+      </Reveal>
+
+      {/* ═══ 4. needs attention ═════════════════════════════════════ */}
+      <Reveal index={4}>
+        <section aria-labelledby="hs-queue-heading">
+          <Panel
+            className={cn(
+              "transition-opacity",
+              q.isFetching && !q.isFetchingNextPage && !q.isPending
+                ? "opacity-60"
+                : null,
+            )}
+          >
+            {/* §C.2's tinted, ruled head strip — every class is `PanelHead`'s
+                own. It is written out here for ONE reason: this section is
+                named by `aria-labelledby`, and `PanelHead` has nowhere to put
+                the `id` that pointer needs. */}
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border/70 bg-surface-2/40 px-4 py-3 sm:px-5">
+              <span
+                aria-hidden
+                className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent text-accent-text [&_svg]:size-[15px]"
+              >
+                <IconAlertTriangle stroke={1.6} />
+              </span>
+              <h2 id="hs-queue-heading" className={cn("text-text-1", T.h2)}>
+                Needs attention
+              </h2>
+              {/* The sort rule, stated. A queue that reorders itself by rules
+                  the reader cannot see is a queue they stop trusting. */}
+              <span className="ml-auto shrink-0 text-[11px] text-text-3">
+                overdue first, then priority, then age
+              </span>
+            </div>
+
+            <ListState
+              loading={q.isPending}
+              error={q.isError ? (q.error as Error).message : null}
+              onRetry={() => void q.refetch()}
+              isEmpty={rows.length === 0}
+              empty={
+                filtered
+                  ? {
+                      icon: IconSearch,
+                      titleEn: "No concerns match these filters.",
+                      bodyEn: "Widen the filters, or clear them.",
+                      action: { label: "Clear filters", onClick: clearAll },
+                    }
+                  : {
+                      icon: IconMoodSmile,
+                      titleEn: "Everything is under control.",
+                      bodyEn: "Nothing is waiting on you right now.",
+                    }
+              }
+            >
+              <QueueRows rows={rows} />
+            </ListState>
+
+            {/* Inside the card, on a solid rule — the ERP's canonical footer
+                placement for a list card (§E.6), rather than a button left
+                floating under it. */}
             {q.hasNextPage ? (
-              <LoadMore
-                onClick={() => void q.fetchNextPage()}
-                loading={q.isFetchingNextPage}
-                label="Load more"
-                labelHi="और दिखाएँ"
-              />
+              <div className="border-t border-border">
+                <LoadMore
+                  onClick={() => void q.fetchNextPage()}
+                  loading={q.isFetchingNextPage}
+                  label="Load more"
+                />
+              </div>
             ) : null}
-          </section>
-        </Reveal>
-      </div>
+          </Panel>
+        </section>
+      </Reveal>
     </div>
   );
 }
 
 // ─── the queue's rows ──────────────────────────────────────────────────────
 
-function QueueRows({
-  rows,
-  locale,
-}: {
-  rows: QueueRow[];
-  locale: "en" | "hi";
-}) {
+function QueueRows({ rows }: { rows: QueueRow[] }) {
   return (
     <>
       {/* ── cards, < 768 ───────────────────────────────────────────────── */}
@@ -424,45 +441,47 @@ function QueueRows({
                 row.isOverdue && "border-l-[3px] border-l-status-red",
               )}
             >
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
-                {row.isOverdue ? (
-                  <IconAlertTriangle
-                    className="size-4 shrink-0 text-status-red"
-                    stroke={1.6}
-                    aria-label="Overdue"
-                  />
-                ) : null}
-                <span className={cn("num text-text-3", T.caption)}>
-                  {row.concernNumber}
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  {row.isOverdue ? (
+                    <IconAlertTriangle
+                      className="size-4 shrink-0 text-status-red"
+                      stroke={1.6}
+                      aria-label="Overdue"
+                    />
+                  ) : null}
+                  <span className={cn("num text-text-3", T.caption)}>
+                    {row.concernNumber}
+                  </span>
                 </span>
-              </span>
-              <StatusBadge status={row.status} locale={locale} />
-            </div>
+                <StatusBadge status={row.status} />
+              </div>
 
-            <p className={cn("deva line-clamp-2 text-text-1", T.h3)}>
-              {row.title}
-            </p>
-
-            <p
-              className={cn(
-                "deva flex flex-wrap items-center gap-x-2 text-text-3",
-                T.caption,
-              )}
-            >
-              <span>{row.employeeName ?? "—"}</span>
-              <span aria-hidden>·</span>
-              <span>{departmentOf(row, locale)}</span>
-              <span aria-hidden>·</span>
-              <Age row={row} locale={locale} />
-              <PriorityChip priority={row.priority} locale={locale} />
-            </p>
-
-            {row.assignedToStatus && row.assignedToStatus !== "active" ? (
-              <p className={cn("deva text-status-red", T.caption)}>
-                <Bi en="Needs reassignment" hi="दोबारा सौंपना है" />
+              <p className={cn("line-clamp-2 text-text-1", T.h3)}>
+                {row.title}
               </p>
-            ) : null}
+
+              <p
+                className={cn(
+                  "flex flex-wrap items-center gap-x-2 text-text-3",
+                  T.caption,
+                )}
+              >
+                <span>{row.employeeName ?? "—"}</span>
+                <span aria-hidden>·</span>
+                {/* `departmentOf` still takes a locale; "en" is the only one
+                    this ERP renders. `name_hi` is never concatenated. */}
+                <span>{departmentOf(row)}</span>
+                <span aria-hidden>·</span>
+                <Age row={row} />
+                <PriorityChip priority={row.priority} />
+              </p>
+
+              {row.assignedToStatus && row.assignedToStatus !== "active" ? (
+                <p className={cn("text-status-red", T.caption)}>
+                  Needs reassignment
+                </p>
+              ) : null}
             </Link>
           </li>
         ))}
@@ -478,7 +497,8 @@ function QueueRows({
                 <Th>ID</Th>
                 <Th className="hidden lg:table-cell">Employee</Th>
                 <Th className="w-full">Concern</Th>
-                <Th>Age</Th>
+                {/* A figure column, so the header aligns with its cells. */}
+                <Th className="text-right">Age</Th>
                 <Th className="hidden xl:table-cell">Priority</Th>
                 <Th>Status</Th>
                 <Th className="hidden xl:table-cell">Last update</Th>
@@ -512,41 +532,33 @@ function QueueRows({
                       {row.concernNumber}
                     </Link>
                   </Td>
-                  <Td className="deva hidden whitespace-nowrap lg:table-cell">
+                  <Td className="hidden whitespace-nowrap lg:table-cell">
                     {row.employeeName ?? "—"}
                   </Td>
-                  <Td className="deva max-w-0">
+                  <Td className="max-w-0">
                     <span className="line-clamp-1">{row.title}</span>
                     {row.assignedToStatus &&
                     row.assignedToStatus !== "active" ? (
-                      <span
-                        className={cn(
-                          "deva block text-status-red",
-                          T.caption,
-                        )}
-                      >
-                        <Bi
-                          en="Needs reassignment"
-                          hi="दोबारा सौंपना है"
-                        />
+                      <span className={cn("block text-status-red", T.caption)}>
+                        Needs reassignment
                       </span>
                     ) : null}
                   </Td>
-                  <Td>
-                    <Age row={row} locale={locale} />
+                  <Td className="text-right">
+                    <Age row={row} />
                   </Td>
                   <Td className="hidden xl:table-cell">
-                    <PriorityChip priority={row.priority} locale={locale} />
+                    <PriorityChip priority={row.priority} />
                   </Td>
                   <Td>
                     <span className="flex flex-wrap items-center gap-1">
-                      <StatusBadge status={row.status} locale={locale} />
-                      {row.isOverdue ? <OverdueBadge locale={locale} /> : null}
+                      <StatusBadge status={row.status} />
+                      {row.isOverdue ? <OverdueBadge /> : null}
                     </span>
                   </Td>
-                  <Td className="deva hidden whitespace-nowrap text-text-3 xl:table-cell">
+                  <Td className="hidden whitespace-nowrap text-text-3 xl:table-cell">
                     {row.lastPublicUpdateAt
-                      ? relativeTime(row.lastPublicUpdateAt, locale)
+                      ? relativeTime(row.lastPublicUpdateAt)
                       : "—"}
                   </Td>
                 </Tr>
@@ -566,11 +578,11 @@ function QueueRows({
  * A relative age is what a coordinator SCANS; an absolute one is what they
  * quote to somebody. Both, and neither hidden behind a click.
  */
-function Age({ row, locale }: { row: QueueRow; locale: "en" | "hi" }) {
+function Age({ row }: { row: QueueRow }) {
   return (
     <time
       dateTime={row.createdAt}
-      title={absoluteTime(row.createdAt, locale)}
+      title={absoluteTime(row.createdAt)}
       className={cn(
         "num whitespace-nowrap",
         row.isOverdue ? "font-semibold text-status-red" : "text-text-3",
@@ -591,7 +603,13 @@ function Age({ row, locale }: { row: QueueRow; locale: "en" | "hi" }) {
  *   3. Where is it coming from?   by department, with the overdue share
  *
  * The two headline FIGURES sit first, because they are the fastest read of
- * "are we keeping up" and a chart of one number is a chart nobody reads.
+ * "are we keeping up" and a chart of one number is a chart nobody reads. They
+ * share ONE card — the ERP's Cancellations panel is exactly this shape: a
+ * bordered card that names itself, holding a grid of recessed mini-figure
+ * tiles. Two headless panels side by side was two cards saying nothing.
+ *
+ * The two charts below are PANEL cards: a tinted, ruled head over a flush
+ * body, which is the shape the ERP gives every card whose body is a plot.
  *
  * All of it comes out of the same request as the queue above — one aggregate,
  * counted in Postgres. A failed fetch shows ONE error card rather than letting
@@ -604,14 +622,12 @@ function InsightsPanels({
   loading,
   error,
   onRetry,
-  locale,
   requested,
 }: {
   insights: Insights | undefined;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  locale: "en" | "hi";
   requested: { from: string; to: string };
 }) {
   if (loading || error || !insights) {
@@ -625,9 +641,7 @@ function InsightsPanels({
           empty={{
             icon: IconTargetArrow,
             titleEn: "No activity to chart yet.",
-            titleHi: "अभी चार्ट के लिए कुछ नहीं।",
             bodyEn: "Filed and resolved counts appear once concerns move.",
-            bodyHi: "शिकायतें आगे बढ़ने पर यहाँ आँकड़े दिखेंगे।",
           }}
         >
           {null}
@@ -636,7 +650,7 @@ function InsightsPanels({
     );
   }
 
-  const labels = insights.daily.map((d) => dayLabel(d.d, locale));
+  const labels = insights.daily.map((d) => dayLabel(d.d));
   const { medianHours, resolvedTotal, withinSla } = insights.resolution;
   const slaPct =
     resolvedTotal > 0 ? Math.round((withinSla / resolvedTotal) * 100) : null;
@@ -648,116 +662,101 @@ function InsightsPanels({
     insights.from !== requested.from || insights.to !== requested.to;
   const rangeLabel =
     insights.from === insights.to
-      ? dayLabel(insights.from, locale)
-      : `${dayLabel(insights.from, locale)} – ${dayLabel(insights.to, locale)}`;
+      ? dayLabel(insights.from)
+      : `${dayLabel(insights.from)} – ${dayLabel(insights.to)}`;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StatTile
-          icon={IconClock}
-          labelEn="Typical time to resolve"
-          labelHi="हल होने का सामान्य समय"
-          helpEn="The middle of the window, so one slow case does not move it."
-          helpHi="अवधि का मध्य, ताकि एक धीमा मामला इसे न बदले।"
-          value={medianHours === null ? null : `${medianHours} h`}
-        />
-        <StatTile
-          icon={IconTargetArrow}
-          labelEn="Resolved within SLA"
-          labelHi="SLA के भीतर हल"
-          helpEn="Of everything resolved in this window."
-          helpHi="इस अवधि में हल हुई हर शिकायत में से।"
-          value={slaPct === null ? null : `${slaPct}%`}
-        />
-      </div>
+    // gap-3.5 — the ERP dashboard's panel rhythm, the same value the grid
+    // below uses, so the seam between the figures card and the charts row is
+    // the seam between the two charts.
+    <div className="flex flex-col gap-3.5">
+      <SectionCard
+        title="Resolution performance"
+        icon={<IconGauge stroke={1.6} />}
+        // Both figures are "of everything resolved in this window", and until
+        // now the window's denominator was invisible.
+        aside={<CountChip>{resolvedTotal} resolved</CountChip>}
+      >
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <StatTile
+            icon={IconClock}
+            labelEn="Typical time to resolve"
+            helpEn="The middle of the window, so one slow case does not move it."
+            value={medianHours === null ? null : `${medianHours} h`}
+          />
+          <StatTile
+            icon={IconTargetArrow}
+            labelEn="Resolved within SLA"
+            helpEn="Of everything resolved in this window."
+            value={slaPct === null ? null : `${slaPct}%`}
+          />
+        </div>
+      </SectionCard>
 
       <div className="grid gap-3.5 lg:grid-cols-[1.6fr_1fr] lg:items-start">
-        <Panel className="flex flex-col gap-3 p-4">
-          <PanelTitle
+        {/* `overflow-visible` because TrendChart's tooltip is an absolutely
+            positioned HTML box with `-translate-x-1/2`: on the FIRST point
+            (left: 0%) its left half sits outside the plot container, and on the
+            last (left: 100%) its right half does. Panel's default
+            `overflow-hidden` would shear both. PanelHead rounds its own top
+            corners, so the card still reads correctly without the clip. */}
+        <Panel className="overflow-visible">
+          <PanelHead
             titleEn="Filed and resolved"
-            titleHi="दर्ज और हल"
+            icon={<IconChartLine stroke={1.6} />}
             note={clamped ? `${rangeLabel} (adjusted)` : rangeLabel}
           />
-          <TrendChart
-            labels={labels}
-            summary="Concerns filed and resolved on each day of the selected window."
-            emptyLabel={
-              <Bi
-                en="Nothing filed in this window yet."
-                hi="इस अवधि में अभी कुछ दर्ज नहीं हुआ।"
-              />
-            }
-            series={[
-              {
-                key: "filed",
-                label: "Filed",
-                values: insights.daily.map((d) => d.filed),
-                ink: "--status-purple",
-              },
-              {
-                // Amber, not green — see the colour note in charts.tsx. Green
-                // is `resolved` on every badge on this screen, and painting a
-                // resolved COUNT green is how a categorical tone starts being
-                // read as a status.
-                key: "resolved",
-                label: "Resolved",
-                values: insights.daily.map((d) => d.resolved),
-                ink: "--status-amber",
-              },
-            ]}
-          />
+          <div className="p-4 sm:p-5">
+            <TrendChart
+              labels={labels}
+              summary="Concerns filed and resolved on each day of the selected window."
+              emptyLabel="Nothing filed in this window yet."
+              series={[
+                {
+                  key: "filed",
+                  label: "Filed",
+                  values: insights.daily.map((d) => d.filed),
+                  ink: "--status-purple",
+                },
+                {
+                  // Amber, not green — see the colour note in charts.tsx. Green
+                  // is `resolved` on every badge on this screen, and painting a
+                  // resolved COUNT green is how a categorical tone starts being
+                  // read as a status.
+                  key: "resolved",
+                  label: "Resolved",
+                  values: insights.daily.map((d) => d.resolved),
+                  ink: "--status-amber",
+                },
+              ]}
+            />
+          </div>
         </Panel>
 
         {/* self-start as well as the row's items-start: belt and braces
             against this panel stretching to match the chart beside it — one
             department bar in a card as tall as a 30-day chart is dead space
             with a heading on it, not "airy". */}
-        <Panel className="flex flex-col gap-3 self-start p-4">
-          <PanelTitle
+        <Panel className="self-start">
+          <PanelHead
             titleEn="Where concerns come from"
-            titleHi="शिकायतें कहाँ से आती हैं"
+            icon={<IconBuildingFactory2 stroke={1.6} />}
           />
-          <BarList
-            emptyLabel={
-              <Bi
-                en="No concerns to break down yet."
-                hi="अभी विभाजन के लिए कुछ नहीं।"
-              />
-            }
-            unitLabel={<Bi en="total" hi="कुल" />}
-            alertLabel={<Bi en="Past its SLA" hi="SLA से बाहर" />}
-            items={insights.byDepartment.map((d) => ({
-              key: d.name,
-              label: d.name,
-              value: d.total,
-              alert: d.overdue,
-            }))}
-          />
+          <div className="p-4 sm:p-5">
+            <BarList
+              emptyLabel="No concerns to break down yet."
+              unitLabel="total"
+              alertLabel="Past its SLA"
+              items={insights.byDepartment.map((d) => ({
+                key: d.name,
+                label: d.name,
+                value: d.total,
+                alert: d.overdue,
+              }))}
+            />
+          </div>
         </Panel>
       </div>
-    </div>
-  );
-}
-
-function PanelTitle({
-  titleEn,
-  titleHi,
-  note,
-}: {
-  titleEn: string;
-  titleHi: string;
-  note?: string;
-}) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 className={cn("deva text-text-1", T.h3)}>
-        {titleEn}
-        <span className="deva hi"> ({titleHi})</span>
-      </h3>
-      {note ? (
-        <span className={cn("num text-text-3", T.caption)}>{note}</span>
-      ) : null}
     </div>
   );
 }
@@ -765,62 +764,49 @@ function PanelTitle({
 /**
  * A headline number and the sentence that makes it mean something.
  *
+ * The ERP's mini-figure tile (dashboard-view.tsx's `MiniFig`, spec §G): a
+ * recessed `bg-surface-2` well inside the card, an 11px label with its glyph
+ * inline, and a 24/700 figure under it. The accent chip lives on the card head
+ * above — Order Entry tints an icon, never a block, and never twice in one
+ * card.
+ *
  * A figure size is for a FIGURE. "No data yet" set at 24px is a sentence
  * shouting that it has nothing to say — and until a coordinator resolves
  * something, both of these tiles say exactly that, which would make the two
  * largest things on the dashboard the two emptiest. A real number keeps the
- * size it earns (the ERP's mini-figure, dashboard-view.tsx's 24/700); the
- * absence drops to body and goes muted, which is what an absence should look
- * like — and it stays untracked, because it holds a bilingual string.
+ * size it earns; the absence drops to body and goes muted, which is what an
+ * absence should look like.
  */
 function StatTile({
   icon: Glyph,
   labelEn,
-  labelHi,
   helpEn,
-  helpHi,
   value,
 }: {
   icon: typeof IconClock;
   labelEn: string;
-  labelHi: string;
   helpEn: string;
-  helpHi: string;
   value: string | null;
 }) {
   return (
-    <Panel className="flex flex-col gap-1.5 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className={cn("deva font-medium text-text-3", T.caption)}>
-          <Bi en={labelEn} hi={labelHi} />
-        </span>
-        {/* An icon TILE: a 36px-family square at the ERP's 10px radius, never
-            a circle (docs/DESIGN.md). */}
-        <span
-          aria-hidden
-          className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-text"
-        >
-          <Glyph className="size-[17px]" stroke={1.6} />
-        </span>
+    <div className="rounded-field border border-border bg-surface-2 p-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-3">
+        <Glyph className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
+        <span className="truncate">{labelEn}</span>
       </div>
       <span
         aria-live="polite"
         className={
           value === null
-            ? // No `tracking` on this branch: it holds a bilingual string.
-              cn("deva text-text-3", T.body)
-            : // The ERP's mini-figure (dashboard-view.tsx). `tracking` is legal
-              // on this branch ONLY: it carries `.num`, no `.deva`, and its
-              // content is "62%" / "9 h" — a number, never Devanagari.
-              cn("num text-text-1", "text-[24px] leading-none font-bold tracking-[-0.02em]")
+            ? cn("mt-1.5 block text-text-3", T.body)
+            : // The ERP's mini-figure, verbatim (dashboard-view.tsx).
+              "num mt-1.5 block text-[24px] leading-none font-bold tracking-[-0.02em] text-text-1"
         }
       >
-        {value ?? <Bi en="No data yet" hi="अभी डेटा नहीं" />}
+        {value ?? "No data yet"}
       </span>
-      <span className={cn("deva text-text-3", T.caption)}>
-        <Bi en={helpEn} hi={helpHi} />
-      </span>
-    </Panel>
+      <p className={cn("mt-1.5 text-text-3", T.caption)}>{helpEn}</p>
+    </div>
   );
 }
 
@@ -845,13 +831,12 @@ function DateRangePresets({
   onChange: (from: string, to: string) => void;
 }) {
   const presets = [
-    { key: "today", en: "Today", hi: "आज", from: today, to: today },
-    { key: "7d", en: "7 days", hi: "7 दिन", from: dayKeyMinus(6), to: today },
-    { key: "30d", en: "30 days", hi: "30 दिन", from: dayKeyMinus(29), to: today },
+    { key: "today", label: "Today", from: today, to: today },
+    { key: "7d", label: "7 days", from: dayKeyMinus(6), to: today },
+    { key: "30d", label: "30 days", from: dayKeyMinus(29), to: today },
     {
       key: "month",
-      en: "This month",
-      hi: "इस महीने",
+      label: "This month",
       from: startOfMonthKey(),
       to: today,
     },
@@ -873,15 +858,14 @@ function DateRangePresets({
             // Safari auto-zoom on focus and never zoom back out. ui/segmented's
             // md geometry (32px / 13px) from md up.
             className={cn(
-              "deva inline-flex h-11 cursor-pointer items-center rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:px-2.5 md:text-[13px]",
+              "inline-flex h-11 cursor-pointer items-center rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:px-2.5 md:text-[13px]",
               "focus-visible:ring-3 focus-visible:ring-ring/40",
               activeKey === p.key
                 ? "border-primary bg-accent text-accent-text"
                 : "border-border bg-surface text-text-2 hover:border-border-strong",
             )}
           >
-            {p.en}
-            <span className="deva hi ml-1">({p.hi})</span>
+            {p.label}
           </button>
         ))}
       </div>

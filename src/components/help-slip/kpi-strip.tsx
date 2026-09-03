@@ -25,11 +25,13 @@ import { cn } from "@/lib/utils";
  * module read as a different application. Order Entry tints an icon tile; it
  * never tints a whole card.
  *
- * What is left keeping this local is three props StatCard does not have and
- * should not grow: a bilingual label, an optional real `series` sparkline, and
- * the `overdue` emphasis that recolours the figure. (The `display`-size figure
- * used to be a fourth; it is a 19px StatCard figure now.) Two of them would
- * also need new tones, and widening a component two other modules render on
+ * What is left keeping this local is four things StatCard does not have and
+ * should not grow: a `series` sparkline, an `overdue` emphasis that recolours
+ * the FIGURE rather than the icon tile, a tone set that SEPARATES measures
+ * (violet / blue) instead of ranking them, and an `aria-pressed` that is
+ * present only where a cell is really a toggle. (A bilingual label used to be
+ * a fifth; the module is English-only now, so the label below is StatCard's
+ * own 11 / 500 verbatim.) Widening a component two other modules render on
  * every screen for a third module's props is how a shared primitive stops
  * being shared.
  *
@@ -82,7 +84,6 @@ export type KpiTone = keyof typeof TONE;
 export type Kpi = {
   key: string;
   labelEn: string;
-  labelHi?: string;
   value: number;
   icon?: Icon;
   /** Defaults to violet. `overdue` borrows the status palette — see above. */
@@ -121,8 +122,8 @@ export function KpiStrip({
     <div
       className={cn(
         // Scrolls horizontally below 768 rather than wrapping: five cells in a
-        // grid at 360px gives 72px each, which is not enough for a bilingual
-        // label. The last card peeking IS the scroll hint — never a scrollbar.
+        // grid at 360px gives 72px each, which is not a card. The last one
+        // peeking IS the scroll hint — never a scrollbar.
         "flex gap-2.5 overflow-x-auto pb-1 md:grid md:overflow-visible md:pb-0",
         items.length === 5 ? "md:grid-cols-5" : "md:grid-cols-4",
         className,
@@ -179,15 +180,12 @@ function KpiCard({
           bare figure before being told what either one means. Naming the
           measure first costs nothing and the number lands already understood. */}
       <div className="flex items-start justify-between gap-2">
-        {/* StatCard's label is `text-[11px] font-medium`. The size is held at
-            12.5 here and only the weight is adopted: the Hindi gloss renders
-            at 0.85em, so an 11px label would set its own translation under
-            10px, which is below the floor `.hi` exists to protect. */}
-        <span className={cn("deva block min-w-0 font-medium text-text-2", T.bodySm)}>
+        {/* `ui/stat-card.tsx`'s label, verbatim: 11 / 500 / `leading-tight` on
+            text-2. It sat at 12.5 while the Hindi gloss existed, because
+            0.85em of 11px is under the ~10px floor that gloss needed. The
+            gloss is gone, so the floor is gone, and so is the departure. */}
+        <span className="block min-w-0 text-[11px] leading-tight font-medium text-text-2">
           {item.labelEn}
-          {item.labelHi ? (
-            <span className="deva hi"> ({item.labelHi})</span>
-          ) : null}
         </span>
         {Glyph ? (
           // The ERP's tinted square (ui/stat-card.tsx): the tone lives here,
@@ -216,7 +214,10 @@ function KpiCard({
         {loading ? (
           <Skeleton className="h-6 w-12" />
         ) : error ? (
-          <span role="alert" className={cn("font-semibold text-status-red", T.bodySm)}>
+          <span
+            role="alert"
+            className={cn("font-semibold text-status-red", T.bodySm)}
+          >
             {errorLabel}
           </span>
         ) : (
@@ -236,7 +237,11 @@ function KpiCard({
             the skeleton exists to prevent — and a line under an error notice
             would look like data. */}
         {!loading && !error && item.series ? (
-          <Sparkline values={item.series} color={tone.ink} className="shrink-0" />
+          <Sparkline
+            values={item.series}
+            color={tone.ink}
+            className="shrink-0"
+          />
         ) : null}
       </div>
     </>
@@ -250,7 +255,9 @@ function KpiCard({
     "relative min-w-40 shrink-0 overflow-hidden rounded-card border bg-surface p-2.5 text-left shadow-sm transition-colors md:min-w-0",
     // Selected is a UI state, not a measure, so it stays a ring and a border
     // rather than another wash of colour.
-    active ? "border-primary ring-2 ring-ring/25" : "border-border hover:border-border-strong",
+    active
+      ? "border-primary ring-2 ring-ring/25"
+      : "border-border hover:border-border-strong",
     interactive && "cursor-pointer outline-none",
     interactive &&
       "focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, IBM_Plex_Mono, Mukta } from "next/font/google";
+import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -13,23 +13,6 @@ const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
-});
-
-// Devanagari. Help Slip is bilingual EN/HI and Manrope carries no Devanagari
-// glyph at all, so Hindi would otherwise fall through to whatever the OS
-// happens to have — Nirmala UI on Windows, something else on an Android
-// phone — and the two languages in one label would disagree on weight and
-// x-height. Mukta was drawn as a Devanagari + Latin companion, so it matches.
-//
-// It is NOT applied by a class. `--font-sans` in globals.css lists Manrope
-// first and Mukta second, and the browser resolves fonts PER GLYPH: Latin
-// comes from Manrope, Devanagari falls through to Mukta. `subsets` includes
-// latin only so next/font emits the metric-compatible fallback; the Latin
-// faces are never actually reached.
-const mukta = Mukta({
-  variable: "--font-mukta",
-  subsets: ["devanagari", "latin"],
-  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -57,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`dark ${manrope.variable} ${ibmPlexMono.variable} ${mukta.variable} h-full antialiased`}
+      className={`dark ${manrope.variable} ${ibmPlexMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

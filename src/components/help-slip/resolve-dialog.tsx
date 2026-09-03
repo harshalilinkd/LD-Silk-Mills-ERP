@@ -2,17 +2,13 @@
 
 import * as React from "react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { HsModal, SolutionList } from "@/components/help-slip/concern-parts";
 import { TextAreaField } from "@/components/help-slip/form-parts";
 import { T } from "@/components/help-slip/type-scale";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { RESOLUTION_MIN } from "@/lib/help-slip/state-machine";
-import {
-  MESSAGE_MAX,
-  type ConcernSolutionRow,
-} from "@/lib/help-slip/types";
+import { MESSAGE_MAX, type ConcernSolutionRow } from "@/lib/help-slip/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -110,7 +106,8 @@ export function ResolveDialog({
    * one still holding an untouched prefill.
    */
   const pick = (next: string | null) => {
-    const wasPrefill = choice !== null && message === prefill(solutions, choice);
+    const wasPrefill =
+      choice !== null && message === prefill(solutions, choice);
     setChoice(next);
     if (message.trim() === "" || wasPrefill) {
       setMessage(next ? prefill(solutions, next) : "");
@@ -163,9 +160,7 @@ export function ResolveDialog({
           else requestClose();
         }}
         titleEn="Resolve this concern"
-        titleHi="यह शिकायत हल करें"
         descriptionEn={`${employeeName} will be notified.`}
-        descriptionHi={`${employeeName} को सूचना भेजी जाएगी।`}
         error={error}
         footer={
           // 44px + 16px text below md: the minimum touch target for a phone
@@ -180,7 +175,7 @@ export function ResolveDialog({
               disabled={pending}
               onClick={requestClose}
             >
-              <Bi en="Cancel" hi="रद्द करें" />
+              Cancel
             </Button>
             <Button
               type="button"
@@ -189,19 +184,15 @@ export function ResolveDialog({
               onClick={submit}
             >
               {pending ? <Spinner /> : null}
-              <Bi en="Resolve concern" hi="शिकायत हल करें" />
+              Resolve concern
             </Button>
           </>
         }
       >
         {/* ── step 1: which of THEIR solutions worked ─────────────────── */}
         <div className="flex flex-col gap-2">
-          <span
-            id="resolve-which"
-            className={cn("deva text-text-1", T.label)}
-          >
+          <span id="resolve-which" className={cn("text-text-1", T.label)}>
             Which solution worked?
-            <span className="deva hi"> (कौन सा समाधान काम आया?)</span>
           </span>
 
           {/* The same component the employee reads their own solutions in,
@@ -233,14 +224,11 @@ export function ResolveDialog({
                 : "border-border bg-surface hover:bg-surface-2",
             )}
           >
-            <span className={cn("deva text-text-1", T.label)}>
-              <Bi en="Resolved another way" hi="किसी और तरीके से हल हुआ" />
+            <span className={cn("text-text-1", T.label)}>
+              Resolved another way
             </span>
-            <span className={cn("deva text-text-3", T.caption)}>
-              <Bi
-                en="None of their suggestions were used."
-                hi="इनमें से कोई सुझाव इस्तेमाल नहीं हुआ।"
-              />
+            <span className={cn("text-text-3", T.caption)}>
+              None of their suggestions were used.
             </span>
           </button>
         </div>
@@ -249,9 +237,10 @@ export function ResolveDialog({
         <TextAreaField
           id="resolve-message"
           labelEn="How was it resolved?"
-          labelHi="यह कैसे हल हुआ?"
-          helperEn="Write what actually happened. This is the whole answer they get."
-          helperHi="जो सच में हुआ वही लिखें। उन्हें यही पूरा जवाब मिलेगा।"
+          // The hint rides on the LABEL ROW now, right-aligned, so it has to
+          // fit on it — one clause, not the two-sentence version this used to
+          // set under the control.
+          helperEn="They read this word for word."
           required
           rows={4}
           maxLength={MESSAGE_MAX}
@@ -268,17 +257,12 @@ export function ResolveDialog({
         {/* The ERP's left-rule callout: a 3px neutral rule says "this block is
             different in kind" without spending a status hue on it. */}
         <div className="flex flex-col gap-1 rounded-field border-l-[3px] border-l-border-strong bg-surface-2 px-3 py-2.5">
-          <span className={cn("deva text-text-3", T.caption)}>
-            <Bi
-              en={`${employeeName} will see:`}
-              hi={`${employeeName} को यह दिखेगा:`}
-            />
+          <span className={cn("text-text-3", T.caption)}>
+            {employeeName} will see:
           </span>
-          <p className={cn("deva text-text-1", T.bodySm)}>
+          <p className={cn("text-text-1", T.bodySm)}>
             {trimmed === "" ? (
-              <span className="text-text-3">
-                <Bi en="Nothing yet." hi="अभी कुछ नहीं।" />
-              </span>
+              <span className="text-text-3">Nothing yet.</span>
             ) : (
               preview(trimmed)
             )}
@@ -298,9 +282,7 @@ export function ResolveDialog({
           if (!next) setConfirmingDiscard(false);
         }}
         titleEn="Discard what you wrote?"
-        titleHi="जो लिखा है वह छोड़ दें?"
         descriptionEn="The resolution message will be lost. The concern stays open either way."
-        descriptionHi="लिखा हुआ संदेश चला जाएगा। शिकायत दोनों हालत में खुली रहेगी।"
         footer={
           // 44px below md (factory-floor touch target), ERP-compact 36px from
           // md up — see the note on the resolve footer above.
@@ -311,7 +293,7 @@ export function ResolveDialog({
               className="h-11 md:h-9"
               onClick={() => setConfirmingDiscard(false)}
             >
-              <Bi en="Keep writing" hi="लिखते रहें" />
+              Keep writing
             </Button>
             <Button
               type="button"
@@ -322,7 +304,7 @@ export function ResolveDialog({
                 onOpenChange(false);
               }}
             >
-              <Bi en="Discard" hi="छोड़ दें" />
+              Discard
             </Button>
           </>
         }

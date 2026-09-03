@@ -5,16 +5,21 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  IconBolt,
+  IconBulb,
   IconCheck,
   IconChevronDown,
   IconChevronLeft,
+  IconCircleCheck,
   IconDots,
+  IconInfoCircle,
   IconLock,
   IconMessagePlus,
   IconPlayerPause,
   IconPlayerPlay,
   IconRotate,
   IconSearch,
+  IconTimeline,
   IconUserPlus,
 } from "@tabler/icons-react";
 
@@ -23,7 +28,6 @@ import {
   PriorityChip,
   StatusBadge,
 } from "@/components/help-slip/badges";
-import { Bi } from "@/components/help-slip/bilingual";
 import {
   ConcernNumber,
   ConfidentialMark,
@@ -38,7 +42,12 @@ import {
   SelectField,
   TextAreaField,
 } from "@/components/help-slip/form-parts";
-import { PageHeader, Panel } from "@/components/help-slip/page-parts";
+import {
+  CountChip,
+  PageHeader,
+  Panel,
+  SectionCard,
+} from "@/components/help-slip/page-parts";
 import { ResolveDialog } from "@/components/help-slip/resolve-dialog";
 import { Timeline } from "@/components/help-slip/timeline";
 import { T } from "@/components/help-slip/type-scale";
@@ -61,7 +70,7 @@ import {
   type WaitReason,
 } from "@/db/help-slip/schema";
 import { helpSlipGet, helpSlipSend } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale, useHelpSlipSession } from "@/lib/help-slip/context";
+import { useHelpSlipSession } from "@/lib/help-slip/context";
 import { absoluteTime, departmentOf } from "@/lib/help-slip/format";
 import {
   PRIORITY_META,
@@ -142,7 +151,10 @@ import { cn } from "@/lib/utils";
  * moves are refused from. From `closed` every target is illegal, so the `to`
  * is arbitrary.
  */
-const CLOSED_REASON: BlockedReason | null = blockedReason("closed", "in_progress");
+const CLOSED_REASON: BlockedReason | null = blockedReason(
+  "closed",
+  "in_progress",
+);
 
 /** Part 7.7 step 5: the resolve is undoable for ten seconds. */
 const UNDO_WINDOW_MS = 10_000;
@@ -151,16 +163,9 @@ const UNDO_WINDOW_MS = 10_000;
 const UNDO_NOTE = "Resolve undone by the coordinator.";
 
 type DialogName =
-  | "hold"
-  | "reopen"
-  | "priority"
-  | "assign"
-  | "close"
-  | "resolve"
-  | null;
+  "hold" | "reopen" | "priority" | "assign" | "close" | "resolve" | null;
 
 export function PcWorkspace({ id }: { id: string }) {
-  const locale = useHelpSlipLocale();
   const session = useHelpSlipSession();
   const router = useRouter();
   const params = useSearchParams();
@@ -186,8 +191,9 @@ export function PcWorkspace({ id }: { id: string }) {
 
   const [draft, setDraft] = React.useState("");
   const [isInternal, setIsInternal] = React.useState(false);
-  const [timelineView, setTimelineView] =
-    React.useState<"public" | "internal">("public");
+  const [timelineView, setTimelineView] = React.useState<"public" | "internal">(
+    "public",
+  );
 
   /** The coordinator's local pick, carried into the resolve dialog. */
   const [picked, setPicked] = React.useState<string | null>(null);
@@ -228,7 +234,9 @@ export function PcWorkspace({ id }: { id: string }) {
       void queryClient.invalidateQueries({
         queryKey: ["help-slip", "all-concerns"],
       });
-      void queryClient.invalidateQueries({ queryKey: ["help-slip", "dashboard"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["help-slip", "dashboard"],
+      });
     },
   });
 
@@ -244,7 +252,7 @@ export function PcWorkspace({ id }: { id: string }) {
       act.mutate(action, {
         onSuccess: () => {
           setDialog(null);
-          setNotice(options?.notice ?? <Bi en="Saved." hi="सेव हो गया।" />);
+          setNotice(options?.notice ?? "Saved.");
           options?.onDone?.();
         },
         onError: (e) => setActionError((e as Error).message),
@@ -273,27 +281,24 @@ export function PcWorkspace({ id }: { id: string }) {
   if (q.isError) {
     return (
       <Shell>
-        <div className="flex flex-col items-center gap-3 py-10">
-          <EmptyState
-            icon={IconSearch}
-            title={
-              <Bi
-                en="We couldn't load this."
-                hi="यह लोड नहीं हो सका।"
-              />
-            }
-            description={(q.error as Error).message}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            // 44px below md (factory-floor touch target); ERP 36px at md+.
-            className="h-11 md:h-9"
-            onClick={() => void q.refetch()}
-          >
-            <Bi en="Try again" hi="दोबारा कोशिश करें" />
-          </Button>
-        </div>
+        <Panel>
+          <div className="flex flex-col items-center gap-3 px-4 py-10">
+            <EmptyState
+              icon={IconSearch}
+              title="We couldn't load this."
+              description={(q.error as Error).message}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
+              onClick={() => void q.refetch()}
+            >
+              Try again
+            </Button>
+          </div>
+        </Panel>
       </Shell>
     );
   }
@@ -303,27 +308,24 @@ export function PcWorkspace({ id }: { id: string }) {
     // this screen must not be the place that tells them apart.
     return (
       <Shell>
-        <div className="flex flex-col items-center gap-3 py-10">
-          <EmptyState
-            icon={IconSearch}
-            title={<Bi en="Not found" hi="नहीं मिला" />}
-            description={
-              <Bi
-                en="This concern does not exist, or it is not yours to open."
-                hi="यह शिकायत मौजूद नहीं है, या यह आपकी नहीं है।"
-              />
-            }
-          />
-          <Button
-            type="button"
-            variant="outline"
-            // 44px below md (factory-floor touch target); ERP 36px at md+.
-            className="h-11 md:h-9"
-            onClick={() => router.push("/help-slip/all")}
-          >
-            <Bi en="All concerns" hi="सभी शिकायतें" />
-          </Button>
-        </div>
+        <Panel>
+          <div className="flex flex-col items-center gap-3 px-4 py-10">
+            <EmptyState
+              icon={IconSearch}
+              title="Not found"
+              description="This concern does not exist, or it is not yours to open."
+            />
+            <Button
+              type="button"
+              variant="outline"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
+              onClick={() => router.push("/help-slip/all")}
+            >
+              All concerns
+            </Button>
+          </div>
+        </Panel>
       </Shell>
     );
   }
@@ -332,6 +334,8 @@ export function PcWorkspace({ id }: { id: string }) {
   const status: ConcernStatus = concern.status;
   const context: MachineContext = { resolvedAt: concern.resolvedAt };
   const isClosed = status === "closed";
+  /** Drives the mount-stagger indices — the resolution card is conditional. */
+  const hasResolution = Boolean(concern.resolutionMessage);
 
   /** Legal, or the machine's reason it is not. One call site, one table. */
   const gate = (to: ConcernStatus) => ({
@@ -364,7 +368,7 @@ export function PcWorkspace({ id }: { id: string }) {
           // Show the note where it actually landed, or the coordinator posts an
           // internal note and appears to have posted nothing.
           if (wasInternal) setTimelineView("internal");
-          setNotice(<Bi en="Saved." hi="सेव हो गया।" />);
+          setNotice("Saved.");
         },
         onError: (e) => {
           setDraft(body);
@@ -377,8 +381,13 @@ export function PcWorkspace({ id }: { id: string }) {
   const focusComposer = () => {
     const el = composerRef.current;
     if (!el) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "center",
+    });
     el.focus({ preventScroll: true });
   };
 
@@ -403,7 +412,7 @@ export function PcWorkspace({ id }: { id: string }) {
           setDialog(null);
           setPicked(null);
           setUndoUntil(Date.now() + UNDO_WINDOW_MS);
-          setNotice(<Bi en="Concern resolved." hi="शिकायत हल हो गई।" />);
+          setNotice("Concern resolved.");
         },
         onError: (e) => setActionError((e as Error).message),
       },
@@ -437,7 +446,7 @@ export function PcWorkspace({ id }: { id: string }) {
             stroke={1.8}
             aria-hidden
           />
-          <Bi en="Resolve" hi="हल करें" />
+          Resolve
         </Button>
         <Why reason={resolveGate.ok ? null : resolveGate.why} />
       </div>
@@ -447,9 +456,14 @@ export function PcWorkspace({ id }: { id: string }) {
           and each is gated by the machine's answer for that same target. */}
       {status === "waiting" ? (
         <ActionButton
-          en="Resume work"
-          hi="काम फिर शुरू करें"
-          icon={<IconPlayerPlay className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+          label="Resume work"
+          icon={
+            <IconPlayerPlay
+              className={dense ? "size-4" : "size-5"}
+              stroke={1.6}
+              aria-hidden
+            />
+          }
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -457,9 +471,14 @@ export function PcWorkspace({ id }: { id: string }) {
         />
       ) : status === "resolved" || status === "closed" ? (
         <ActionButton
-          en="Reopen"
-          hi="दोबारा खोलें"
-          icon={<IconRotate className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+          label="Reopen"
+          icon={
+            <IconRotate
+              className={dense ? "size-4" : "size-5"}
+              stroke={1.6}
+              aria-hidden
+            />
+          }
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -471,9 +490,14 @@ export function PcWorkspace({ id }: { id: string }) {
         />
       ) : (
         <ActionButton
-          en="Start work"
-          hi="काम शुरू करें"
-          icon={<IconPlayerPlay className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+          label="Start work"
+          icon={
+            <IconPlayerPlay
+              className={dense ? "size-4" : "size-5"}
+              stroke={1.6}
+              aria-hidden
+            />
+          }
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -485,9 +509,14 @@ export function PcWorkspace({ id }: { id: string }) {
       )}
 
       <ActionButton
-        en="Add update"
-        hi="अपडेट जोड़ें"
-        icon={<IconMessagePlus className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+        label="Add update"
+        icon={
+          <IconMessagePlus
+            className={dense ? "size-4" : "size-5"}
+            stroke={1.6}
+            aria-hidden
+          />
+        }
         dense={dense}
         disabled={isClosed}
         reason={isClosed ? CLOSED_REASON : null}
@@ -495,9 +524,14 @@ export function PcWorkspace({ id }: { id: string }) {
       />
 
       <ActionButton
-        en="Put on hold"
-        hi="रोक लगाएँ"
-        icon={<IconPlayerPause className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+        label="Put on hold"
+        icon={
+          <IconPlayerPause
+            className={dense ? "size-4" : "size-5"}
+            stroke={1.6}
+            aria-hidden
+          />
+        }
         dense={dense}
         disabled={busy || !holdGate.ok}
         reason={holdGate.ok ? null : holdGate.why}
@@ -508,8 +542,7 @@ export function PcWorkspace({ id }: { id: string }) {
       />
 
       <ActionButton
-        en="Change priority"
-        hi="प्राथमिकता बदलें"
+        label="Change priority"
         dense={dense}
         disabled={busy || isClosed}
         reason={isClosed ? CLOSED_REASON : null}
@@ -523,9 +556,14 @@ export function PcWorkspace({ id }: { id: string }) {
           the concern, so this is the rarer action: giving it to SOMEBODY ELSE
           (or to nobody). */}
       <ActionButton
-        en="Assign"
-        hi="सौंपें"
-        icon={<IconUserPlus className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
+        label="Assign"
+        icon={
+          <IconUserPlus
+            className={dense ? "size-4" : "size-5"}
+            stroke={1.6}
+            aria-hidden
+          />
+        }
         dense={dense}
         disabled={busy || isClosed}
         reason={isClosed ? CLOSED_REASON : null}
@@ -554,17 +592,12 @@ export function PcWorkspace({ id }: { id: string }) {
             setDialog("close");
           }}
         >
-          <Bi en="Close concern" hi="शिकायत बंद करें" />
+          Close concern
         </Button>
-        <p className={cn("deva mt-1 text-text-3", T.caption)}>
-          {closeGate.ok ? (
-            <Bi
-              en="The employee can no longer comment on it. Nothing is deleted."
-              hi="कर्मचारी इस पर और टिप्पणी नहीं कर सकेगा। कुछ मिटाया नहीं जाएगा।"
-            />
-          ) : closeGate.why ? (
-            <Bi en={closeGate.why.en} hi={closeGate.why.hi} />
-          ) : null}
+        <p className={cn("mt-1 text-text-3", T.caption)}>
+          {closeGate.ok
+            ? "The employee can no longer comment on it. Nothing is deleted."
+            : (closeGate.why?.en ?? null)}
         </p>
       </div>
     </div>
@@ -574,7 +607,7 @@ export function PcWorkspace({ id }: { id: string }) {
 
   return (
     <Shell>
-      <Reveal index={0}>
+      <Reveal index={0} className="flex flex-col gap-2">
         <Link
           href="/help-slip/all"
           className={cn(
@@ -590,7 +623,7 @@ export function PcWorkspace({ id }: { id: string }) {
             stroke={1.6}
             aria-hidden
           />
-          <Bi en="All concerns" hi="सभी शिकायतें" />
+          All concerns
         </Link>
 
         <PageHeader
@@ -598,10 +631,12 @@ export function PcWorkspace({ id }: { id: string }) {
           subtitle={
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <ConcernNumber value={concern.concernNumber} />
-              <span className="deva">
+              <span>
                 {employeeName}
                 {" · "}
-                {departmentOf(concern, locale)}
+                {/* The department's English name only. The Hindi column stays
+                    in the database for the legacy app; nothing here reads it. */}
+                {departmentOf(concern)}
               </span>
               {concern.visibility === "hr_only" ? <ConfidentialMark /> : null}
             </span>
@@ -615,7 +650,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <div
           role="status"
           className={cn(
-            "deva mb-3 flex flex-wrap items-center justify-between gap-2 rounded-field border-l-[3px] border-l-border-strong bg-surface-2 px-3 py-2 text-text-2",
+            "flex flex-wrap items-center justify-between gap-3 rounded-field border border-border bg-surface-2 px-3 py-2 text-text-2",
             T.bodySm,
           )}
         >
@@ -625,17 +660,21 @@ export function PcWorkspace({ id }: { id: string }) {
               type="button"
               variant="outline"
               size="sm"
+              // A size="sm" Button is 28px tall. 44px below md is the minimum
+              // touch target for a phone held on the factory floor; the ERP's
+              // own compact button from md up.
+              className="h-11 md:h-8"
               disabled={busy}
               onClick={() => {
                 setUndoUntil(0);
                 setNotice(null);
                 run(
                   { action: "reopen", note: UNDO_NOTE },
-                  { notice: <Bi en="Resolve undone." hi="हल वापस ले लिया गया।" /> },
+                  { notice: "Resolve undone." },
                 );
               }}
             >
-              <Bi en="Undo" hi="वापस लें" />
+              Undo
             </Button>
           ) : null}
         </div>
@@ -645,7 +684,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <p
           role="alert"
           className={cn(
-            "deva mb-3 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
+            "flex items-start gap-2 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
             T.bodySm,
           )}
         >
@@ -655,45 +694,52 @@ export function PcWorkspace({ id }: { id: string }) {
 
       <div className="flex flex-col gap-4 pb-6 lg:pb-4">
         {/* ── phone: the rail, folded ─────────────────────────────────── */}
-        <Panel className="overflow-hidden lg:hidden">
+        <Panel className="lg:hidden">
           <details className="group">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-              <span className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={status} locale={locale} />
-                <PriorityChip priority={concern.priority} locale={locale} />
-                <SlaLabel
-                  slaDueAt={concern.slaDueAt}
-                  status={status}
-                  locale={locale}
-                />
+            {/* The ERP panel-head strip, as a `summary`: the chip and the
+                heading say what the card is, the badges ARE the state, and the
+                whole 44px row is the disclosure. */}
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2.5 gap-y-1.5 bg-surface-2/40 px-4 py-3 sm:px-5">
+              <span
+                aria-hidden
+                className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent text-accent-text [&_svg]:size-[15px]"
+              >
+                <IconInfoCircle stroke={1.6} />
               </span>
+              <span className={cn("text-text-1", T.h2)}>Details</span>
+              <StatusBadge status={status} />
+              <PriorityChip priority={concern.priority} />
+              <SlaLabel slaDueAt={concern.slaDueAt} status={status} />
               <IconChevronDown
-                className="size-4 shrink-0 text-text-3 transition-transform group-open:rotate-180"
+                className="ml-auto size-4 shrink-0 text-text-3 transition-transform group-open:rotate-180"
                 stroke={1.6}
                 aria-hidden
               />
             </summary>
             <div className="border-t border-border px-4 py-3 sm:px-5">
-              <Facts payload={payload} locale={locale} />
+              <Facts payload={payload} />
             </div>
           </details>
         </Panel>
 
         {/* pb-20 clears the pinned mobile action bar; the rail replaces it
             from 1024, so it drops there. */}
-        <div className="flex flex-col gap-4 pb-20 lg:flex-row lg:items-start lg:gap-6 lg:pb-0">
+        <div className="flex flex-col gap-4 pb-20 lg:flex-row lg:items-start lg:pb-0">
           {/* ═══ the main column ══════════════════════════════════════ */}
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* ── the employee's solutions, as selectable cards ─────── */}
             <Reveal index={1}>
-              <Panel className="p-3 sm:p-4">
-                <h2
-                  id="ws-solutions"
-                  className={cn("deva mb-2.5 text-text-1", T.h3)}
-                >
-                  Employee&apos;s suggested solutions
-                  <span className="deva hi"> (कर्मचारी के सुझाए समाधान)</span>
-                </h2>
+              {/* The id stays on the text itself, because `SolutionList`'s
+                  radiogroup is labelled by it. */}
+              <SectionCard
+                title={
+                  <span id="ws-solutions">
+                    Employee&apos;s suggested solutions
+                  </span>
+                }
+                icon={<IconBulb stroke={1.6} />}
+                aside={<CountChip>{solutions.length}</CountChip>}
+              >
                 {/*
                   Selection is LOCAL until the resolve commits it. The two
                   states are drawn differently on purpose — brand for "I have
@@ -708,42 +754,37 @@ export function PcWorkspace({ id }: { id: string }) {
                   disabled={isClosed || busy}
                   labelledBy="ws-solutions"
                 />
-              </Panel>
+              </SectionCard>
             </Reveal>
 
             {/* ── resolution, when there is one ─────────────────────── */}
-            {concern.resolutionMessage ? (
-              <Panel className="p-3 sm:p-4">
-                <h2 className={cn("deva mb-2.5 text-text-1", T.h3)}>
-                  How it was resolved
-                  <span className="deva hi"> (कैसे हल हुआ)</span>
-                </h2>
-                {/* The ERP's left-rule callout, "ok" tone: a 3px rule says
-                    this block is different in kind. */}
-                <div className="rounded-field border-l-[3px] border-l-status-green bg-status-green-dim px-3 py-2.5">
-                  <p
-                    className={cn(
-                      "deva whitespace-pre-line text-text-1",
-                      T.body,
-                    )}
-                  >
-                    {concern.resolutionMessage}
-                  </p>
-                </div>
-              </Panel>
+            {/* The indices below are computed, not literal: this card is
+                conditional, and a fixed 2 here would leave the sequence
+                1,3,4 — a 110ms hole in the stagger — on every concern that
+                is not yet resolved, which is the screen's usual state. */}
+            {hasResolution ? (
+              <Reveal index={2}>
+                <SectionCard
+                  title="How it was resolved"
+                  icon={<IconCircleCheck stroke={1.6} />}
+                >
+                  {/* The ERP's left-rule callout, "ok" tone: a 3px rule says
+                      this block is different in kind. */}
+                  <div className="rounded-field border-l-[3px] border-l-status-green bg-status-green-dim px-3 py-2.5">
+                    <p className={cn("whitespace-pre-line text-text-1", T.body)}>
+                      {concern.resolutionMessage}
+                    </p>
+                  </div>
+                </SectionCard>
+              </Reveal>
             ) : null}
 
             {/* ── the timeline, with the visibility toggle ──────────── */}
-            <Reveal index={2}>
-              <Panel className="overflow-visible p-3 sm:p-4">
-                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
-                  <h2
-                    id="ws-activity"
-                    className={cn("deva text-text-1", T.h3)}
-                  >
-                    Activity
-                    <span className="deva hi"> (गतिविधि)</span>
-                  </h2>
+            <Reveal index={hasResolution ? 3 : 2}>
+              <SectionCard
+                title={<span id="ws-activity">Activity</span>}
+                icon={<IconTimeline stroke={1.6} />}
+                aside={
                   <Segmented<"public" | "internal">
                     value={timelineView}
                     onChange={setTimelineView}
@@ -752,20 +793,23 @@ export function PcWorkspace({ id }: { id: string }) {
                       { value: "public", label: "Public" },
                       { value: "internal", label: "Internal" },
                     ]}
+                    // The `md` segment is 32px. Below `md` the segments are
+                    // 44px — the minimum touch target for a phone held on the
+                    // factory floor — and the ERP's own geometry above it.
+                    className="[&_button]:h-11 md:[&_button]:h-8"
                   />
-                </div>
-
+                }
+              >
                 <Timeline
                   events={visibleUpdates}
-                  locale={locale}
-                  // Staff, so internal notes render with their dashed
+                  // Staff, so internal notes render with their amber-ruled
                   // treatment. The toggle above decides WHICH set is on
                   // screen; this decides whether internal ones may be drawn at
                   // all — and this screen is staff-gated on the server.
                   canSeeInternal
                   targetId={targetId}
                 />
-              </Panel>
+              </SectionCard>
             </Reveal>
 
             {/* ── the composer ─────────────────────────────────────── *
@@ -774,8 +818,8 @@ export function PcWorkspace({ id }: { id: string }) {
              * carried FOUR ways at once, none of them colour alone:
              *
              *   1. a different GROUND — the whole composer switches to the
-             *      chip fill and a dashed border, which is exactly how an
-             *      internal row is drawn in the timeline below it;
+             *      chip fill behind a solid 3px amber left rule, which is
+             *      exactly how an internal row is drawn in the timeline below;
              *   2. an explicit LABEL — the same sentence the timeline prints
              *      on an internal row, read out of TIMELINE_COPY so the two
              *      cannot drift;
@@ -788,76 +832,68 @@ export function PcWorkspace({ id }: { id: string }) {
              * internal note posted as a public reply is a disclosure, and a
              * public reply posted as an internal note is an employee waiting
              * for an answer that will never arrive.                        */}
-            <Reveal index={3}>
-              <Panel
+            <Reveal index={hasResolution ? 4 : 3}>
+              <SectionCard
+                title={
+                  <span id="ws-compose">
+                    {isInternal ? "Internal note" : "Reply to the employee"}
+                  </span>
+                }
+                // Signal 3 and part of signal 1: the head chip changes glyph
+                // with the mode, so the card announces which kind it is before
+                // a word of it is read.
+                icon={
+                  isInternal ? (
+                    <IconLock stroke={1.6} />
+                  ) : (
+                    <IconMessagePlus stroke={1.6} />
+                  )
+                }
                 className={cn(
-                  "p-3 transition-colors sm:p-4",
+                  "transition-colors",
                   // Signal 1 of 4, and it is the same treatment the timeline
-                  // gives an internal row: a dashed edge, the ERP's 3px
-                  // "different in kind" left rule, and the chip ground. No
-                  // status hue — every one of those is already spoken for on
+                  // gives an internal row: the ERP's SOLID 3px "different in
+                  // kind" left rule in amber, over the chip ground. No status
+                  // hue beyond it — every other one is already spoken for on
                   // the rail below.
-                  isInternal &&
-                    "border-dashed border-border-strong border-l-[3px] [border-left-style:solid] border-l-status-amber bg-chip",
+                  isInternal && "border-l-[3px] border-l-status-amber bg-chip",
                 )}
               >
-                <h2
-                  id="ws-compose"
-                  className={cn(
-                    "deva mb-1 flex items-center gap-2 text-text-1",
-                    T.h3,
-                  )}
-                >
-                  {isInternal ? (
-                    <IconLock className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
-                  ) : null}
-                  {isInternal ? (
-                    <>
-                      Internal note
-                      <span className="deva hi"> (आंतरिक नोट)</span>
-                    </>
-                  ) : (
-                    <>
-                      Reply to the employee
-                      <span className="deva hi"> (कर्मचारी को जवाब)</span>
-                    </>
-                  )}
-                </h2>
-
-                <p
-                  className={cn(
-                    "deva mb-2.5",
-                    isInternal
-                      ? "font-semibold text-text-2"
-                      : "text-text-3",
-                    T.caption,
-                  )}
-                >
-                  {isInternal ? (
-                    <Bi
-                      en={TIMELINE_COPY.internalNote.en}
-                      hi={TIMELINE_COPY.internalNote.hi}
+                {/* Signal 2: the sentence the timeline prints on an internal
+                    row, read out of TIMELINE_COPY so the two cannot drift. It
+                    is the ERP notice strip (E.8) rather than a caption — the
+                    one line on this screen that must not be skimmed past. */}
+                {isInternal ? (
+                  <p
+                    className={cn(
+                      "flex items-start gap-2 rounded-field border border-status-amber/30 bg-status-amber-dim px-3 py-2 font-semibold text-status-amber",
+                      T.bodySm,
+                    )}
+                  >
+                    <IconLock
+                      className="mt-[1px] size-4 shrink-0"
+                      stroke={1.6}
+                      aria-hidden
                     />
-                  ) : (
-                    <Bi
-                      en="This appears on the employee's own page."
-                      hi="यह कर्मचारी के अपने पेज पर दिखेगा।"
-                    />
-                  )}
-                </p>
+                    {TIMELINE_COPY.internalNote.en}
+                  </p>
+                ) : (
+                  <p className={cn("text-text-3", T.bodySm)}>
+                    This appears on the employee&apos;s own page.
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-2">
                   <TextAreaField
                     id="ws-compose-box"
                     labelEn="Add an update"
-                    labelHi="अपडेट जोड़ें"
                     // The heading above already says which kind this is. A
                     // visible label repeating it is one more line to read and
                     // nothing to learn — so it stays as the ACCESSIBLE name
                     // only, which a screen reader still needs because a
                     // heading is not programmatically a field's label.
                     labelHidden
-                    placeholder="What has happened? (क्या हुआ है?)"
+                    placeholder="What has happened?"
                     value={draft}
                     onChange={setDraft}
                     rows={3}
@@ -871,9 +907,7 @@ export function PcWorkspace({ id }: { id: string }) {
                     checked={isInternal}
                     onChange={setIsInternal}
                     labelEn="Internal note (employee won't see)"
-                    labelHi="आंतरिक नोट (कर्मचारी को नहीं दिखेगा)"
                     descriptionEn="Only coordinators can read it. It never appears in their timeline."
-                    descriptionHi="इसे सिर्फ़ कोऑर्डिनेटर पढ़ सकते हैं। कर्मचारी की टाइमलाइन में कभी नहीं आएगा।"
                     disabled={isClosed || busy}
                   />
 
@@ -890,25 +924,21 @@ export function PcWorkspace({ id }: { id: string }) {
                     className="h-11 w-full px-5 text-base md:h-9 md:w-auto md:self-start md:px-3 md:text-sm"
                   >
                     {busy ? <Spinner /> : null}
-                    {isInternal ? (
-                      <Bi en="Post internal note" hi="आंतरिक नोट सेव करें" />
-                    ) : (
-                      <Bi en="Post reply" hi="जवाब भेजें" />
-                    )}
+                    {isInternal ? "Post internal note" : "Post reply"}
                   </Button>
                 </div>
-              </Panel>
+              </SectionCard>
             </Reveal>
           </div>
 
           {/* ═══ the rail, 1024+ ══════════════════════════════════════ */}
-          <aside className="hidden w-80 shrink-0 lg:sticky lg:top-4 lg:block">
-            <Panel className="flex flex-col gap-3 p-4">
-              <Facts payload={payload} locale={locale} withStatus />
-              <div className="border-t border-border pt-3">
-                {actionStack(true)}
-              </div>
-            </Panel>
+          <aside className="hidden w-80 shrink-0 flex-col gap-3 lg:sticky lg:top-4 lg:flex">
+            <SectionCard title="Details" icon={<IconInfoCircle stroke={1.6} />}>
+              <Facts payload={payload} withStatus />
+            </SectionCard>
+            <SectionCard title="Actions" icon={<IconBolt stroke={1.6} />}>
+              {actionStack(true)}
+            </SectionCard>
           </aside>
         </div>
       </div>
@@ -931,7 +961,7 @@ export function PcWorkspace({ id }: { id: string }) {
           // full-bleed fixed bar would lie across the navigation between 768
           // and 1023, which is exactly the band where the rail has not yet
           // taken over.
-          "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background md:left-[264px] lg:hidden",
+          "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-[6px] md:left-[264px] lg:hidden",
           keyboardInset > 0 && "hidden",
         )}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -949,7 +979,7 @@ export function PcWorkspace({ id }: { id: string }) {
               }}
             >
               <IconCheck className="size-5" stroke={1.8} aria-hidden />
-              <Bi en="Resolve" hi="हल करें" />
+              Resolve
             </Button>
           </div>
           <button
@@ -966,12 +996,12 @@ export function PcWorkspace({ id }: { id: string }) {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[85vh] overflow-y-auto rounded-t-card"
+          // 85dvh, not 85vh: on a phone `vh` is measured against the browser
+          // chrome expanded, so a sheet sized in `vh` runs under the address bar.
+          className="max-h-[85dvh] overflow-y-auto rounded-t-card"
         >
           <SheetHeader>
-            <SheetTitle className={cn("deva", T.h3)}>
-              <Bi en="Actions" hi="कार्रवाई" />
-            </SheetTitle>
+            <SheetTitle className={T.h3}>Actions</SheetTitle>
           </SheetHeader>
           <div className="px-4 pb-4" onClick={() => setMoreOpen(false)}>
             {actionStack(false)}
@@ -1003,9 +1033,7 @@ export function PcWorkspace({ id }: { id: string }) {
           if (!open) setDialog(null);
         }}
         titleEn="Put on hold"
-        titleHi="रोक लगाएँ"
         descriptionEn="Say what it is waiting for. The employee sees this note."
-        descriptionHi="बताइए किस चीज़ का इंतज़ार है। यह नोट कर्मचारी को दिखेगा।"
         error={actionError}
         footer={
           <>
@@ -1023,7 +1051,7 @@ export function PcWorkspace({ id }: { id: string }) {
               }
             >
               {busy ? <Spinner /> : null}
-              <Bi en="Put on hold" hi="रोक लगाएँ" />
+              Put on hold
             </Button>
           </>
         }
@@ -1031,23 +1059,22 @@ export function PcWorkspace({ id }: { id: string }) {
         <SelectField
           id="ws-hold-reason"
           labelEn="Waiting for"
-          labelHi="किसका इंतज़ार"
           value={holdReason}
           onChange={(v) => setHoldReason(v as WaitReason)}
           // Never the raw enum: `awaiting_vendor` is a storage value and
           // "A vendor" is the answer to the question this asks.
           options={WAIT_REASONS.map((r) => ({
             value: r,
-            label: `${WAIT_REASON_META[r].labelEn} (${WAIT_REASON_META[r].labelHi})`,
+            label: WAIT_REASON_META[r].labelEn,
           }))}
           disabled={busy}
         />
         <TextAreaField
           id="ws-hold-note"
           labelEn="Note"
-          labelHi="नोट"
-          helperEn="Required. A hold with no explanation reads as being ignored."
-          helperHi="ज़रूरी है। बिना वजह की रोक अनदेखी जैसी लगती है।"
+          // The helper sits on the LABEL ROW now, right-aligned, so it has to
+          // fit there: a clause, not a sentence.
+          helperEn="A hold with no reason reads as being ignored."
           required
           rows={3}
           maxLength={NOTE_MAX}
@@ -1063,9 +1090,7 @@ export function PcWorkspace({ id }: { id: string }) {
           if (!open) setDialog(null);
         }}
         titleEn="Reopen this concern"
-        titleHi="यह शिकायत दोबारा खोलें"
         descriptionEn="It goes back to in progress and the employee is told why."
-        descriptionHi="यह फिर से चालू हो जाएगी और कर्मचारी को वजह बताई जाएगी।"
         error={actionError}
         footer={
           <>
@@ -1083,7 +1108,7 @@ export function PcWorkspace({ id }: { id: string }) {
               }
             >
               {busy ? <Spinner /> : null}
-              <Bi en="Reopen" hi="दोबारा खोलें" />
+              Reopen
             </Button>
           </>
         }
@@ -1091,9 +1116,8 @@ export function PcWorkspace({ id }: { id: string }) {
         <TextAreaField
           id="ws-reopen-note"
           labelEn="Why is it being reopened?"
-          labelHi="दोबारा क्यों खोला जा रहा है?"
-          helperEn="Required. The employee reads this as the reason it came back."
-          helperHi="ज़रूरी है। कर्मचारी इसे ही वापस खुलने की वजह के रूप में पढ़ेगा।"
+          // On the label row, right-aligned: a clause, not a sentence.
+          helperEn="The employee reads this as the reason."
           required
           rows={3}
           maxLength={NOTE_MAX}
@@ -1109,23 +1133,23 @@ export function PcWorkspace({ id }: { id: string }) {
           if (!open) setDialog(null);
         }}
         titleEn="Change priority"
-        titleHi="प्राथमिकता बदलें"
         error={actionError}
         footer={<ModalCancel disabled={busy} />}
       >
-        {PRIORITIES.map((p) => (
-          <ChoiceRow
-            key={p}
-            label={
-              locale === "hi"
-                ? PRIORITY_META[p].labelHi
-                : PRIORITY_META[p].labelEn
-            }
-            selected={p === concern.priority}
-            disabled={busy}
-            onClick={() => run({ action: "priority", priority: p })}
-          />
-        ))}
+        {/* Four short answers, so they read across rather than down.
+            Single column below `sm`: two 44px rows side by side at 360px is
+            two rows nobody can hit. */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {PRIORITIES.map((p) => (
+            <ChoiceRow
+              key={p}
+              label={PRIORITY_META[p].labelEn}
+              selected={p === concern.priority}
+              disabled={busy}
+              onClick={() => run({ action: "priority", priority: p })}
+            />
+          ))}
+        </div>
       </HsModal>
 
       <HsModal
@@ -1134,13 +1158,11 @@ export function PcWorkspace({ id }: { id: string }) {
           if (!open) setDialog(null);
         }}
         titleEn="Assign this concern"
-        titleHi="यह शिकायत सौंपें"
         descriptionEn="Active coordinators and admins only."
-        descriptionHi="सिर्फ़ सक्रिय कोऑर्डिनेटर और एडमिन।"
         error={actionError}
         footer={<ModalCancel disabled={busy} />}
       >
-        <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+        <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
           {/*
             "To me", first, when we can find "me" in the list.
 
@@ -1158,7 +1180,6 @@ export function PcWorkspace({ id }: { id: string }) {
             return (
               <ChoiceRow
                 label="Assign to me"
-                labelHi="मुझे सौंपें"
                 selected={concern.assignedTo === me.id}
                 disabled={busy}
                 onClick={() => run({ action: "assign", assigneeId: me.id })}
@@ -1168,7 +1189,6 @@ export function PcWorkspace({ id }: { id: string }) {
 
           <ChoiceRow
             label="Nobody"
-            labelHi="किसी को नहीं"
             selected={concern.assignedTo === null}
             disabled={busy}
             onClick={() => run({ action: "assign", assigneeId: null })}
@@ -1192,9 +1212,7 @@ export function PcWorkspace({ id }: { id: string }) {
           if (!open) setDialog(null);
         }}
         titleEn="Close this concern?"
-        titleHi="यह शिकायत बंद करें?"
         descriptionEn="The employee can no longer comment on it. Nothing is deleted."
-        descriptionHi="कर्मचारी इस पर और टिप्पणी नहीं कर सकेगा। कुछ मिटाया नहीं जाएगा।"
         error={actionError}
         footer={
           <>
@@ -1208,7 +1226,7 @@ export function PcWorkspace({ id }: { id: string }) {
               onClick={() => run({ action: "close" })}
             >
               {busy ? <Spinner /> : null}
-              <Bi en="Confirm" hi="पक्का करें" />
+              Confirm
             </Button>
           </>
         }
@@ -1226,7 +1244,9 @@ export function PcWorkspace({ id }: { id: string }) {
  */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex w-full max-w-[1180px] flex-col">{children}</div>
+    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
+      {children}
+    </div>
   );
 }
 
@@ -1239,16 +1259,14 @@ function Shell({ children }: { children: React.ReactNode }) {
  * `blockedReason()`.
  */
 function ActionButton({
-  en,
-  hi,
+  label,
   icon,
   onClick,
   disabled,
   reason,
   dense,
 }: {
-  en: string;
-  hi: string;
+  label: string;
   icon?: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
@@ -1267,12 +1285,10 @@ function ActionButton({
         className={cn("w-full", dense ? "h-9" : "h-11 text-base")}
       >
         {icon}
-        <Bi en={en} hi={hi} />
+        {label}
       </Button>
       {reason ? (
-        <p className={cn("deva mt-1 text-text-3", T.caption)}>
-          <Bi en={reason.en} hi={reason.hi} />
-        </p>
+        <p className={cn("mt-1 text-text-3", T.caption)}>{reason.en}</p>
       ) : null}
     </div>
   );
@@ -1281,23 +1297,17 @@ function ActionButton({
 /** The line under a disabled primary, for the same reason as above. */
 function Why({ reason }: { reason: BlockedReason | null }) {
   if (!reason) return null;
-  return (
-    <p className={cn("deva mt-1 text-text-3", T.caption)}>
-      <Bi en={reason.en} hi={reason.hi} />
-    </p>
-  );
+  return <p className={cn("mt-1 text-text-3", T.caption)}>{reason.en}</p>;
 }
 
 /** A pickable row in the priority and assign prompts. */
 function ChoiceRow({
   label,
-  labelHi,
   selected,
   disabled,
   onClick,
 }: {
   label: string;
-  labelHi?: string;
   selected: boolean;
   disabled?: boolean;
   onClick: () => void;
@@ -1319,9 +1329,7 @@ function ChoiceRow({
           : "border-border hover:bg-surface-2",
       )}
     >
-      <span className={cn("deva text-text-1", T.body)}>
-        <Bi en={label} hi={labelHi} />
-      </span>
+      <span className={cn("text-text-1", T.body)}>{label}</span>
       {selected ? (
         <IconCheck
           className="size-4 shrink-0 text-accent-text"
@@ -1339,11 +1347,9 @@ function ChoiceRow({
  */
 function Facts({
   payload,
-  locale,
   withStatus = false,
 }: {
   payload: ConcernDetailPayload;
-  locale: "en" | "hi";
   withStatus?: boolean;
 }) {
   const { concern } = payload;
@@ -1355,87 +1361,73 @@ function Facts({
     <dl className="flex flex-col">
       {withStatus ? (
         <>
-          <MetaRow labelEn="Status" labelHi="स्थिति">
+          <MetaRow labelEn="Status">
             <span className="flex flex-wrap items-center gap-1">
-              <StatusBadge status={concern.status} locale={locale} />
-              {concern.isOverdue ? <OverdueBadge locale={locale} /> : null}
+              <StatusBadge status={concern.status} />
+              {concern.isOverdue ? <OverdueBadge /> : null}
             </span>
           </MetaRow>
-          <MetaRow labelEn="Priority" labelHi="प्राथमिकता">
-            <PriorityChip
-              priority={concern.priority}
-              locale={locale}
-              alwaysShow
-            />
+          <MetaRow labelEn="Priority">
+            <PriorityChip priority={concern.priority} alwaysShow />
           </MetaRow>
         </>
       ) : null}
 
-      <MetaRow labelEn="Assigned" labelHi="सौंपी गई">
+      <MetaRow labelEn="Assigned">
         <span className={cn(!concern.assignedToName && "text-text-3")}>
-          {concern.assignedToName ?? <Bi en="Nobody" hi="किसी को नहीं" />}
+          {concern.assignedToName ?? "Nobody"}
         </span>
       </MetaRow>
-      <MetaRow labelEn="Employee" labelHi="कर्मचारी">
+      <MetaRow labelEn="Employee">
         <span className="block">{typed || account || "—"}</span>
         {differs ? (
-          <span className={cn("deva mt-0.5 block text-text-3", T.caption)}>
-            <Bi
-              en={`Filed from ${account ?? ""}`}
-              hi={`${account ?? ""} के खाते से दर्ज`}
-            />
+          <span className={cn("mt-0.5 block text-text-3", T.caption)}>
+            {`Filed from ${account ?? ""}`}
           </span>
         ) : null}
       </MetaRow>
-      <MetaRow labelEn="Department" labelHi="विभाग">
-        {departmentOf(concern, locale)}
+      <MetaRow labelEn="Department">{departmentOf(concern)}</MetaRow>
+      <MetaRow labelEn="Raised">
+        <span className="num">{absoluteTime(concern.createdAt)}</span>
       </MetaRow>
-      <MetaRow labelEn="Raised" labelHi="दर्ज">
-        <span className="num">{absoluteTime(concern.createdAt, locale)}</span>
-      </MetaRow>
-      <MetaRow labelEn="SLA due" labelHi="एसएलए">
-        <SlaLabel
-          slaDueAt={concern.slaDueAt}
-          status={concern.status}
-          locale={locale}
-        />
+      <MetaRow labelEn="SLA due">
+        <SlaLabel slaDueAt={concern.slaDueAt} status={concern.status} />
       </MetaRow>
       {concern.waitReason ? (
-        <MetaRow labelEn="Waiting for" labelHi="किसका इंतज़ार">
-          <Bi
-            en={WAIT_REASON_META[concern.waitReason].labelEn}
-            hi={WAIT_REASON_META[concern.waitReason].labelHi}
-          />
+        <MetaRow labelEn="Waiting for">
+          {WAIT_REASON_META[concern.waitReason].labelEn}
         </MetaRow>
       ) : null}
       {concern.resolvedAt ? (
-        <MetaRow labelEn="Resolved" labelHi="हल">
-          <span className="num">
-            {absoluteTime(concern.resolvedAt, locale)}
-          </span>
+        <MetaRow labelEn="Resolved">
+          <span className="num">{absoluteTime(concern.resolvedAt)}</span>
         </MetaRow>
       ) : null}
     </dl>
   );
 }
 
-/** The same shape as the real screen, so nothing jumps when it arrives. */
+/**
+ * The same shape as the real screen, so nothing jumps when it arrives: a
+ * 33px title line (22px x 1.5), the main column of cards, and the rail's two.
+ */
 function WorkspaceSkeleton() {
   return (
     <Shell>
+      <Skeleton className="h-[33px] w-3/5" />
       <div
-        className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start lg:gap-8"
+        className="flex flex-col gap-4 lg:flex-row lg:items-start"
         aria-busy
         role="status"
       >
         <span className="sr-only">Loading concern</span>
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <Skeleton className="h-6 w-3/4" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
           <Skeleton className="h-40 rounded-card" />
           <Skeleton className="h-64 rounded-card" />
         </div>
-        <div className="hidden w-80 shrink-0 lg:block">
-          <Skeleton className="h-96 rounded-card" />
+        <div className="hidden w-80 shrink-0 flex-col gap-3 lg:flex">
+          <Skeleton className="h-64 rounded-card" />
+          <Skeleton className="h-72 rounded-card" />
         </div>
       </div>
     </Shell>

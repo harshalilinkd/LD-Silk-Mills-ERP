@@ -2,7 +2,6 @@
 
 import * as React from "react";
 
-import { Bi } from "@/components/help-slip/bilingual";
 import { CONTROL, T } from "@/components/help-slip/type-scale";
 import { cn } from "@/lib/utils";
 
@@ -12,32 +11,95 @@ import { cn } from "@/lib/utils";
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * The read screens needed a search box and some filters, which `page-parts`
- * and `filters` already carry. Forms need labels, helpers, errors and required
- * markers, and there is no styled textarea or checkbox in `components/ui` — so
- * these live here rather than being written out five times across three
- * screens, each with its own idea of what 44px means.
+ * and `filters` already carry. Forms need a grid, labels, hints, errors and
+ * required markers, and there is no styled textarea or checkbox in
+ * `components/ui` — so these live here rather than being written out five
+ * times across three screens, each with its own idea of what 44px means.
  *
- * Three rules, all of them from the source and none of them cosmetic:
+ * Three rules, all of them from the ERP and none of them cosmetic:
  *
- *  1. **Every control is 44px tall with 16px text BELOW `md`**, and the ERP's
+ *  1. **Fields live in a GRID, never a single column.** `<FieldGrid>` is 1 /
+ *     sm:2 / lg:3, and a field that genuinely needs the whole row says so with
+ *     `SPAN_FULL`. A 720px column of full-width inputs was the single loudest
+ *     reason this module did not read as the rest of the ERP: the same form in
+ *     Order Entry is 1128px wide across four grids.
+ *  2. **Every control is 44px tall with 16px text BELOW `md`**, and the ERP's
  *     compact 36px / 13px from `md` up. 44px is the minimum touch target for a
  *     phone held on the factory floor; anything under 16px makes iOS Safari
  *     auto-zoom on focus, after which it never zooms back out and the person is
  *     stranded on a 2× page. `CONTROL` in type-scale.ts owns both halves of the
  *     split, and `TEXTAREA` below mirrors it.
- *  2. **Labels render `English (हिंदी)` inline**, through `<Bi>` — the Hindi at
- *     0.85em/400/text-3, never stacked and never the same weight. This is the
- *     paper slip's own layout.
  *  3. **An error is announced, not merely coloured.** `role="alert"` and
  *     `aria-describedby`, and the input carries `aria-invalid` so it is not
  *     colour alone doing the work.
  */
 
+// ─── the field grid ────────────────────────────────────────────────────────
+
+/**
+ * THE ERP FIELD GRID. One column below `sm`, two at `sm`, three at `lg`.
+ *
+ * Single-column below `sm` is mandatory, not a preference — two 44px controls
+ * side by side at 360px is two unusable controls.
+ *
+ * The column gap grows and the row gap does not (`gap-x-3 gap-y-2
+ * sm:gap-x-4`): a label sits directly above its own control and does not need
+ * 16px of air under the field before it, but two fields side by side do need
+ * separating.
+ *
+ * There is deliberately no `[&_input]:h-9` descendant override here. Order
+ * Entry's grid carries one because its global `Input` is 32px; every control
+ * in this module already carries `CONTROL`, and forcing 36px would break the
+ * touch target below `md`.
+ */
+export function FieldGrid({
+  cols = 3,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  /** Columns at the widest step. 2 stops at `sm`; 3 goes on to `lg`. */
+  cols?: 2 | 3;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 sm:gap-x-4",
+        cols === 3 && "lg:grid-cols-3",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * HOW A FIELD SPANS. Pass one of these as the `className` of any `Field`,
+ * `TextField`, `TextAreaField`, `SelectField` or `CheckboxField` — it lands on
+ * the field's own wrapper, which is the grid item:
+ *
+ *   <TextField className={SPAN_FULL} … />
+ *
+ * All the steps are written out on purpose. A bare `col-span-3` overflows the
+ * two-column `sm` grid and silently collapses the row.
+ *
+ * Reserve `SPAN_FULL` for controls that genuinely need the width — a
+ * description textarea, a long free-text line. A short select taking the whole
+ * row is how a grid turns back into a column.
+ */
+export const SPAN_FULL = "col-span-1 sm:col-span-2 lg:col-span-3";
+/** Half of a three-column row: two tracks at `sm` and at `lg`. */
+export const SPAN_HALF = "col-span-1 sm:col-span-2 lg:col-span-2";
+
+// ─── controls ──────────────────────────────────────────────────────────────
+
 /** CONTROL's textarea twin. Height comes from `rows`, so only the font and the
  *  padding step: 16px below md (the iOS auto-zoom guard — see CONTROL), 13px
  *  and ERP padding from md up. */
 export const TEXTAREA = cn(
-  "deva w-full rounded-field border border-border bg-surface px-3 py-2.5",
+  "w-full rounded-field border border-border bg-surface px-3 py-2.5",
   "text-base text-text-1 outline-none transition-colors",
   "placeholder:text-text-3 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",
   "disabled:cursor-not-allowed disabled:opacity-50",
@@ -47,62 +109,93 @@ export const TEXTAREA = cn(
 export type FieldProps = {
   id: string;
   labelEn: string;
-  labelHi?: string;
+  /** One short clause. It renders on the LABEL ROW — see the note on `Field`. */
   helperEn?: string;
-  helperHi?: string;
   /** Rendered as a sentence under the control, and announced. */
   error?: React.ReactNode;
   required?: boolean;
-  /** Sits on the label row, right-aligned — a character counter, say. */
+  /** Also on the label row, hard right — a character counter, say. */
   meta?: React.ReactNode;
   /** Hides the visible label but keeps it as the accessible name. */
   labelHidden?: boolean;
+  /** Lands on the field's own wrapper — this is the grid span slot. */
+  className?: string;
   children: React.ReactNode;
 };
 
 /**
- * Label, control, helper, error — in that order, wired together.
+ * Label + hint on one row, then the control, then the error.
  *
- * The helper is `aria-describedby` on the control, so a screen reader hears
- * "Department, choose a department, required" rather than a bare field name.
- * The error REPLACES the helper in that association when present: hearing both
- * the advice and the complaint is one sentence too many at the moment somebody
- * is trying to fix something.
+ * THE HINT IS ON THE LABEL ROW, RIGHT-ALIGNED — NEVER UNDER THE INPUT. This is
+ * the ERP's rule and the biggest single thing that was wrong here. A helper
+ * sentence under a control is a second full-width line per field, so six
+ * fields became a page you had to scroll; worse, a hint that appears and
+ * disappears shifts every field below it while somebody is typing. The label
+ * row is `justify-between`, so the hint occupies space that is already
+ * reserved and costs no height at all.
+ *
+ * A hint too long for that row is too long full stop: shorten the sentence,
+ * do not move it back under the control.
+ *
+ * The ERROR is the one thing that does sit under the control, because it is
+ * about what was typed rather than about what to type, and it must be next to
+ * the thing it is complaining about.
+ *
+ * `aria-describedby` points the control at whichever one is live. The error
+ * REPLACES the helper in that association when present: hearing both the
+ * advice and the complaint is one sentence too many at the moment somebody is
+ * trying to fix something.
  */
 export function Field({
   id,
   labelEn,
-  labelHi,
   helperEn,
-  helperHi,
   error,
   required,
   meta,
   labelHidden,
+  className,
   children,
 }: FieldProps) {
+  const showHelper = !error && Boolean(helperEn);
+  const showMeta = Boolean(meta) && !labelHidden;
   return (
-    <div className="flex min-w-0 flex-col gap-[7px]">
-      {/* The hint/counter stays ON the label row, as the ERP puts it: an
-          appearing hint must not shift every field below it. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+    <div className={cn("flex min-w-0 flex-col gap-[7px]", className)}>
+      {/* `flex-wrap`: the helper sits on this row now, so a long label and a
+          long hint must be able to fall to two lines rather than squeezing
+          each other. `gap-y-1` keeps the wrapped case from touching. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <label
           htmlFor={id}
           className={cn(
-            "deva text-text-2",
+            "min-w-0 text-text-2",
             T.label,
             labelHidden && "sr-only",
           )}
         >
-          <Bi en={labelEn} hi={labelHi} />
+          {labelEn}
           {required ? (
             <span aria-hidden className="ml-0.5 font-semibold text-status-red">
               *
             </span>
           ) : null}
         </label>
-        {meta && !labelHidden ? (
-          <span className={cn("num text-text-3", T.caption)}>{meta}</span>
+        {showHelper || showMeta ? (
+          <span className="ml-auto flex min-w-0 items-baseline justify-end gap-2 text-right">
+            {showHelper ? (
+              <span
+                id={`${id}-helper`}
+                className={cn("text-text-3", T.caption)}
+              >
+                {helperEn}
+              </span>
+            ) : null}
+            {showMeta ? (
+              <span className={cn("num shrink-0 text-text-3", T.caption)}>
+                {meta}
+              </span>
+            ) : null}
+          </span>
         ) : null}
       </div>
 
@@ -112,13 +205,9 @@ export function Field({
         <p
           id={`${id}-error`}
           role="alert"
-          className={cn("deva text-status-red", T.caption)}
+          className={cn("text-status-red", T.caption)}
         >
           {error}
-        </p>
-      ) : helperEn ? (
-        <p id={`${id}-helper`} className={cn("deva text-text-3", T.caption)}>
-          <Bi en={helperEn} hi={helperHi} />
         </p>
       ) : null}
     </div>
@@ -190,11 +279,7 @@ export function TextField({
         autoComplete={autoComplete}
         autoCapitalize={autoCapitalize}
         enterKeyHint={enterKeyHint}
-        className={cn(
-          CONTROL,
-          "deva w-full",
-          field.error && "border-status-red",
-        )}
+        className={cn(CONTROL, "w-full", field.error && "border-status-red")}
       />
     </Field>
   );
@@ -283,7 +368,7 @@ export function SelectField({
         aria-describedby={describedBy(id, field.error, field.helperEn)}
         className={cn(
           CONTROL,
-          "deva w-full cursor-pointer",
+          "w-full cursor-pointer",
           field.error && "border-status-red",
         )}
       >
@@ -314,19 +399,18 @@ export function CheckboxField({
   checked,
   onChange,
   labelEn,
-  labelHi,
   descriptionEn,
-  descriptionHi,
   disabled,
+  className,
 }: {
   id: string;
   checked: boolean;
   onChange: (next: boolean) => void;
   labelEn: string;
-  labelHi?: string;
   descriptionEn?: string;
-  descriptionHi?: string;
   disabled?: boolean;
+  /** Lands on the label row — this is the grid span slot. */
+  className?: string;
 }) {
   return (
     <label
@@ -336,6 +420,7 @@ export function CheckboxField({
         // the factory floor. ERP density (36px) from md up.
         "flex min-h-11 cursor-pointer items-start gap-3 md:min-h-9 md:gap-2.5",
         disabled && "cursor-not-allowed opacity-50",
+        className,
       )}
     >
       <input
@@ -348,12 +433,10 @@ export function CheckboxField({
         className="mt-0.5 size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
       />
       <span className="min-w-0">
-        <span className={cn("deva block text-text-1", T.label)}>
-          <Bi en={labelEn} hi={labelHi} />
-        </span>
+        <span className={cn("block text-text-1", T.label)}>{labelEn}</span>
         {descriptionEn ? (
-          <span className={cn("deva mt-0.5 block text-text-3", T.caption)}>
-            <Bi en={descriptionEn} hi={descriptionHi} />
+          <span className={cn("mt-0.5 block text-text-3", T.caption)}>
+            {descriptionEn}
           </span>
         ) : null}
       </span>
@@ -384,7 +467,7 @@ export function FormAlert({
     <div
       role={role}
       className={cn(
-        "deva rounded-field border px-3 py-2",
+        "flex items-start gap-2 rounded-field border px-3 py-2",
         T.bodySm,
         tone === "error"
           ? "border-status-red/30 bg-status-red-dim text-status-red"

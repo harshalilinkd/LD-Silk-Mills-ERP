@@ -1,9 +1,8 @@
 import type { ComponentType, ReactNode } from "react";
 
 // `title`/`description` are ReactNode rather than string so a caller can pass
-// a bilingual label — Help Slip renders "You're all clear. (सब ठीक है।)" as an
-// English string with a smaller Devanagari gloss inside it, which is a node,
-// not a string. Widening is backwards-compatible: every existing caller passes
+// marked-up content — an emphasised fragment, an inline link — and not only a
+// plain string. Widening is backwards-compatible: every existing caller passes
 // a string, and a string is a ReactNode.
 export function EmptyState({
   icon: Icon,

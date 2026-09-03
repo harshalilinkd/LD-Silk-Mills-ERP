@@ -169,18 +169,23 @@ export function TrendChart({
   const peak = Math.max(1, ...series.flatMap((s) => s.values));
   const empty = series.every((s) => s.values.every((v) => v === 0));
 
-  const x = (i: number) => PAD_X + (i / Math.max(1, count - 1)) * (W - PAD_X * 2);
-  const y = (v: number) => PAD_T + (1 - v / (peak * 1.15)) * (H - PAD_T - PAD_B);
+  const x = (i: number) =>
+    PAD_X + (i / Math.max(1, count - 1)) * (W - PAD_X * 2);
+  const y = (v: number) =>
+    PAD_T + (1 - v / (peak * 1.15)) * (H - PAD_T - PAD_B);
 
   if (empty || count === 0) {
+    // The ERP's own "no rows in this range" block (order-entry/dashboard/
+    // charts.tsx): a centred line at the plot's height, on the panel's own
+    // ground. A tinted well here would read as a second card inside the card.
     return (
       <div
         className={cn(
-          "flex h-44 items-center justify-center rounded-field bg-surface-2 px-4 text-center",
+          "grid h-44 place-items-center px-4 text-center text-[12.5px] text-text-3",
           className,
         )}
       >
-        <p className="deva text-[13px] text-text-3">{emptyLabel}</p>
+        {emptyLabel}
       </div>
     );
   }
@@ -196,19 +201,18 @@ export function TrendChart({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {/* A legend, always, for two series. Colour is never the only thing
-          carrying identity. */}
-      <div className="flex flex-wrap items-center gap-4">
+          carrying identity. Same recipe as the Order Entry dashboard's donut
+          legend: a 10px dot, a 12px muted name. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
         {series.map((s) => (
-          <span key={s.key} className="flex items-center gap-2">
+          <span key={s.key} className="inline-flex items-center gap-1.5">
             <span
               aria-hidden
               className="size-2.5 shrink-0 rounded-full"
               style={{ background: `var(${s.ink})` }}
             />
             {/* Text wears text tokens, never the series colour. */}
-            <span className="deva text-[11px] font-medium text-text-2">
-              {s.label}
-            </span>
+            <span className="text-text-3">{s.label}</span>
           </span>
         ))}
       </div>
@@ -224,10 +228,7 @@ export function TrendChart({
             const box = event.currentTarget.getBoundingClientRect();
             const ratio = (event.clientX - box.left) / Math.max(1, box.width);
             setActive(
-              Math.min(
-                count - 1,
-                Math.max(0, Math.round(ratio * (count - 1))),
-              ),
+              Math.min(count - 1, Math.max(0, Math.round(ratio * (count - 1)))),
             );
           }}
           onPointerLeave={() => setActive(null)}
@@ -258,7 +259,8 @@ export function TrendChart({
 
           {/* Recessive grid. Three lines, no axis box, no tick labels — the
               tooltip carries the numbers, so the grid only has to give the eye
-              a horizon. */}
+              a horizon. Dashed and horizontal-only, which is exactly what the
+              Order Entry dashboard's `CartesianGrid` draws. */}
           {[0, 0.5, 1].map((f) => (
             <line
               key={f}
@@ -268,6 +270,7 @@ export function TrendChart({
               y2={PAD_T + f * (H - PAD_T - PAD_B)}
               stroke="var(--border)"
               strokeWidth={1}
+              strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
           ))}
@@ -321,26 +324,25 @@ export function TrendChart({
         {active !== null ? (
           <div
             aria-hidden
-            // The shadow is PAIRED, not a single dark-theme value: 40% black
-            // is the mockup's dark-canvas drop shadow and smears on the light
-            // one. Same treatment as order-form.tsx's sticky bar.
-            className="pointer-events-none absolute top-0 z-20 w-max max-w-48 -translate-x-1/2 rounded-card border border-border-strong bg-surface-2 px-2.5 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.10)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+            // The ERP's chart tooltip, verbatim from
+            // order-entry/dashboard/charts.tsx: a surface card on the hairline
+            // border at 12px, with Tailwind's own `shadow-md` — an alpha-black
+            // shadow that resolves on both themes without a per-theme value.
+            className="pointer-events-none absolute top-0 z-20 w-max max-w-48 -translate-x-1/2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] shadow-md"
             style={{ left: `${(active / Math.max(1, count - 1)) * 100}%` }}
           >
-            <p className="num text-[11px] text-text-3">
+            <p className="num mb-0.5 font-semibold text-text-1">
               {labels[active]}
             </p>
             {series.map((s) => (
-              <p
-                key={s.key}
-                className="deva flex items-center gap-2 text-[13px] text-text-1"
-              >
+              <p key={s.key} className="flex items-center gap-2 text-text-2">
                 <span
+                  aria-hidden
                   className="size-2 shrink-0 rounded-full"
                   style={{ background: `var(${s.ink})` }}
                 />
                 {s.label}
-                <span className="num ml-auto font-semibold">
+                <span className="num ml-auto font-semibold text-text-1">
                   {s.values[active] ?? 0}
                 </span>
               </p>
@@ -352,12 +354,8 @@ export function TrendChart({
       {/* The ends of the window, so the plot is anchored in time without an
           axis full of dates nobody reads. */}
       <div className="flex justify-between">
-        <span className="num text-[11px] text-text-3">
-          {labels[0]}
-        </span>
-        <span className="num text-[11px] text-text-3">
-          {labels[count - 1]}
-        </span>
+        <span className="num text-[11px] text-text-3">{labels[0]}</span>
+        <span className="num text-[11px] text-text-3">{labels[count - 1]}</span>
       </div>
     </div>
   );
@@ -407,14 +405,15 @@ export function BarList({
   className?: string;
 }) {
   if (items.length === 0) {
+    // Same block as TrendChart's, one step shorter — see the note there.
     return (
       <div
         className={cn(
-          "flex h-32 items-center justify-center rounded-field bg-surface-2 px-4 text-center",
+          "grid h-32 place-items-center px-4 text-center text-[12.5px] text-text-3",
           className,
         )}
       >
-        <p className="deva text-[13px] text-text-3">{emptyLabel}</p>
+        {emptyLabel}
       </div>
     );
   }
@@ -425,11 +424,12 @@ export function BarList({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {anyAlert ? (
-        <span className="flex items-center gap-2">
-          <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-status-red" />
-          <span className="deva text-[11px] font-medium text-text-2">
-            {alertLabel}
-          </span>
+        <span className="inline-flex items-center gap-1.5 text-[12px]">
+          <span
+            aria-hidden
+            className="size-2.5 shrink-0 rounded-full bg-status-red"
+          />
+          <span className="text-text-3">{alertLabel}</span>
         </span>
       ) : null}
 
@@ -440,12 +440,14 @@ export function BarList({
           return (
             <li key={item.key} className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="deva min-w-0 truncate text-[13px] text-text-1">
+                <span className="min-w-0 truncate text-[13px] text-text-1">
                   {item.label}
                 </span>
-                <span className="num shrink-0 text-[13px] font-semibold text-text-1">
+                {/* The figure is `.num` and hard right — a magnitude column
+                    that is not tabular and not aligned is off-system. */}
+                <span className="num shrink-0 text-right text-[13px] font-semibold text-text-1">
                   {item.value}
-                  <span className="deva ml-1 text-[13px] font-normal text-text-3">
+                  <span className="ml-1 text-[12px] font-normal text-text-3">
                     {unitLabel}
                   </span>
                 </span>
