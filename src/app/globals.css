@@ -369,6 +369,96 @@
   animation: ld-orbit 40s linear infinite;
 }
 
+/* ---------------------------------------------------------------------------
+ * THE LOGIN SCREEN'S TEXTILE MOTION — all four below say one thing: light is
+ * moving across cloth. They exist because a still photograph of silk reads as
+ * wallpaper, and the brief was for it to read as REAL FABRIC.
+ *
+ * Every duration here is deliberately long. The failure mode of "eye-catching"
+ * on a sign-in screen is a page that fidgets while somebody is trying to type
+ * their password, so nothing here ever competes with the form: the two
+ * continuous effects are on the photograph, behind a scrim, at single-digit
+ * opacity.
+ * ------------------------------------------------------------------------ */
+
+/* ld-drape — the slow breath of the cloth itself.
+ *
+ * A 70s Ken Burns: 1.00 -> 1.055 with a hair of pan. `alternate` rather than a
+ * loop, because a scale that snaps back to 1.0 at the seam is a visible jolt.
+ * Under 3% of scale per 30 seconds is below the threshold where the eye reads
+ * it as movement — you perceive the scene as alive without catching it. */
+@keyframes ld-drape {
+  from {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.055) translate3d(-1.1%, -0.7%, 0);
+  }
+}
+
+@utility ld-drape {
+  animation: ld-drape 70s ease-in-out infinite alternate;
+}
+
+/* ld-sheen — light travelling across silk. The signature of the material.
+ *
+ * A wide, very soft band crossing on the diagonal. The long 0%-to-38% dead
+ * zone is the point: it passes, then the cloth is still for about nine
+ * seconds. A sheen on a short loop stops being light and becomes a scanner. */
+@keyframes ld-sheen {
+  0%,
+  38% {
+    transform: translate3d(-130%, 0, 0);
+  }
+  72%,
+  100% {
+    transform: translate3d(130%, 0, 0);
+  }
+}
+
+@utility ld-sheen {
+  animation: ld-sheen 15s cubic-bezier(0.4, 0, 0.25, 1) infinite;
+}
+
+/* ld-thread — the accent rule under the headline, drawn rather than revealed.
+ *
+ * It is a thread being laid down. Scales from the left origin, so it grows
+ * from the margin the way the headline reads. */
+@keyframes ld-thread {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility ld-thread {
+  transform-origin: left center;
+  animation: ld-thread 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ld-reveal-delay, 0ms);
+}
+
+/* ld-settle — the card coming to rest ON the cloth.
+ *
+ * Lands from slightly up and slightly large with its shadow tightening, the
+ * way a card of stock set down on fabric settles. One motion, 0.7s, once. */
+@keyframes ld-settle {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility ld-settle {
+  animation: ld-settle 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ld-reveal-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ld-reveal {
     animation: none;
@@ -378,5 +468,25 @@
   /* Stopped, not hidden — the ring is part of the mark, not decoration on it. */
   .ld-orbit {
     animation: none;
+  }
+  /* The drape and the sheen are the two CONTINUOUS effects, and continuous
+     motion is exactly what this media query exists to stop. The photograph
+     still shows; it simply holds still. */
+  .ld-drape {
+    animation: none;
+  }
+  .ld-sheen {
+    animation: none;
+    opacity: 0;
+  }
+  /* Drawn and settled both end in their finished state, so they just skip. */
+  .ld-thread {
+    animation: none;
+    transform: none;
+  }
+  .ld-settle {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

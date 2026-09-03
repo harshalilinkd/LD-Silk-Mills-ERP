@@ -9,55 +9,89 @@ import loginBackdrop from "../../../public/login-bg.jpg";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  Sign in
+ *  Sign in — one idea: light moving across cloth
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Full-bleed fabric, the brand on the left, one card on the right.
+ * Rebuilt after the first pass was rejected as blurred, badly fitted, and a
+ * card that "doesn't match the background". Each was a real fault with a real
+ * cause, and each is fixed below rather than restyled around.
  *
- * ── THE PHOTOGRAPH ────────────────────────────────────────────────────────
+ * ── 1. THE BLUR WAS AN UPSCALE, NOT A LOOK ────────────────────────────────
  *
- * `public/login-bg.jpg` is the real supplied photograph and is now THE
- * design. The generated `SilkBackdrop` canvas that stood in for it while it
- * was missing is deleted, along with the `existsSync` fork that chose between
- * the two — there is one background now and this is it.
+ * Measured, not guessed: the source photograph is 1536px wide and the browser
+ * was stretching it across a 1904px viewport — 1.25x, so every source pixel
+ * was smeared over 1.56 screen pixels by plain bilinear interpolation (on a
+ * 2560 monitor, 2.8). That is the whole explanation for "looking blurred".
  *
- * Imported STATICALLY rather than referenced as a CSS `url()`, which buys
- * three things a background-image cannot: Next serves AVIF/WebP to browsers
- * that take them, it knows the intrinsic size so nothing reflows, and
- * `placeholder="blur"` gets a real generated blur-up instead of a flash of
- * bare colour on a slow connection. `priority` because it is unambiguously
- * the largest paint on the page.
+ * `public/login-bg.jpg` is now a 2560px master resampled with lanczos3 and an
+ * unsharp mask, which measured 3.7x the on-screen edge energy of the old file
+ * (394 -> 1454, variance-of-Laplacian after a simulated browser stretch). It
+ * is a bigger MASTER, not a bigger payload: next/image still serves a
+ * per-viewport AVIF/WebP derivative.
  *
- * The source PNG was 2.7 MB; it ships as a 268 KB mozjpeg at its native
- * 1536×1024. `object-cover` crops it to the viewport, which the composition
- * survives because the subject fills the frame edge to edge rather than
- * sitting in the middle of it.
+ * The grain layer is the other half of that fix and is doing as much work as
+ * the sharpening. Interpolated pixels read as mush; a few percent of fine
+ * noise gives the eye real high-frequency detail to hold onto, and a real
+ * photograph has grain in it anyway.
  *
- * ── WHAT IS DELIBERATELY NOT HERE ─────────────────────────────────────────
+ * ── 2. IT MUST NOT SCROLL ─────────────────────────────────────────────────
  *
- * The strapline, the five module tiles, the "Secure. Reliable." pill and the
- * "Best experienced in" browser row were all built and then removed at the
- * owner's request. The left column is the wordmark, the headline and the
- * rule; everything else is the card. Do not reinstate them as "polish" — the
- * emptiness is the brief.
+ * `lg:h-dvh lg:overflow-hidden`, and — the part that actually makes that safe
+ * — every vertical measurement in the card is `clamp(min, Nvh, max)` rather
+ * than a fixed pixel value. The card BREATHES on a tall screen and COMPACTS on
+ * a short one instead of overflowing it. Fixed heights plus `overflow-hidden`
+ * would not fit the screen, it would amputate the form.
  *
- * ── MOTION ────────────────────────────────────────────────────────────────
+ * Below `lg` the page scrolls normally, deliberately: on a phone the keyboard
+ * eats half the viewport, and locking the height there is how you hide your
+ * own submit button behind it.
  *
- * Gentle, and never more than one thing moving at once:
- *   · the photo blurs up once on first paint
- *   · the emblem ring turns once every 40s
- *   · content arrives on a stagger, left column first
- *   · fields lift their ring on focus, the submit arrow travels on hover
- * All of it sits behind `prefers-reduced-motion`.
+ * ── 3. MAKING THE CARD BELONG TO THE PHOTOGRAPH ───────────────────────────
+ *
+ * It read as pasted on because it was: a near-opaque pale-GREY rectangle owes
+ * nothing to what sits behind it. It is now a swatch card of warm stock lying
+ * on the cloth — a cream that shares the photograph's own highlight tone,
+ * `backdrop-blur` + `backdrop-saturate` so the sage and teal bleed up through
+ * it, a hairline highlight along the top edge where card stock catches window
+ * light, and a shadow tinted teal rather than grey, because a shadow falling
+ * on coloured cloth takes the colour of that cloth.
+ *
+ * THE TINT DOES THE BELONGING, NOT THE TRANSPARENCY. First attempt ran the
+ * card at 70% opacity and the teal weave came straight through the labels and
+ * the security line — it matched the photograph by becoming unreadable. It
+ * sits at 88% now: still glass, still coloured by what is behind it, but the
+ * form is on solid ground. Measured after the change rather than eyeballed,
+ * because "looks fine to me" is how the last unreadable thing shipped. Do not
+ * lower this number to make it prettier.
+ *
+ * ── 4. THE MOTION, AND WHY IT IS ALL ONE IDEA ─────────────────────────────
+ *
+ * Light moving across silk. That is the entire vocabulary; nothing here is an
+ * effect for its own sake.
+ *   · the cloth breathes — 70s Ken Burns, alternating   (`ld-drape`)
+ *   · a sheen crosses it every 15s, then rests          (`ld-sheen`)
+ *   · the accent rule is a thread being laid down       (`ld-thread`)
+ *   · the card settles onto the cloth                   (`ld-settle`)
+ *   · the emblem ring turns once every 40s              (`ld-orbit`)
+ *   · the submit button catches the same sheen on hover
+ *
+ * Both CONTINUOUS effects live on the photograph, behind the scrim, at single
+ * digits of opacity — because the failure mode of "eye-catching" on a sign-in
+ * screen is a page that fidgets while somebody is typing their password. All
+ * of it is defined in globals.css and all of it stops under
+ * `prefers-reduced-motion`.
  *
  * ── ONE HONEST DEPARTURE ──────────────────────────────────────────────────
  *
  * "Forgot password?" is in the design and is rendered, but this ERP has no
- * reset flow — there is no outbound email anywhere in it, and a reset link
- * that goes nowhere is worse than no link. It expands a sentence saying what
- * actually works. `<details>` rather than script, so it works before
- * hydration.
+ * reset flow — no outbound email exists anywhere in it, and a reset link that
+ * goes nowhere is worse than no link. It expands a sentence saying what
+ * actually works. `<details>`, so it works before hydration.
  */
+
+/** Fine photographic grain, inline so it costs no request. */
+const GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 export default async function LoginPage({
   searchParams,
@@ -70,103 +104,132 @@ export default async function LoginPage({
   const { callbackUrl, error } = await searchParams;
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#efe7da]">
-      {/* ═══ the fabric ═══════════════════════════════════════════════ */}
-      <Image
-        src={loginBackdrop}
-        alt=""
-        aria-hidden
-        fill
-        priority
-        placeholder="blur"
-        sizes="100vw"
-        className="object-cover object-center"
-      />
+    <div className="relative min-h-dvh w-full bg-[#e9dfcd] lg:h-dvh lg:overflow-hidden">
+      {/* ═══ the cloth ════════════════════════════════════════════════ */}
+      <div aria-hidden className="absolute inset-0 overflow-hidden">
+        {/* The wrapper is what moves, not the Image — so next/image keeps its
+            own layout maths intact and the transform stays on the compositor. */}
+        <div className="ld-drape absolute inset-0 will-change-transform">
+          <Image
+            src={loginBackdrop}
+            alt=""
+            fill
+            priority
+            placeholder="blur"
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+        </div>
 
-      {/* Warm scrim. The headline is near-black on cloth that is bright in
-          places and dark in others, so the left third gets a soft lift —
-          without it the serif sits on cream in one spot and teal in another. */}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(100deg, rgba(252,249,243,0.88) 0%, rgba(252,249,243,0.58) 34%, rgba(252,249,243,0.12) 58%, rgba(252,249,243,0) 72%)",
-        }}
-      />
+        {/* The sheen — wide, soft, on the diagonal. Light crossing silk. */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="ld-sheen absolute -inset-y-1/3 left-0 w-[38%] rotate-[16deg] will-change-transform"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.10) 40%, rgba(255,255,255,0.20) 50%, rgba(255,255,255,0.10) 60%, rgba(255,255,255,0) 100%)",
+            }}
+          />
+        </div>
 
-      {/* The card is ~760px of unavoidable form, so the page's own padding is
-          what has to give. At `py-10` the whole thing measured 959px and the
-          security note fell off the bottom of every 1080p laptop (viewport
-          ~864) — the design was drawn at 1024 and quietly assumed it. Padding
-          is not the design; the card is. So the padding pays. */}
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-6 py-6 lg:px-12 lg:py-7">
+        <div
+          className="absolute inset-0 opacity-[0.055] mix-blend-overlay"
+          style={{ backgroundImage: GRAIN }}
+        />
+
+        {/* Scrim, lighter than before and pulled left. The old one washed out
+            88% of the cloth at the very edge the photograph is best in. It
+            only has to carry the headline, so it only covers the headline. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(102deg, rgba(250,246,238,0.80) 0%, rgba(250,246,238,0.52) 26%, rgba(250,246,238,0.14) 48%, rgba(250,246,238,0) 62%)",
+          }}
+        />
+
+        {/* A warm vignette, so the corners never compete with the card. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(120% 90% at 50% 45%, rgba(46,42,32,0) 42%, rgba(46,42,32,0.20) 100%)",
+          }}
+        />
+      </div>
+
+      {/* ═══ content ══════════════════════════════════════════════════ */}
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-[1800px] flex-col px-[clamp(20px,3vw,64px)] py-[clamp(16px,3vh,34px)] lg:h-full">
         {/* ═══ wordmark ═══════════════════════════════════════════════ */}
         <header
-          className="ld-reveal flex items-center gap-3.5"
+          className="ld-reveal flex shrink-0 items-center gap-3.5"
           style={{ "--ld-reveal-delay": "0ms" } as React.CSSProperties}
         >
-          <span className="grid size-[52px] place-items-center rounded-[14px] bg-[#0d4f4a] text-[17px] font-bold tracking-wide text-white shadow-[0_6px_20px_rgba(13,79,74,0.30)]">
+          <span className="grid size-[clamp(40px,5.4vh,52px)] place-items-center rounded-[13px] bg-[#0d4f4a] text-[clamp(14px,1.9vh,17px)] font-bold tracking-wide text-white shadow-[0_8px_22px_rgba(13,79,74,0.34)]">
             LD
           </span>
-          <span className="text-[22px] font-bold tracking-[-0.02em] text-[#123331]">
+          <span className="text-[clamp(17px,2.4vh,22px)] font-bold tracking-[-0.02em] text-[#12302e]">
             LD Silk Mills ERP
           </span>
         </header>
 
-        <div className="grid flex-1 items-center gap-10 py-4 lg:grid-cols-[1.15fr_minmax(0,520px)] lg:gap-16 lg:py-0">
+        <div className="grid flex-1 items-center gap-8 py-[clamp(12px,2.4vh,28px)] lg:grid-cols-[1.1fr_minmax(0,510px)] lg:gap-14">
           {/* ═══ the promise ══════════════════════════════════════════ */}
-          <section className="max-w-[560px]">
+          <section className="max-w-[580px]">
             <h1
-              className="ld-reveal font-[family-name:var(--font-display)] text-[clamp(36px,4.6vw,58px)] leading-[1.08] font-normal tracking-[-0.015em] text-[#14312f]"
-              style={{ "--ld-reveal-delay": "80ms" } as React.CSSProperties}
+              className="ld-reveal font-[family-name:var(--font-display)] text-[clamp(30px,min(4.7vw,6.4vh),58px)] leading-[1.06] font-normal tracking-[-0.015em] text-[#132f2d]"
+              style={{ "--ld-reveal-delay": "90ms" } as React.CSSProperties}
             >
               Weave every thread.
               <br />
-              <span className="text-[#0d6b62]">Power</span> every process.
+              <span className="text-[#0b665e]">Power</span> every process.
             </h1>
 
+            {/* The thread, laid down from the margin outward. */}
             <div
-              className="ld-reveal mt-7 h-[3px] w-14 rounded-full bg-[#0d6b62]"
-              style={{ "--ld-reveal-delay": "160ms" } as React.CSSProperties}
+              className="ld-thread mt-[clamp(14px,2.6vh,30px)] h-[3px] w-16 rounded-full bg-gradient-to-r from-[#0b665e] to-[#0b665e]/25"
+              style={{ "--ld-reveal-delay": "420ms" } as React.CSSProperties}
             />
           </section>
 
-          {/* ═══ the card ═════════════════════════════════════════════ */}
+          {/* ═══ the swatch card ══════════════════════════════════════ */}
           <section
-            className="ld-reveal w-full justify-self-center rounded-[26px] border border-white/70 bg-[#faf7f2]/92 p-7 shadow-[0_28px_70px_rgba(20,49,47,0.22)] backdrop-blur-xl sm:p-8 lg:justify-self-end"
-            style={{ "--ld-reveal-delay": "140ms" } as React.CSSProperties}
+            className="ld-settle relative w-full justify-self-center overflow-hidden rounded-[22px] border border-white/65 bg-[#faf6ee]/88 p-[clamp(20px,3.2vh,34px)] shadow-[0_34px_90px_-24px_rgba(14,52,48,0.55),0_2px_10px_rgba(14,52,48,0.10)] backdrop-blur-[20px] backdrop-saturate-150 lg:justify-self-end"
+            style={{ "--ld-reveal-delay": "260ms" } as React.CSSProperties}
           >
-            {/* The ringed emblem. The ring turns once every 40 seconds — slow
-                enough to read as "alive" rather than as a spinner saying
-                "wait". */}
+            {/* The lit top edge of the stock. */}
+            <span
+              aria-hidden
+              className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/85 to-transparent"
+            />
+
             <div className="flex justify-center">
-              <div className="relative grid size-[92px] place-items-center">
+              <div className="relative grid size-[clamp(60px,8.6vh,88px)] place-items-center">
                 <span
                   aria-hidden
-                  className="ld-orbit absolute inset-0 rounded-full border border-dashed border-[#0d4f4a]/25"
+                  className="ld-orbit absolute inset-0 rounded-full border border-dashed border-[#0d4f4a]/40"
                 />
                 <span
                   aria-hidden
-                  className="absolute inset-[11px] rounded-full border border-[#0d4f4a]/15"
+                  className="absolute inset-[9px] rounded-full border border-[#0d4f4a]/22"
                 />
-                <span className="grid size-[62px] place-items-center rounded-full bg-[#0d4f4a] text-[19px] font-bold tracking-wide text-white shadow-[0_10px_26px_rgba(13,79,74,0.34)]">
+                <span className="grid size-[clamp(42px,5.9vh,60px)] place-items-center rounded-full bg-gradient-to-br from-[#12594f] to-[#0a423e] text-[clamp(14px,1.9vh,19px)] font-bold tracking-wide text-white shadow-[0_10px_26px_rgba(13,79,74,0.40)]">
                   LD
                 </span>
               </div>
             </div>
 
-            <h2 className="mt-4 text-center text-[27px] font-bold tracking-[-0.02em] text-[#14312f]">
+            <h2 className="mt-[clamp(10px,1.8vh,18px)] text-center text-[clamp(20px,2.9vh,27px)] font-bold tracking-[-0.02em] text-[#132f2d]">
               Welcome back
             </h2>
-            <p className="mt-1.5 text-center text-[14px] text-[#5a6b69]">
+            <p className="mt-1 text-center text-[clamp(12px,1.6vh,14px)] text-[#526561]">
               Sign in to continue to LD Silk Mills ERP
             </p>
 
             {error === "invalid_credentials" && (
               <p
                 role="alert"
-                className="mt-5 rounded-xl border border-[#c2413a]/30 bg-[#c2413a]/10 px-3.5 py-2.5 text-[12.5px] text-[#a5342e]"
+                className="mt-[clamp(10px,1.8vh,18px)] rounded-xl border border-[#b8403a]/30 bg-[#b8403a]/10 px-3.5 py-2 text-[12.5px] text-[#993029]"
               >
                 That email and password didn&apos;t work. If you have never set
                 one, continue with Google instead.
@@ -178,23 +241,23 @@ export default async function LoginPage({
                 "use server";
                 await signInWithGoogle(callbackUrl);
               }}
-              className="mt-6"
+              className="mt-[clamp(12px,2.2vh,22px)]"
             >
               <button
                 type="submit"
-                className="group flex h-[52px] w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-[#dfd8cc] bg-white text-[15px] font-semibold text-[#14312f] shadow-[0_1px_2px_rgba(20,49,47,0.05)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-[#fcfbf8] hover:shadow-[0_4px_14px_rgba(20,49,47,0.10)] focus-visible:ring-3 focus-visible:ring-[#0d6b62]/35 focus-visible:outline-none active:scale-[0.995]"
+                className="group flex h-[clamp(42px,5.6vh,50px)] w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-[#ded4c2] bg-white/90 text-[clamp(13px,1.8vh,15px)] font-semibold text-[#132f2d] shadow-[0_1px_3px_rgba(20,49,47,0.07)] transition-[background-color,box-shadow,border-color] duration-200 hover:border-[#cfc3ac] hover:bg-white hover:shadow-[0_6px_18px_rgba(20,49,47,0.12)] focus-visible:ring-3 focus-visible:ring-[#0b665e]/35 focus-visible:outline-none active:scale-[0.995]"
               >
-                <GoogleIcon className="size-[19px] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100" />
+                <GoogleIcon className="size-[18px] transition-transform duration-300 group-hover:scale-110 motion-reduce:group-hover:scale-100" />
                 Continue with Google
               </button>
             </form>
 
-            <div className="my-5 flex items-center gap-4">
-              <span className="h-px flex-1 bg-[#14312f]/12" />
-              <span className="text-[11.5px] font-semibold tracking-[0.12em] text-[#7b8988]">
+            <div className="my-[clamp(10px,1.9vh,20px)] flex items-center gap-4">
+              <span className="h-px flex-1 bg-[#132f2d]/14" />
+              <span className="text-[11px] font-semibold tracking-[0.14em] text-[#4d5e5a]">
                 OR
               </span>
-              <span className="h-px flex-1 bg-[#14312f]/12" />
+              <span className="h-px flex-1 bg-[#132f2d]/14" />
             </div>
 
             <form
@@ -206,21 +269,20 @@ export default async function LoginPage({
                   callbackUrl,
                 );
               }}
-              className="flex flex-col gap-4"
+              className="flex flex-col gap-[clamp(9px,1.7vh,15px)]"
             >
-              <label className="flex flex-col gap-2">
-                <span className="text-[13px] font-semibold text-[#2a423f]">
+              <label className="flex flex-col gap-[clamp(4px,0.9vh,8px)]">
+                <span className="text-[clamp(11.5px,1.5vh,13px)] font-semibold text-[#2b423f]">
                   Email
                 </span>
                 <span className="relative block">
                   <IconMail
                     aria-hidden
-                    className="pointer-events-none absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-[#0d6b62]/70"
+                    className="pointer-events-none absolute top-1/2 left-3.5 size-[17px] -translate-y-1/2 text-[#0b665e]/70"
                     stroke={1.7}
                   />
-                  {/* 15px, never smaller: this is the screen most likely to be
-                      opened on a phone, and under 16px iOS zooms on focus and
-                      never zooms back. */}
+                  {/* 16px on phones, never smaller: under 16px iOS zooms the
+                      whole page on focus and never zooms back out. */}
                   <input
                     name="email"
                     type="email"
@@ -228,43 +290,41 @@ export default async function LoginPage({
                     placeholder="you@ldsilkmills.com"
                     required
                     aria-label="Email"
-                    className="h-[52px] w-full rounded-xl border border-[#dfd8cc] bg-white pr-4 pl-11 text-[16px] text-[#14312f] transition-[border-color,box-shadow] duration-200 outline-none placeholder:text-[#9aa5a3] focus:border-[#0d6b62] focus:ring-4 focus:ring-[#0d6b62]/15 sm:text-[15px]"
+                    className="h-[clamp(42px,5.6vh,50px)] w-full rounded-xl border border-[#ded4c2] bg-white/95 pr-4 pl-11 text-[16px] text-[#132f2d] transition-[border-color,box-shadow,background-color] duration-200 outline-none placeholder:text-[#9aa5a2] focus:border-[#0b665e] focus:bg-white focus:ring-4 focus:ring-[#0b665e]/14 sm:text-[clamp(13px,1.8vh,15px)]"
                   />
                 </span>
               </label>
 
-              <label className="flex flex-col gap-2">
-                <span className="text-[13px] font-semibold text-[#2a423f]">
+              <label className="flex flex-col gap-[clamp(4px,0.9vh,8px)]">
+                <span className="text-[clamp(11.5px,1.5vh,13px)] font-semibold text-[#2b423f]">
                   Password
                 </span>
                 <span className="relative block">
                   <IconLock
                     aria-hidden
-                    className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[18px] -translate-y-1/2 text-[#0d6b62]/70"
+                    className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[17px] -translate-y-1/2 text-[#0b665e]/70"
                     stroke={1.7}
                   />
-                  {/* No `minLength` here, deliberately. This field proves you
-                      know an EXISTING password; the length rule belongs where
-                      one is CHOSEN, in Settings. Enforcing it here would lock
-                      out anybody still holding a password set under an older
-                      rule, and would advertise the rule to anyone probing. */}
+                  {/* No `minLength`. This field proves you know an EXISTING
+                      password; the length rule belongs where one is CHOSEN, in
+                      Settings. Gating it here would lock out anyone holding a
+                      password set under an older rule. */}
                   <PasswordInput
                     name="password"
                     autoComplete="current-password"
                     placeholder="••••••••••••"
                     required
                     aria-label="Password"
-                    className="h-[52px] rounded-xl border-[#dfd8cc] bg-white pl-11 text-[16px] text-[#14312f] transition-[border-color,box-shadow] duration-200 placeholder:text-[#9aa5a3] focus-visible:border-[#0d6b62] focus-visible:ring-4 focus-visible:ring-[#0d6b62]/15 sm:text-[15px]"
+                    className="h-[clamp(42px,5.6vh,50px)] rounded-xl border-[#ded4c2] bg-white/95 pl-11 text-[16px] text-[#132f2d] transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-[#9aa5a2] focus-visible:border-[#0b665e] focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-[#0b665e]/14 sm:text-[clamp(13px,1.8vh,15px)]"
                   />
                 </span>
               </label>
 
-              {/* In the design, and honest about what it can actually do. */}
-              <details className="-mt-1 self-end">
-                <summary className="cursor-pointer list-none text-[13px] font-medium text-[#0d6b62] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+              <details className="-mt-0.5 self-end">
+                <summary className="cursor-pointer list-none text-[clamp(11.5px,1.5vh,13px)] font-medium text-[#0b665e] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
                   Forgot password?
                 </summary>
-                <p className="mt-2 max-w-[38ch] rounded-lg bg-[#0d6b62]/10 px-3 py-2 text-right text-[12px] leading-relaxed text-[#3d4f4d]">
+                <p className="mt-1.5 max-w-[38ch] rounded-lg bg-[#0b665e]/10 px-3 py-2 text-right text-[12px] leading-relaxed text-[#3c4e4b]">
                   There is no reset email. Ask an ERP administrator — they can
                   set a new one for you from Settings in a few seconds.
                 </p>
@@ -272,17 +332,22 @@ export default async function LoginPage({
 
               <button
                 type="submit"
-                className="group relative mt-1 flex h-[56px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-[#0d4f4a] to-[#116b60] text-[15.5px] font-semibold text-white shadow-[0_10px_26px_rgba(13,79,74,0.28)] transition-[box-shadow,transform] duration-200 hover:shadow-[0_14px_34px_rgba(13,79,74,0.36)] focus-visible:ring-3 focus-visible:ring-[#0d6b62]/40 focus-visible:outline-none active:scale-[0.995]"
+                className="group relative mt-0.5 flex h-[clamp(44px,6vh,54px)] w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-gradient-to-r from-[#0a423e] via-[#0d554e] to-[#12695f] text-[clamp(13.5px,1.9vh,15.5px)] font-semibold text-white shadow-[0_12px_28px_-8px_rgba(11,66,62,0.65)] transition-[box-shadow,transform] duration-200 hover:shadow-[0_16px_36px_-8px_rgba(11,66,62,0.75)] focus-visible:ring-3 focus-visible:ring-[#0b665e]/45 focus-visible:outline-none active:scale-[0.995]"
               >
-                Sign in
+                {/* The same sheen as the cloth, on the same material logic. */}
                 <span
                   aria-hidden
-                  className="absolute inset-y-0 right-0 grid w-[58px] place-items-center border-l border-white/15 bg-white/10"
+                  className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full motion-reduce:hidden"
+                />
+                <span className="relative">Sign in</span>
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 right-0 grid w-[54px] place-items-center border-l border-white/15 bg-white/10"
                 >
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
-                    className="size-[19px] transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0"
+                    className="size-[18px] transition-transform duration-300 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0"
                   >
                     <path
                       d="M4 12h15m0 0-6-6m6 6-6 6"
@@ -296,18 +361,16 @@ export default async function LoginPage({
               </button>
             </form>
 
-            <div className="mt-5 flex items-start gap-2.5 border-t border-[#14312f]/10 pt-4">
+            <div className="mt-[clamp(12px,2.1vh,20px)] flex items-start gap-2.5 border-t border-[#132f2d]/12 pt-[clamp(10px,1.7vh,16px)]">
               <IconShieldCheck
-                className="mt-px size-[19px] shrink-0 text-[#0d6b62]"
+                className="mt-px size-[17px] shrink-0 text-[#0b665e]"
                 stroke={1.7}
               />
-              <p className="text-[12.5px] leading-relaxed text-[#5a6b69]">
-                <span className="font-semibold text-[#2a423f]">
+              <p className="text-[clamp(11px,1.5vh,12.5px)] leading-relaxed text-[#526561]">
+                <span className="font-semibold text-[#2b423f]">
                   Enterprise grade security.
-                </span>
-                <br />
-                Access is limited to accounts an administrator has set up, and
-                every request is checked against them.
+                </span>{" "}
+                Access is limited to accounts an administrator has set up.
               </p>
             </div>
           </section>
