@@ -17,16 +17,20 @@ or spacing scales without updating this file first.
 
 ## Text colour — the rule every module follows
 
-**Body text is BLACK on light and WHITE on dark.** Not "a dark ramp" — black.
-Both `--text-1` and `--text-2` are `#000000` / `#ffffff`. Hierarchy is carried
-by **weight and size**, never by fading the colour.
+**`--text-1` and `--text-2` are the same colour.** Hierarchy is carried by
+**weight and size**, never by fading the colour.
+
+On LIGHT that colour is pure black. On DARK it is a soft near-white, NOT pure
+white — see § Dark, rule 2: `#ffffff` on a dark ground halates, and the glare
+reads as blur. The two sides are not mirror images and should not be made into
+them.
 
 | | `--text-1` | `--text-2` | `--text-3` | `--text-placeholder` |
 |---|---|---|---|---|
 | Light | `#000000` | `#000000` | `#3f4650` | `#6a707c` |
-| Dark | `#ffffff` | `#ffffff` | `#c4ccd8` | `#8b93a1` |
+| Dark | `#e7ecee` | `#e7ecee` | `#9ca9b0` | `#838f96` |
 | Contrast on white | 21.0 : 1 | 21.0 : 1 | 9.5 : 1 | 5.0 : 1 |
-| Contrast on `--surface` (dark) | 18.5 : 1 | 18.5 : 1 | 11.5 : 1 | 6.0 : 1 |
+| Contrast on `--surface` (dark) | 13.3 : 1 | 13.3 : 1 | 6.6 : 1 | 4.8 : 1 |
 
 **Why this changed.** `--text-2` was `#2b3038` and `--text-3` was `#5c6270`, on
 the reasoning that a table where the value and its caption weigh the same is
@@ -43,8 +47,9 @@ became genuinely secondary rather than merely dimmer.
 - `text-text-2` — body copy, labels, nav. Same black; kept as a separate token
   so a future adjustment does not have to touch 269 call sites.
 - `text-text-3` — genuinely secondary and never load-bearing: timestamps,
-  captions, helper text, "3 of 40". At 9.5 : 1 it is a step down, not a fade
-  out. If losing it would lose meaning, it is not `text-3`.
+  captions, helper text, "3 of 40". At 9.5 : 1 on light and 6.6 : 1 on dark it
+  is a step down, not a fade out. If losing it would lose meaning, it is not
+  `text-3`.
 - `text-text-placeholder` — **empty form fields only.** This is the one thing
   that must stay light: a placeholder as dark as typed text makes an empty
   field look filled, which is worse than a faint one. `--muted-foreground`
@@ -86,7 +91,7 @@ were learned by shipping the opposite:
 2. **The text is not pure white.** It briefly was, when the light side went to
    pure black and mirroring looked consistent. `#ffffff` on a near-black ground
    **halates**: glyph edges bloom and thin strokes shimmer, which at 13px reads
-   as blur. Maximum contrast is not maximum legibility. `#e9edef` still reads
+   as blur. Maximum contrast is not maximum legibility. `#e7ecee` still reads
    as white and stops glowing.
 3. **Saturated hues vibrate on dark.** The status colours were Tailwind's 400
    tones, tuned for white backgrounds. On near-black they buzz, and six of them
@@ -96,19 +101,19 @@ were learned by shipping the opposite:
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#0f1417` | Page background |
-| `--surface` | `#171e22` | Cards, sidebar, topbar |
-| `--surface-2` | `#1e262b` | Hover state, recessed wells |
-| `--surface-3` | `#263137` | Avatar background, dropdown item hover |
-| `--border` | `rgba(255,255,255,.09)` | Default hairline border |
-| `--border-strong` | `rgba(255,255,255,.16)` | Emphasized border (dropdowns, focus) |
-| `--text-1` | `#e9edef` | Primary text |
-| `--text-2` | `#e9edef` | Body text — same as `--text-1`, see § Text colour |
-| `--text-3` | `#a3adb5` | Muted / tertiary |
-| `--text-placeholder` | `#7d878f` | Empty form fields only |
-| `--chip` | `rgba(255,255,255,.06)` | Neutral badge/chip fill |
-| `--chip-strong` | `rgba(255,255,255,.13)` | Neutral hover fill, low-priority bar |
-| `--accent-text` | `#5ee0cc` | Accent text/links on the page background |
+| `--bg` | `#13181c` | Page background |
+| `--surface` | `#1d2329` | Cards, sidebar, topbar |
+| `--surface-2` | `#272f36` | Hover state, recessed wells |
+| `--surface-3` | `#313b43` | Avatar background, dropdown item hover |
+| `--border` | `rgba(255,255,255,.12)` | Default hairline border — also the table row rule |
+| `--border-strong` | `rgba(255,255,255,.21)` | Emphasized border (dropdowns, focus) |
+| `--text-1` | `#e7ecee` | Primary text |
+| `--text-2` | `#e7ecee` | Body text — same as `--text-1`, see § Text colour |
+| `--text-3` | `#9ca9b0` | Muted / tertiary |
+| `--text-placeholder` | `#838f96` | Empty form fields only |
+| `--chip` | `rgba(255,255,255,.08)` | Neutral badge/chip fill |
+| `--chip-strong` | `rgba(255,255,255,.15)` | Neutral hover fill, low-priority bar |
+| `--accent-text` | `#52d3c0` | Accent text/links on the page background |
 | `--accent-dim` | `rgba(45,212,191,.14)` | Accent background fill (active nav, active KPI icon bg) |
 | `--green` | `#5cc98c` | Success / "active" status |
 | `--green-dim` | `rgba(92,201,140,.14)` | Success background fill |
@@ -121,10 +126,19 @@ were learned by shipping the opposite:
 | `--purple` | `#b48ceb` | Reserved accent |
 | `--purple-dim` | `rgba(180,140,235,.14)` | Reserved accent background |
 
-Measured on `--surface`: text 14.3 : 1 · muted 7.4 : 1 · accent 10.4 : 1 ·
-green 8.2 : 1 · amber 8.3 : 1 · red 6.5 : 1 · placeholder 4.6 : 1. Every one
-clears WCAG AA; the first three clear AAA. **A new dark value goes in this
-table only after its contrast on `--surface` has been measured, not estimated.**
+Measured on `--surface`: text 13.3 : 1 · muted 6.6 : 1 · accent 8.6 : 1 ·
+green 7.7 : 1 · amber 7.8 : 1 · red 6.1 : 1 · blue 6.3 : 1 · purple 6.0 : 1 ·
+placeholder 4.8 : 1. Every one clears WCAG AA; text and accent clear AAA.
+**A new dark value goes in this table only after its contrast on `--surface`
+has been measured, not estimated** — the placeholder landed at 3.79 : 1 on the
+first arithmetic pass and was raised until it cleared, rather than shipped.
+
+**How these numbers were arrived at.** The ground sat too low twice (`#090c0e`,
+then `#0f1417`) and was rejected both times. Four candidates were then put side
+by side — a soft slate `#1b2027`, a warm charcoal `#1c1a19` and a deep
+`#0b0f11` — and the answer was "balance between 1 and 3". Every value above
+except the placeholder is the arithmetic midpoint of those two, channel by
+channel. Guessing a fourth time was the thing to avoid.
 
 ### Light
 

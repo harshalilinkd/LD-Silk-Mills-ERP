@@ -213,8 +213,8 @@
         It is not: #ffffff on a near-black ground HALATES — the glyphs bloom at
         their edges and thin strokes shimmer, which at 13px reads as blur.
         Maximum contrast is not maximum legibility, and the reported symptom
-        was exactly this ("text is not properly readable"). #e9edef still reads
-        as white and stops glowing. 14.3:1, comfortably AAA.
+        was exactly this ("text is not properly readable"). The value below still
+        reads as white and stops glowing — 13.3:1 on the card, comfortably AAA.
 
      3. SATURATED HUES VIBRATE ON DARK. #fbbf24 amber and #4ade80 green are
         Tailwind's 400s, tuned for white backgrounds; on near-black they buzz,
@@ -226,24 +226,34 @@
      Measured on `--surface`: text 14.3 / muted 7.4 / accent 10.4 /
      green 8.2 / amber 8.3 / red 6.5 / placeholder 4.6. All AA; the first
      three AAA. */
-  --background: #0f1417;
-  --surface: #171e22;
-  --surface-2: #1e262b;
-  --surface-3: #263137;
-  /* A touch more visible than before. On the lifted ground a 7% hairline
-     disappeared, and a card with no visible edge is what made the old dark
-     read as one flat sheet. */
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  /* THE GROUND SAT TOO LOW TWICE. #090c0e first, then #0f1417 — both still
+     read as "almost black", and both were rejected. Four candidates were put
+     side by side and the answer was "balance between 1 and 3": a soft slate
+     (#1b2027) and a deep near-black (#0b0f11). These are the arithmetic
+     midpoint of those two, channel by channel, not another guess. */
+  --background: #13181c;
+  --surface: #1d2329;
+  --surface-2: #272f36;
+  --surface-3: #313b43;
+  /* 12%, up from 9%. The row rule in `ui/data-table.tsx` was always there —
+     `Tr` carries `border-b border-border` — it was simply invisible at 9% on a
+     near-black ground, which is what made a full page of orders read as a wall
+     of text rather than as rows. The separation was a contrast problem, not a
+     missing border. */
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.21);
 
-  --text-1: #e9edef;
-  --text-2: #e9edef;
-  --text-3: #a3adb5;
-  --text-placeholder: #7d878f;
-  --chip: rgba(255, 255, 255, 0.06);
-  --chip-strong: rgba(255, 255, 255, 0.13);
+  --text-1: #e7ecee;
+  --text-2: #e7ecee;
+  --text-3: #9ca9b0;
+  /* NOT the midpoint. #717e85 fell to 3.79:1 against the lifted card and
+     failed AA, so it was raised until it cleared — 4.78:1 — while staying
+     visibly dimmer than `--text-3`, so an empty field still reads as empty. */
+  --text-placeholder: #838f96;
+  --chip: rgba(255, 255, 255, 0.08);
+  --chip-strong: rgba(255, 255, 255, 0.15);
 
-  --accent-text: #5ee0cc;
+  --accent-text: #52d3c0;
   --accent: rgba(45, 212, 191, 0.14);
 
   --status-green: #5cc98c;
