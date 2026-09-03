@@ -208,7 +208,8 @@ export function ConcernDetail({ id }: { id: string }) {
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
               onClick={() => void q.refetch()}
             >
               <Bi en="Try again" hi="दोबारा कोशिश करें" />
@@ -238,7 +239,8 @@ export function ConcernDetail({ id }: { id: string }) {
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            // 44px below md (factory-floor touch target); ERP 36px at md+.
+            className="h-11 md:h-9"
             onClick={() => router.push("/help-slip/concerns")}
           >
             <Bi en="Back to my concerns" hi="मेरी शिकायतों पर लौटें" />
@@ -265,11 +267,18 @@ export function ConcernDetail({ id }: { id: string }) {
         <Link
           href="/help-slip/concerns"
           className={cn(
-            "-ml-1 inline-flex min-h-11 items-center gap-1 self-start text-text-3 transition-colors hover:text-text-1",
+            // 44px tap row below md — the minimum touch target for a phone
+            // held on the factory floor. The ERP's own back link (12.5px,
+            // gap-1.5) from md up.
+            "-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start text-text-3 transition-colors hover:text-text-1 md:min-h-0",
             T.bodySm,
           )}
         >
-          <IconChevronLeft className="size-4" stroke={1.6} aria-hidden />
+          <IconChevronLeft
+            className="size-4 md:size-3.5"
+            stroke={1.6}
+            aria-hidden
+          />
           <Bi en="My concerns" hi="मेरी शिकायतें" />
         </Link>
 
@@ -290,7 +299,7 @@ export function ConcernDetail({ id }: { id: string }) {
         />
       </Reveal>
 
-      <div className="flex flex-col gap-4 pb-10 lg:flex-row lg:items-start lg:gap-8">
+      <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           {/* ── 1. where it stands, on the CANVAS ─────────────────────── */}
           <Reveal index={1}>
@@ -325,10 +334,10 @@ export function ConcernDetail({ id }: { id: string }) {
 
           {/* ── 2. the solutions — the heart of the product ───────────── */}
           <Reveal index={2}>
-            <Panel className="p-4 md:p-5">
+            <Panel className="p-3 sm:p-4">
               <h2
                 id="detail-solutions"
-                className={cn("deva mb-3 text-text-1", T.h3)}
+                className={cn("deva mb-2.5 text-text-1", T.h3)}
               >
                 {concern.isMine
                   ? "Your suggested solutions"
@@ -349,15 +358,17 @@ export function ConcernDetail({ id }: { id: string }) {
           {/* ── 3. how it was resolved, when it was ───────────────────── */}
           {concern.resolutionMessage ? (
             <Reveal index={3}>
-              <Panel className="p-4 md:p-5">
+              <Panel className="p-3 sm:p-4">
                 <h2
                   id="detail-resolution"
-                  className={cn("deva mb-3 text-text-1", T.h3)}
+                  className={cn("deva mb-2.5 text-text-1", T.h3)}
                 >
                   How it was resolved
                   <span className="deva hi"> (कैसे हल हुआ)</span>
                 </h2>
-                <div className="rounded-field bg-status-green-dim p-4">
+                {/* The ERP's left-rule callout, "ok" tone: a 3px rule says
+                    this block is different in kind. */}
+                <div className="rounded-field border-l-[3px] border-l-status-green bg-status-green-dim px-3 py-2.5">
                   <p
                     className={cn(
                       "deva whitespace-pre-line text-text-1",
@@ -377,10 +388,10 @@ export function ConcernDetail({ id }: { id: string }) {
            * under a panel whose last element is the thing you would be
            * commenting on.                                                 */}
           <Reveal index={4}>
-            <Panel className="overflow-visible p-4 md:p-5">
+            <Panel className="overflow-visible p-3 sm:p-4">
               <h2
                 id="detail-activity"
-                className={cn("deva mb-3 text-text-1", T.h3)}
+                className={cn("deva mb-2.5 text-text-1", T.h3)}
               >
                 Activity
                 <span className="deva hi"> (गतिविधि)</span>
@@ -404,7 +415,7 @@ export function ConcernDetail({ id }: { id: string }) {
                 <p
                   role="status"
                   className={cn(
-                    "deva mt-4 rounded-field border border-border bg-surface-2 px-4 py-3 text-text-2",
+                    "deva mt-3 rounded-field border-l-[3px] border-l-border-strong bg-surface-2 px-3 py-2.5 text-text-2",
                     T.bodySm,
                   )}
                 >
@@ -414,7 +425,7 @@ export function ConcernDetail({ id }: { id: string }) {
                   />
                 </p>
               ) : canComment ? (
-                <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+                <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
                   <TextAreaField
                     id="detail-comment"
                     labelEn="Add a comment"
@@ -441,12 +452,20 @@ export function ConcernDetail({ id }: { id: string }) {
                     size="lg"
                     onClick={send}
                     disabled={draft.trim().length === 0 || comment.isPending}
-                    className="h-11 w-full px-5 text-base md:w-auto md:self-start"
+                    // 44px + 16px text below md: the minimum touch target for
+                    // a phone held on the factory floor, and anything under
+                    // 16px makes iOS Safari auto-zoom on focus and never zoom
+                    // back out. ERP-compact (36px / 13px) from md up.
+                    className="h-11 w-full px-5 text-base md:h-9 md:w-auto md:self-start md:px-3 md:text-sm"
                   >
                     {comment.isPending ? (
                       <Spinner />
                     ) : (
-                      <IconSend className="size-5" stroke={1.6} aria-hidden />
+                      <IconSend
+                        className="size-5 md:size-4"
+                        stroke={1.6}
+                        aria-hidden
+                      />
                     )}
                     <Bi
                       en={comment.isPending ? "Sending…" : "Send"}
@@ -473,7 +492,7 @@ export function ConcernDetail({ id }: { id: string }) {
             >
               <Bi en="Details" hi="जानकारी" />
               <IconChevronDown
-                className="size-5 shrink-0 text-text-3 transition-transform group-open:rotate-180"
+                className="size-4 shrink-0 text-text-3 transition-transform group-open:rotate-180"
                 stroke={1.6}
                 aria-hidden
               />
@@ -492,14 +511,20 @@ export function ConcernDetail({ id }: { id: string }) {
            * and hidden for staff, who have Close for the same job and must
            * not be able to remove somebody else's complaint from here.      */}
           {concern.isMine && !isClosed ? (
-            <div className="mt-2 border-t border-border pt-4">
+            <div className="mt-2 border-t border-border pt-3">
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11 text-status-red hover:text-status-red"
+                // 44px below md (factory-floor touch target); the ERP's
+                // 36px destructive-tinted ghost from md up.
+                className="h-11 text-status-red hover:bg-status-red-dim hover:text-status-red md:h-9"
                 onClick={() => setConfirmWithdraw(true)}
               >
-                <IconTrash className="size-5" stroke={1.6} aria-hidden />
+                <IconTrash
+                  className="size-5 md:size-4"
+                  stroke={1.6}
+                  aria-hidden
+                />
                 <Bi en="Delete this concern" hi="यह शिकायत हटाएँ" />
               </Button>
               <p className={cn("deva mt-1 text-text-3", T.caption)}>
@@ -542,7 +567,9 @@ export function ConcernDetail({ id }: { id: string }) {
             <Button
               type="button"
               variant="destructive"
-              className="h-11"
+              // 44px below md, ERP-compact 36px from md up — see the back
+              // link at the top of this screen.
+              className="h-11 md:h-9"
               disabled={withdraw.isPending}
               onClick={() => withdraw.mutate()}
             >
@@ -608,7 +635,7 @@ function Facts({
   const differs = Boolean(typed && account && typed !== account);
 
   return (
-    <Panel className="p-4 md:p-5">
+    <Panel className="p-3 sm:p-4">
       <h2 className={cn("deva mb-2 text-text-1", T.h3)}>
         Details
         <span className="deva hi"> (जानकारी)</span>
@@ -686,10 +713,10 @@ function DetailSkeleton() {
       >
         <span className="sr-only">Loading concern</span>
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-6 w-3/4" />
           <div className="flex gap-2">
-            <Skeleton className="h-6 w-24 rounded-pill" />
-            <Skeleton className="h-6 w-20 rounded-pill" />
+            <Skeleton className="h-5 w-24 rounded-pill" />
+            <Skeleton className="h-5 w-20 rounded-pill" />
           </div>
           <Skeleton className="h-40 rounded-card" />
           <Skeleton className="h-64 rounded-card" />

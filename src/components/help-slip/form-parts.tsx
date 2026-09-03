@@ -19,10 +19,12 @@ import { cn } from "@/lib/utils";
  *
  * Three rules, all of them from the source and none of them cosmetic:
  *
- *  1. **Every control is 44px tall with 16px text.** 44px is the minimum touch
- *     target; anything under 16px makes iOS Safari auto-zoom on focus, after
- *     which it never zooms back out and the person is stranded on a 2× page.
- *     `CONTROL` in type-scale.ts owns both numbers.
+ *  1. **Every control is 44px tall with 16px text BELOW `md`**, and the ERP's
+ *     compact 36px / 13px from `md` up. 44px is the minimum touch target for a
+ *     phone held on the factory floor; anything under 16px makes iOS Safari
+ *     auto-zoom on focus, after which it never zooms back out and the person is
+ *     stranded on a 2× page. `CONTROL` in type-scale.ts owns both halves of the
+ *     split, and `TEXTAREA` below mirrors it.
  *  2. **Labels render `English (हिंदी)` inline**, through `<Bi>` — the Hindi at
  *     0.85em/400/text-3, never stacked and never the same weight. This is the
  *     paper slip's own layout.
@@ -31,12 +33,15 @@ import { cn } from "@/lib/utils";
  *     colour alone doing the work.
  */
 
-/** A textarea's version of CONTROL — same border, padding and 16px text. */
+/** CONTROL's textarea twin. Height comes from `rows`, so only the font and the
+ *  padding step: 16px below md (the iOS auto-zoom guard — see CONTROL), 13px
+ *  and ERP padding from md up. */
 export const TEXTAREA = cn(
   "deva w-full rounded-field border border-border bg-surface px-3 py-2.5",
   "text-base text-text-1 outline-none transition-colors",
   "placeholder:text-text-3 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",
   "disabled:cursor-not-allowed disabled:opacity-50",
+  "md:px-2.5 md:py-2 md:text-[13px]",
 );
 
 export type FieldProps = {
@@ -77,19 +82,21 @@ export function Field({
   children,
 }: FieldProps) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-[7px]">
+      {/* The hint/counter stays ON the label row, as the ERP puts it: an
+          appearing hint must not shift every field below it. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <label
           htmlFor={id}
           className={cn(
-            "deva text-text-1",
+            "deva text-text-2",
             T.label,
             labelHidden && "sr-only",
           )}
         >
           <Bi en={labelEn} hi={labelHi} />
           {required ? (
-            <span aria-hidden className="ml-0.5 text-status-red">
+            <span aria-hidden className="ml-0.5 font-semibold text-status-red">
               *
             </span>
           ) : null}
@@ -325,7 +332,9 @@ export function CheckboxField({
     <label
       htmlFor={id}
       className={cn(
-        "flex min-h-11 cursor-pointer items-start gap-3",
+        // 44px tap row below md: the minimum touch target for a phone held on
+        // the factory floor. ERP density (36px) from md up.
+        "flex min-h-11 cursor-pointer items-start gap-3 md:min-h-9 md:gap-2.5",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
@@ -335,7 +344,8 @@ export function CheckboxField({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 size-[17px] shrink-0 accent-[var(--primary)]"
+        // The ERP's own checkbox recipe (order-entry/settings/settings-ui.tsx).
+        className="mt-0.5 size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
       />
       <span className="min-w-0">
         <span className={cn("deva block text-text-1", T.label)}>
@@ -374,10 +384,10 @@ export function FormAlert({
     <div
       role={role}
       className={cn(
-        "deva rounded-card border px-4 py-3",
+        "deva rounded-field border px-3 py-2",
         T.bodySm,
         tone === "error"
-          ? "border-status-red/35 bg-status-red-dim text-status-red"
+          ? "border-status-red/30 bg-status-red-dim text-status-red"
           : "border-border bg-surface-2 text-text-2",
       )}
     >

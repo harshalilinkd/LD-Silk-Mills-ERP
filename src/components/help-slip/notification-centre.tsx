@@ -198,7 +198,10 @@ export function NotificationCentre() {
   const { today, earlier } = splitByDay(items);
 
   return (
-    <div className="mx-auto flex w-full max-w-[820px] flex-col">
+    // `gap-5` is the ERP page rhythm (`flex flex-col gap-5`, every page file
+    // under order-entry/ and crm/). It replaces the `py-3` PageHeader used to
+    // carry: the header owns no padding of its own now, the page owns the seam.
+    <div className="mx-auto flex w-full max-w-[820px] flex-col gap-5">
       <Reveal index={0}>
         <PageHeader
           titleEn="Notifications"
@@ -217,12 +220,20 @@ export function NotificationCentre() {
                 variant="outline"
                 onClick={() => markAllRead.mutate()}
                 disabled={markAllRead.isPending}
-                className="h-11"
+                // 44px + 16px text below md: the minimum touch target for a
+                // phone held on the factory floor, and anything under 16px
+                // makes iOS Safari auto-zoom on focus and never zoom back out.
+                // ERP-compact (36px / 13px) from md up.
+                className="h-11 md:h-9"
               >
                 {markAllRead.isPending ? (
                   <Spinner />
                 ) : (
-                  <IconChecks className="size-5" stroke={1.6} aria-hidden />
+                  <IconChecks
+                    className="size-5 md:size-4"
+                    stroke={1.6}
+                    aria-hidden
+                  />
                 )}
                 <Bi en="Mark all read" hi="सब पढ़ा हुआ करें" />
               </Button>
@@ -231,7 +242,7 @@ export function NotificationCentre() {
         />
       </Reveal>
 
-      <div className="flex flex-col gap-4 pb-10">
+      <div className="flex flex-col gap-4 pb-6">
         <Reveal index={1}>
           <ListState
             loading={q.isPending}
@@ -315,7 +326,13 @@ function Group({
               type="button"
               onClick={() => onOpen(n)}
               className={cn(
-                "flex min-h-11 w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left transition-colors outline-none",
+                // 44px below md: the minimum touch target for a phone held on
+                // the factory floor. (No font guard needed — this row is not a
+                // text-entry control, so there is no iOS auto-zoom to defeat.)
+                // ERP `Td` density (px-3 py-2.5) from md up, where the row is
+                // read with a mouse and the compact rhythm is what makes this
+                // look like Order Entry.
+                "flex min-h-11 w-full cursor-pointer flex-col gap-0.5 px-4 py-3 text-left transition-colors outline-none md:min-h-0 md:px-3 md:py-2.5",
                 "hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset",
                 // A brand edge AND a heavier title. Never colour alone, and
                 // never a bare dot.

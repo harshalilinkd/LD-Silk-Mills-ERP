@@ -287,7 +287,8 @@ export function PcWorkspace({ id }: { id: string }) {
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            // 44px below md (factory-floor touch target); ERP 36px at md+.
+            className="h-11 md:h-9"
             onClick={() => void q.refetch()}
           >
             <Bi en="Try again" hi="दोबारा कोशिश करें" />
@@ -316,7 +317,8 @@ export function PcWorkspace({ id }: { id: string }) {
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            // 44px below md (factory-floor touch target); ERP 36px at md+.
+            className="h-11 md:h-9"
             onClick={() => router.push("/help-slip/all")}
           >
             <Bi en="All concerns" hi="सभी शिकायतें" />
@@ -414,20 +416,27 @@ export function PcWorkspace({ id }: { id: string }) {
   // touch target still matters, and it keeps it.
   const actionStack = (dense: boolean) => (
     <div className={cn("flex flex-col", dense ? "gap-1.5" : "gap-2")}>
-      {/* Resolve is the primary, and the only one. It stays full-size at every
-          density — the primary CTA is not where this screen saves space. */}
+      {/* Resolve is the primary, and the only one. It takes the SAME two
+          sizes as everything else in the stack, off the existing `dense`
+          flag: 44px in the phone sheet — the minimum touch target for a
+          phone held on the factory floor — and the ERP's 36px in the rail,
+          where a mouse is doing the clicking. */}
       <div>
         <Button
           type="button"
           size="lg"
-          className="h-11 w-full text-base"
+          className={cn("w-full", dense ? "h-9" : "h-11 text-base")}
           disabled={!resolveGate.ok || busy}
           onClick={() => {
             setActionError(null);
             setDialog("resolve");
           }}
         >
-          <IconCheck className="size-5" stroke={1.8} aria-hidden />
+          <IconCheck
+            className={dense ? "size-4" : "size-5"}
+            stroke={1.8}
+            aria-hidden
+          />
           <Bi en="Resolve" hi="हल करें" />
         </Button>
         <Why reason={resolveGate.ok ? null : resolveGate.why} />
@@ -440,7 +449,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <ActionButton
           en="Resume work"
           hi="काम फिर शुरू करें"
-          icon={<IconPlayerPlay className="size-5" stroke={1.6} aria-hidden />}
+          icon={<IconPlayerPlay className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -450,7 +459,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <ActionButton
           en="Reopen"
           hi="दोबारा खोलें"
-          icon={<IconRotate className="size-5" stroke={1.6} aria-hidden />}
+          icon={<IconRotate className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -464,7 +473,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <ActionButton
           en="Start work"
           hi="काम शुरू करें"
-          icon={<IconPlayerPlay className="size-5" stroke={1.6} aria-hidden />}
+          icon={<IconPlayerPlay className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
           dense={dense}
           disabled={busy || !progressGate.ok}
           reason={progressGate.ok ? null : progressGate.why}
@@ -478,7 +487,7 @@ export function PcWorkspace({ id }: { id: string }) {
       <ActionButton
         en="Add update"
         hi="अपडेट जोड़ें"
-        icon={<IconMessagePlus className="size-5" stroke={1.6} aria-hidden />}
+        icon={<IconMessagePlus className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
         dense={dense}
         disabled={isClosed}
         reason={isClosed ? CLOSED_REASON : null}
@@ -488,7 +497,7 @@ export function PcWorkspace({ id }: { id: string }) {
       <ActionButton
         en="Put on hold"
         hi="रोक लगाएँ"
-        icon={<IconPlayerPause className="size-5" stroke={1.6} aria-hidden />}
+        icon={<IconPlayerPause className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
         dense={dense}
         disabled={busy || !holdGate.ok}
         reason={holdGate.ok ? null : holdGate.why}
@@ -516,7 +525,7 @@ export function PcWorkspace({ id }: { id: string }) {
       <ActionButton
         en="Assign"
         hi="सौंपें"
-        icon={<IconUserPlus className="size-5" stroke={1.6} aria-hidden />}
+        icon={<IconUserPlus className={dense ? "size-4" : "size-5"} stroke={1.6} aria-hidden />}
         dense={dense}
         disabled={busy || isClosed}
         reason={isClosed ? CLOSED_REASON : null}
@@ -536,7 +545,9 @@ export function PcWorkspace({ id }: { id: string }) {
         <Button
           type="button"
           variant="ghost"
-          className="h-11 w-full"
+          // 44px in the phone sheet, the ERP's 36px in the rail — the same
+          // split as every other control in this stack.
+          className={cn("w-full", dense ? "h-9" : "h-11")}
           disabled={busy || !closeGate.ok}
           onClick={() => {
             setActionError(null);
@@ -567,11 +578,18 @@ export function PcWorkspace({ id }: { id: string }) {
         <Link
           href="/help-slip/all"
           className={cn(
-            "-ml-1 inline-flex min-h-11 items-center gap-1 self-start text-text-3 transition-colors hover:text-text-1",
+            // 44px tap row below md — the minimum touch target for a phone
+            // held on the factory floor. The ERP's own back link (12.5px,
+            // gap-1.5) from md up.
+            "-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start text-text-3 transition-colors hover:text-text-1 md:min-h-0",
             T.bodySm,
           )}
         >
-          <IconChevronLeft className="size-4" stroke={1.6} aria-hidden />
+          <IconChevronLeft
+            className="size-4 md:size-3.5"
+            stroke={1.6}
+            aria-hidden
+          />
           <Bi en="All concerns" hi="सभी शिकायतें" />
         </Link>
 
@@ -597,7 +615,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <div
           role="status"
           className={cn(
-            "deva mb-3 flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-2 px-4 py-2.5 text-text-2",
+            "deva mb-3 flex flex-wrap items-center justify-between gap-2 rounded-field border-l-[3px] border-l-border-strong bg-surface-2 px-3 py-2 text-text-2",
             T.bodySm,
           )}
         >
@@ -627,7 +645,7 @@ export function PcWorkspace({ id }: { id: string }) {
         <p
           role="alert"
           className={cn(
-            "deva mb-3 rounded-card border border-status-red/35 bg-status-red-dim px-4 py-2.5 text-status-red",
+            "deva mb-3 rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
             T.bodySm,
           )}
         >
@@ -635,7 +653,7 @@ export function PcWorkspace({ id }: { id: string }) {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-4 pb-10 lg:pb-4">
+      <div className="flex flex-col gap-4 pb-6 lg:pb-4">
         {/* ── phone: the rail, folded ─────────────────────────────────── */}
         <Panel className="overflow-hidden lg:hidden">
           <details className="group">
@@ -650,12 +668,12 @@ export function PcWorkspace({ id }: { id: string }) {
                 />
               </span>
               <IconChevronDown
-                className="size-5 shrink-0 text-text-3 transition-transform group-open:rotate-180"
+                className="size-4 shrink-0 text-text-3 transition-transform group-open:rotate-180"
                 stroke={1.6}
                 aria-hidden
               />
             </summary>
-            <div className="border-t border-border px-4 py-3">
+            <div className="border-t border-border px-4 py-3 sm:px-5">
               <Facts payload={payload} locale={locale} />
             </div>
           </details>
@@ -663,15 +681,15 @@ export function PcWorkspace({ id }: { id: string }) {
 
         {/* pb-20 clears the pinned mobile action bar; the rail replaces it
             from 1024, so it drops there. */}
-        <div className="flex flex-col gap-4 pb-20 lg:flex-row lg:items-start lg:gap-8 lg:pb-0">
+        <div className="flex flex-col gap-4 pb-20 lg:flex-row lg:items-start lg:gap-6 lg:pb-0">
           {/* ═══ the main column ══════════════════════════════════════ */}
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {/* ── the employee's solutions, as selectable cards ─────── */}
             <Reveal index={1}>
-              <Panel className="p-4 md:p-5">
+              <Panel className="p-3 sm:p-4">
                 <h2
                   id="ws-solutions"
-                  className={cn("deva mb-3 text-text-1", T.h3)}
+                  className={cn("deva mb-2.5 text-text-1", T.h3)}
                 >
                   Employee&apos;s suggested solutions
                   <span className="deva hi"> (कर्मचारी के सुझाए समाधान)</span>
@@ -695,12 +713,14 @@ export function PcWorkspace({ id }: { id: string }) {
 
             {/* ── resolution, when there is one ─────────────────────── */}
             {concern.resolutionMessage ? (
-              <Panel className="p-4 md:p-5">
-                <h2 className={cn("deva mb-3 text-text-1", T.h3)}>
+              <Panel className="p-3 sm:p-4">
+                <h2 className={cn("deva mb-2.5 text-text-1", T.h3)}>
                   How it was resolved
                   <span className="deva hi"> (कैसे हल हुआ)</span>
                 </h2>
-                <div className="rounded-field bg-status-green-dim p-4">
+                {/* The ERP's left-rule callout, "ok" tone: a 3px rule says
+                    this block is different in kind. */}
+                <div className="rounded-field border-l-[3px] border-l-status-green bg-status-green-dim px-3 py-2.5">
                   <p
                     className={cn(
                       "deva whitespace-pre-line text-text-1",
@@ -715,8 +735,8 @@ export function PcWorkspace({ id }: { id: string }) {
 
             {/* ── the timeline, with the visibility toggle ──────────── */}
             <Reveal index={2}>
-              <Panel className="overflow-visible p-4 md:p-5">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <Panel className="overflow-visible p-3 sm:p-4">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
                   <h2
                     id="ws-activity"
                     className={cn("deva text-text-1", T.h3)}
@@ -771,8 +791,14 @@ export function PcWorkspace({ id }: { id: string }) {
             <Reveal index={3}>
               <Panel
                 className={cn(
-                  "p-4 transition-colors md:p-5",
-                  isInternal && "border-dashed border-border-strong bg-chip",
+                  "p-3 transition-colors sm:p-4",
+                  // Signal 1 of 4, and it is the same treatment the timeline
+                  // gives an internal row: a dashed edge, the ERP's 3px
+                  // "different in kind" left rule, and the chip ground. No
+                  // status hue — every one of those is already spoken for on
+                  // the rail below.
+                  isInternal &&
+                    "border-dashed border-border-strong border-l-[3px] [border-left-style:solid] border-l-status-amber bg-chip",
                 )}
               >
                 <h2
@@ -783,7 +809,7 @@ export function PcWorkspace({ id }: { id: string }) {
                   )}
                 >
                   {isInternal ? (
-                    <IconLock className="size-4 shrink-0" stroke={1.6} aria-hidden />
+                    <IconLock className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
                   ) : null}
                   {isInternal ? (
                     <>
@@ -800,7 +826,7 @@ export function PcWorkspace({ id }: { id: string }) {
 
                 <p
                   className={cn(
-                    "deva mb-3",
+                    "deva mb-2.5",
                     isInternal
                       ? "font-semibold text-text-2"
                       : "text-text-3",
@@ -857,7 +883,11 @@ export function PcWorkspace({ id }: { id: string }) {
                     size="lg"
                     onClick={post}
                     disabled={isClosed || busy || draft.trim().length === 0}
-                    className="h-11 w-full px-5 text-base md:w-auto md:self-start"
+                    // 44px + 16px text below md: the minimum touch target for
+                    // a phone held on the factory floor, and anything under
+                    // 16px makes iOS Safari auto-zoom on focus and never zoom
+                    // back out. ERP-compact (36px / 13px) from md up.
+                    className="h-11 w-full px-5 text-base md:h-9 md:w-auto md:self-start md:px-3 md:text-sm"
                   >
                     {busy ? <Spinner /> : null}
                     {isInternal ? (
@@ -873,7 +903,7 @@ export function PcWorkspace({ id }: { id: string }) {
 
           {/* ═══ the rail, 1024+ ══════════════════════════════════════ */}
           <aside className="hidden w-80 shrink-0 lg:sticky lg:top-4 lg:block">
-            <Panel className="flex flex-col gap-3 p-4 md:p-5">
+            <Panel className="flex flex-col gap-3 p-4">
               <Facts payload={payload} locale={locale} withStatus />
               <div className="border-t border-border pt-3">
                 {actionStack(true)}
@@ -982,7 +1012,8 @@ export function PcWorkspace({ id }: { id: string }) {
             <ModalCancel disabled={busy} />
             <Button
               type="button"
-              className="h-11"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
               disabled={busy || holdNote.trim().length === 0}
               onClick={() =>
                 run(
@@ -1041,7 +1072,8 @@ export function PcWorkspace({ id }: { id: string }) {
             <ModalCancel disabled={busy} />
             <Button
               type="button"
-              className="h-11"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
               disabled={busy || reopenNote.trim().length === 0}
               onClick={() =>
                 run(
@@ -1170,7 +1202,8 @@ export function PcWorkspace({ id }: { id: string }) {
             <Button
               type="button"
               variant="destructive"
-              className="h-11"
+              // 44px below md (factory-floor touch target); ERP 36px at md+.
+              className="h-11 md:h-9"
               disabled={busy}
               onClick={() => run({ action: "close" })}
             >
@@ -1276,7 +1309,9 @@ function ChoiceRow({
       disabled={disabled}
       aria-pressed={selected}
       className={cn(
-        "flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-field border px-3 py-2 text-left transition-colors outline-none",
+        // 44px tap row below md — the minimum touch target for a phone held
+        // on the factory floor; ERP density from md up.
+        "flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-field border px-3 py-2 text-left transition-colors outline-none md:min-h-9",
         "focus-visible:ring-3 focus-visible:ring-ring/40",
         "disabled:cursor-not-allowed disabled:opacity-50",
         selected
@@ -1284,7 +1319,7 @@ function ChoiceRow({
           : "border-border hover:bg-surface-2",
       )}
     >
-      <span className={cn("deva text-text-1", T.bodySm)}>
+      <span className={cn("deva text-text-1", T.body)}>
         <Bi en={label} hi={labelHi} />
       </span>
       {selected ? (
@@ -1395,7 +1430,7 @@ function WorkspaceSkeleton() {
       >
         <span className="sr-only">Loading concern</span>
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-6 w-3/4" />
           <Skeleton className="h-40 rounded-card" />
           <Skeleton className="h-64 rounded-card" />
         </div>

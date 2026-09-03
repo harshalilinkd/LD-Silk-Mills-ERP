@@ -48,14 +48,20 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
+    // `pb-2` keeps the header off the first content block. The ERP puts that
+    // space on the page ROOT (a `flex flex-col gap-5` wrapping the h1 and the
+    // content), but these screens' roots carry no gap, so a header with no
+    // padding of its own sat flush against the table beneath it on seven of
+    // eight screens. Owning the space here fixes all of them at once and means
+    // a new screen cannot forget to.
+    <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
       <div className="min-w-0">
         <h1 className={cn("deva text-text-1", T.h1)}>
           {titleEn}
           {titleHi ? <span className="deva hi"> ({titleHi})</span> : null}
         </h1>
         {subtitle ? (
-          <p className={cn("deva mt-1 text-text-3", T.bodySm)}>{subtitle}</p>
+          <p className={cn("deva mt-1 text-text-3", T.body)}>{subtitle}</p>
         ) : null}
         {meta ? (
           <p
@@ -75,17 +81,20 @@ export function PageHeader({
 
 // ─── panel ─────────────────────────────────────────────────────────────────
 
-/** A card. `bg-surface` + one hairline border — a border, never a shadow. */
+/**
+ * A card. `bg-surface` + one hairline border — a border, never a shadow.
+ *
+ * `shadow-sm` is the ERP's mark of a card you can press, so it is not baked in
+ * here: the three Help Slip surfaces that ARE press targets (the PC toolbar
+ * card, the mobile row cards, the `<details>` summary) add it at the call site.
+ */
 export function Panel({
   className,
   ...props
 }: React.ComponentProps<"section">) {
   return (
     <section
-      className={cn(
-        "rounded-card border border-border bg-surface shadow-sm",
-        className,
-      )}
+      className={cn("rounded-card border border-border bg-surface", className)}
       {...props}
     />
   );
@@ -104,7 +113,7 @@ export function PanelHead({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border px-5 py-3">
+    <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border px-4 py-3 sm:px-5 sm:py-3.5">
       <h2 className={cn("deva text-text-1", T.h3)}>
         {titleEn}
         {titleHi ? <span className="deva hi"> ({titleHi})</span> : null}
@@ -120,8 +129,9 @@ export function PanelHead({
 // ─── search ────────────────────────────────────────────────────────────────
 
 /**
- * 16px text in a 44px box, like every control in this module: anything
- * smaller makes iOS Safari auto-zoom on focus and it never zooms back out.
+ * 16px text in a 44px box BELOW `md`, 13px in a 36px box from `md` up — see
+ * `CONTROL`. Below `md` anything smaller makes iOS Safari auto-zoom on focus
+ * and it never zooms back out; from `md` up this is the ERP toolbar search.
  *
  * `type="search"` with the mobile keyboard hints set — `enterKeyHint="search"`
  * puts a search key on the on-screen keyboard instead of a newline, and
@@ -144,7 +154,7 @@ export function SearchField({
   return (
     <div className={cn("relative min-w-0 flex-1 md:max-w-80", className)}>
       <IconSearch
-        className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-text-3"
+        className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-text-3 md:left-2.5 md:size-4"
         stroke={1.6}
         aria-hidden
       />
@@ -158,7 +168,7 @@ export function SearchField({
         enterKeyHint="search"
         autoCapitalize="none"
         autoCorrect="off"
-        className={cn(CONTROL, "deva w-full pl-10")}
+        className={cn(CONTROL, "deva w-full pl-10 md:pl-8")}
       />
     </div>
   );
@@ -186,14 +196,16 @@ export function LoadMore({
   labelHi?: string;
 }) {
   return (
-    <div className="flex justify-center py-4">
+    <div className="flex justify-center py-3">
       <Button
         type="button"
         variant="outline"
         size="lg"
         onClick={onClick}
         disabled={loading}
-        className="h-11 w-full md:w-auto"
+        // 44px below md: the minimum touch target for a phone held on the
+        // factory floor. ERP-compact (36px) from md up.
+        className="h-11 w-full md:h-9 md:w-auto"
       >
         {loading ? <Spinner /> : null}
         <Bi en={label} hi={labelHi} />
@@ -239,9 +251,9 @@ export function ListState({
 }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 px-5 py-16 text-text-3">
+      <div className="flex items-center justify-center gap-2 px-4 py-10 text-text-2">
         <Spinner />
-        <span className={cn("deva", T.bodySm)}>{loadingLabel}</span>
+        <span className={cn("deva", T.body)}>{loadingLabel}</span>
       </div>
     );
   }
@@ -250,20 +262,20 @@ export function ListState({
     return (
       <div
         role="alert"
-        className="flex flex-col items-center justify-center gap-3 px-5 py-14 text-center"
+        className="flex flex-col items-center justify-center gap-2.5 px-4 py-10 text-center"
       >
         <IconAlertTriangle
           className="size-[30px] text-status-red"
           stroke={1.6}
           aria-hidden
         />
-        <p className={cn("deva font-semibold text-text-1", T.bodySm)}>
+        <p className={cn("deva font-semibold text-text-1", T.body)}>
           <Bi
             en="We couldn't load this."
             hi="यह लोड नहीं हो सका।"
           />
         </p>
-        <p className={cn("deva max-w-[42ch] text-text-3", T.caption)}>{error}</p>
+        <p className={cn("deva max-w-[60ch] text-text-2", T.bodySm)}>{error}</p>
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
           <Bi en="Try again" hi="दोबारा कोशिश करें" />
         </Button>
@@ -273,7 +285,7 @@ export function ListState({
 
   if (isEmpty) {
     return (
-      <div className="flex flex-col items-center gap-3 pb-8">
+      <div className="flex flex-col items-center gap-3 pb-6">
         <EmptyState
           icon={empty.icon}
           title={<Bi en={empty.titleEn} hi={empty.titleHi} />}

@@ -351,7 +351,12 @@ export function RaiseConcern() {
       // answers. The request id is the real guard — this is the one that stops
       // the double tap ever leaving the phone.
       disabled={busy || filed !== null}
-      className="h-11 w-full px-5 text-base md:w-auto"
+      // 44px + 16px text below md: the minimum touch target for a phone held
+      // on the factory floor, and anything under 16px makes iOS Safari
+      // auto-zoom on focus and never zoom back out. ERP-compact (36px / 13px)
+      // from md up. The height BELOW md is load-bearing twice over — the
+      // StickySubmitBar's h-20 spacer is sized to it.
+      className="h-11 w-full px-5 text-base md:h-9 md:w-auto md:px-3 md:text-sm"
     >
       {submit.isPending ? <Spinner /> : null}
       <Bi
@@ -367,11 +372,18 @@ export function RaiseConcern() {
         <Link
           href="/help-slip/concerns"
           className={cn(
-            "-ml-1 inline-flex min-h-11 items-center gap-1 self-start text-text-3 transition-colors hover:text-text-1",
+            // 44px tap row below md — the minimum touch target for a phone
+            // held on the factory floor. The ERP's own back link (12.5px,
+            // gap-1.5) from md up.
+            "-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start text-text-3 transition-colors hover:text-text-1 md:min-h-0",
             T.bodySm,
           )}
         >
-          <IconChevronLeft className="size-4" stroke={1.6} aria-hidden />
+          <IconChevronLeft
+            className="size-4 md:size-3.5"
+            stroke={1.6}
+            aria-hidden
+          />
           <Bi en="My concerns" hi="मेरी शिकायतें" />
         </Link>
 
@@ -387,7 +399,7 @@ export function RaiseConcern() {
         />
       </Reveal>
 
-      <div className="flex flex-col gap-4 pb-10">
+      <div className="flex flex-col gap-4 pb-6">
         {/* ── offline: a banner, never a block ──────────────────────────── */}
         {!online ? (
           <Reveal index={1}>
@@ -418,7 +430,7 @@ export function RaiseConcern() {
 
         {/* ── the draft: OFFERED, never forced ──────────────────────────── */}
         {restorable ? (
-          <Panel className="flex flex-col gap-2 p-4">
+          <Panel className="flex flex-col gap-2 p-3 sm:p-4">
             <div>
               <p className={cn("deva text-text-1", T.label)}>
                 <Bi en="Restore your draft?" hi="अपना ड्राफ़्ट वापस लाएँ?" />
@@ -434,7 +446,8 @@ export function RaiseConcern() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-11"
+                // 44px below md (factory-floor touch target); ERP 36px at md+.
+                className="h-11 md:h-9"
                 onClick={() => {
                   setValues(restorable.values);
                   setRestorable(null);
@@ -445,7 +458,8 @@ export function RaiseConcern() {
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11"
+                // 44px below md (factory-floor touch target); ERP 36px at md+.
+                className="h-11 md:h-9"
                 onClick={() => {
                   clearDraft(draftKey);
                   setRestorable(null);
@@ -463,7 +477,7 @@ export function RaiseConcern() {
             ref={formRef}
             noValidate
             onSubmit={onSubmit}
-            className="flex flex-col gap-5"
+            className="flex flex-col gap-4"
           >
             {/* ── the summary, only once there are 2+ things to fix ─────── */}
             {problems.length >= 2 ? (
@@ -583,7 +597,7 @@ export function RaiseConcern() {
                 helpdesk, so it sits on its own plane rather than reading as
                 fields four to six.
                ══════════════════════════════════════════════════════════════ */}
-            <Panel className="flex flex-col gap-3 p-4 md:p-5">
+            <Panel className="flex flex-col gap-3 p-3 sm:p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <div className="min-w-0">
                   <h2 className={cn("deva text-text-1", T.h3)}>
@@ -657,10 +671,21 @@ export function RaiseConcern() {
                       }
                       aria-label={`Remove ${SOLUTION_LABELS[index]?.en ?? ""}`}
                       // mt-7 clears the label line so the X sits beside the box
-                      // rather than beside the words above it.
-                      className="mt-7 grid size-11 shrink-0 cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-chip hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
+                      // rather than beside the words above it — and it is still
+                      // exactly right on the new scale: a 13px label at .deva's
+                      // 1.65 line-height is 21.45px, plus Field's gap-[7px] =
+                      // 28.45px, which is what mt-7 (28px) clears.
+                      //
+                      // 44px below md: the minimum touch target for a phone
+                      // held on the factory floor. The ERP's 36px destructive
+                      // icon button from md up.
+                      className="mt-7 grid size-11 shrink-0 cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-status-red-dim hover:text-status-red focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-40 md:size-9"
                     >
-                      <IconX className="size-5" stroke={1.6} aria-hidden />
+                      <IconX
+                        className="size-5 md:size-4"
+                        stroke={1.6}
+                        aria-hidden
+                      />
                     </button>
                   ) : null}
                 </div>
@@ -711,7 +736,8 @@ export function RaiseConcern() {
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11"
+                // 44px below md (factory-floor touch target); ERP 36px at md+.
+                className="h-11 md:h-9"
                 onClick={() => router.push("/help-slip/concerns")}
               >
                 <Bi en="Cancel" hi="रद्द करें" />
@@ -739,13 +765,15 @@ export function RaiseConcern() {
 // ─── priority ──────────────────────────────────────────────────────────────
 
 /**
- * Four options, as a real radiogroup at 44px.
+ * Four options, as a real radiogroup — 44px on a phone, ERP-compact above it.
  *
- * NOT `<Segmented>`: the shell's segmented control is 28–32px, which is right
- * for a filter chip above a table and wrong for a form control on the one
- * screen in this module that is filled one-handed while standing up. 44px is
- * the touch minimum this module's `CONTROL` constant exists to enforce, and
- * the reason it exists is exactly this form.
+ * NOT `<Segmented>`: that control is single-select with a roving tabindex and
+ * this is a real `radiogroup` with its own arrow-key `move()`. Only the
+ * GEOMETRY converged — from md up these carry `ui/segmented.tsx`'s md size
+ * (h-8 / px-3 / 13px), so the form reads like the rest of the ERP on a desk.
+ * Below md they stay 44px with 16px text, because this is the one screen in
+ * the module filled one-handed while standing up, and that is the touch
+ * minimum this module's `CONTROL` constant exists to enforce.
  *
  * Content-sized rather than full-bleed: four labels come to well under the
  * 328px a 360px phone leaves after the shell's gutters.
@@ -807,7 +835,9 @@ function PriorityField({
                 }
               }}
               className={cn(
-                "deva h-11 min-w-[76px] cursor-pointer rounded-field border px-4 text-base font-medium transition-colors outline-none",
+                // 44px + 16px text below md (see this component's note above);
+                // ui/segmented.tsx's md geometry from md up.
+                "deva h-11 min-w-[76px] cursor-pointer rounded-field border px-4 text-base font-medium transition-colors outline-none md:h-8 md:min-w-[64px] md:px-3 md:text-[13px]",
                 "focus-visible:ring-3 focus-visible:ring-ring/40",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 selected
@@ -879,9 +909,9 @@ function ConcernFiled({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-4 py-2 text-center">
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
           <IconCircleCheck
-            className="size-12 text-status-green"
+            className="size-10 text-status-green"
             stroke={1.5}
             aria-hidden
           />
@@ -916,12 +946,13 @@ function ConcernFiled({
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            // 44px below md (factory-floor touch target); ERP 36px at md+.
+            className="h-11 md:h-9"
             onClick={onHome}
           >
             <Bi en="Back to home" hi="होम पर जाएँ" />
           </Button>
-          <Button type="button" className="h-11" onClick={onTrack}>
+          <Button type="button" className="h-11 md:h-9" onClick={onTrack}>
             <Bi en="Track this concern" hi="शिकायत देखें" />
           </Button>
         </DialogFooter>

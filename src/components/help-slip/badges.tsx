@@ -13,9 +13,15 @@ import { cn } from "@/lib/utils";
  * in this file that maps a status to anything, and there should not be one
  * anywhere else either.
  *
- * Geometry follows docs/DESIGN.md's status pill (radius 99px / `rounded-pill`,
- * tinted fill + solid hue text) rather than the source's `rounded-full` +
- * `text-caption`, which is the same shape one token system over.
+ * Geometry follows the ERP's `ui/status-badge.tsx` (radius 99px /
+ * `rounded-pill`, tinted fill + solid hue text) rather than the source's
+ * `rounded-full` + `text-caption`, which is the same shape one token system
+ * over.
+ *
+ * ONE deliberate departure from `ui/status-badge.tsx`: the `sm` label stays at
+ * 11px rather than dropping to 10.5px. These labels may be Devanagari, and the
+ * Hindi gloss renders at 0.85em — 10.5 × 0.85 puts it under 9px, which is
+ * unreadable on a mid-range phone. `md` takes the ERP's 11.5px.
  */
 
 type Size = "sm" | "md";
@@ -55,8 +61,8 @@ export function StatusBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center rounded-pill bg-chip px-2.5 py-1 font-semibold text-text-3",
-          size === "sm" ? "text-[11px]" : "text-[13px]",
+          "inline-flex items-center rounded-pill bg-chip px-2 py-[3px] font-semibold text-text-3",
+          size === "sm" ? "text-[11px]" : "text-[11.5px]",
           className,
         )}
       >
@@ -70,17 +76,17 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-pill font-semibold whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-pill font-semibold whitespace-nowrap",
         size === "sm"
-          ? "px-2.5 py-1 text-[11px] leading-none"
-          : "px-3 py-1.5 text-[13px] leading-none",
+          ? "px-2 py-[3px] text-[11px] leading-none"
+          : "px-2.5 py-1 text-[11.5px] leading-none",
         meta.fgClass,
         meta.bgClass,
         className,
       )}
     >
       <Icon
-        className={cn("shrink-0", size === "sm" ? "size-3.5" : "size-4")}
+        className={cn("shrink-0", size === "sm" ? "size-3" : "size-3.5")}
         stroke={1.6}
         aria-hidden
       />
@@ -116,17 +122,17 @@ export function OverdueBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-field border font-semibold whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-field border font-semibold whitespace-nowrap",
         size === "sm"
           ? "px-2 py-[3px] text-[11px] leading-none"
-          : "px-3 py-1 text-[13px] leading-none",
+          : "px-2.5 py-1 text-[11.5px] leading-none",
         OVERDUE_META.fgClass,
         OVERDUE_META.bgClass,
         OVERDUE_META.borderClass,
         className,
       )}
     >
-      <Icon className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
+      <Icon className="size-3 shrink-0" stroke={1.6} aria-hidden />
       <span className="deva">
         {locale === "hi" ? OVERDUE_META.labelHi : OVERDUE_META.labelEn}
       </span>
@@ -181,7 +187,7 @@ export function PriorityChip({
           aria-hidden
         />
       ) : Icon ? (
-        <Icon className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
+        <Icon className="size-3 shrink-0" stroke={1.6} aria-hidden />
       ) : null}
       <span className="deva">
         {locale === "hi" ? meta.labelHi : meta.labelEn}

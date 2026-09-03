@@ -15,12 +15,23 @@ import { cn } from "@/lib/utils";
  *
  * `StatCard` is this repo's KPI tile and both Orders and CRM share it: a 19px
  * figure, a 36px tinted icon square, five tones (accent / success / warning /
- * danger / neutral). The Help Slip KPI is a different object in three ways
- * that are all props StatCard does not have — a `display`-size figure, a
- * bilingual label, and an optional real sparkline on a tinted card BODY. Two
- * of those would also need new tones, and widening a component two other
- * modules render on every screen for a third module's layout is how a shared
- * primitive stops being shared.
+ * danger / neutral).
+ *
+ * ── THE GEOMETRY IS NOW STATCARD'S, TO THE PIXEL ──────────────────────────
+ * An untinted `bg-surface` card at `p-2.5` with `shadow-sm`, the tone on a
+ * 36px `rounded-lg` icon square rather than on the card, a 19px figure, and
+ * `border-primary ring-2 ring-ring/25` when selected. The old card was a
+ * tinted block with a 30px number, which is the single loudest reason this
+ * module read as a different application. Order Entry tints an icon tile; it
+ * never tints a whole card.
+ *
+ * What is left keeping this local is three props StatCard does not have and
+ * should not grow: a bilingual label, an optional real `series` sparkline, and
+ * the `overdue` emphasis that recolours the figure. (The `display`-size figure
+ * used to be a fourth; it is a 19px StatCard figure now.) Two of them would
+ * also need new tones, and widening a component two other modules render on
+ * every screen for a third module's props is how a shared primitive stops
+ * being shared.
  *
  * So: a module-local card that behaves exactly like StatCard where it matters
  * — with `onClick` it is a REAL <button> with `aria-pressed`, in the tab order
@@ -112,7 +123,7 @@ export function KpiStrip({
         // Scrolls horizontally below 768 rather than wrapping: five cells in a
         // grid at 360px gives 72px each, which is not enough for a bilingual
         // label. The last card peeking IS the scroll hint — never a scrollbar.
-        "flex gap-4 overflow-x-auto pb-1 md:grid md:overflow-visible md:pb-0",
+        "flex gap-2.5 overflow-x-auto pb-1 md:grid md:overflow-visible md:pb-0",
         items.length === 5 ? "md:grid-cols-5" : "md:grid-cols-4",
         className,
       )}
@@ -167,21 +178,29 @@ function KpiCard({
           rather than the order it is understood: you meet a tinted square and a
           bare figure before being told what either one means. Naming the
           measure first costs nothing and the number lands already understood. */}
-      <div className="flex items-start justify-between gap-3">
-        <span className={cn("deva block min-w-0 text-text-2", T.bodySm)}>
+      <div className="flex items-start justify-between gap-2">
+        {/* StatCard's label is `text-[11px] font-medium`. The size is held at
+            12.5 here and only the weight is adopted: the Hindi gloss renders
+            at 0.85em, so an 11px label would set its own translation under
+            10px, which is below the floor `.hi` exists to protect. */}
+        <span className={cn("deva block min-w-0 font-medium text-text-2", T.bodySm)}>
           {item.labelEn}
           {item.labelHi ? (
             <span className="deva hi"> ({item.labelHi})</span>
           ) : null}
         </span>
         {Glyph ? (
-          // White chip, coloured glyph — inverted from the usual tinted
-          // square, because the CARD already carries the tint and two washes
-          // of the same hue on top of each other have almost no edge.
+          // The ERP's tinted square (ui/stat-card.tsx): the tone lives here,
+          // not on the card. Order Entry never tints a whole card.
+          //
+          // Deliberately NOT `hidden sm:grid` the way StatCard's is: once the
+          // card is untinted this tile is the only thing carrying the tone,
+          // and on a phone these cards are also the filters.
           <span
             aria-hidden
             className={cn(
-              "grid size-8 shrink-0 place-items-center rounded-field bg-surface",
+              "grid size-9 shrink-0 place-items-center rounded-lg",
+              tone.tint,
               tone.text,
             )}
           >
@@ -193,9 +212,9 @@ function KpiCard({
       {/* The figure and its shape on ONE row. Stacked, they leave a card twice
           as tall as its content for a single digit — which is what makes a row
           of zeroes look like an empty page. */}
-      <div className="mt-2 flex items-end justify-between gap-3">
+      <div className="mt-1.5 flex items-end justify-between gap-2">
         {loading ? (
-          <Skeleton className="h-9 w-14" />
+          <Skeleton className="h-6 w-12" />
         ) : error ? (
           <span role="alert" className={cn("font-semibold text-status-red", T.bodySm)}>
             {errorLabel}
@@ -203,7 +222,7 @@ function KpiCard({
         ) : (
           <span
             className={cn(
-              "num block leading-none",
+              "num block leading-tight",
               T.display,
               overdue ? "text-status-red" : "text-text-1",
             )}
@@ -223,11 +242,15 @@ function KpiCard({
     </>
   );
 
+  // ui/stat-card.tsx's shell, to the pixel: bg-surface (never a tinted card —
+  // Order Entry tints an icon tile, never a whole card), p-2.5, shadow-sm,
+  // border-primary + ring-2 ring-ring/25 when selected. The tone now lives on
+  // the icon tile above, which is where the ERP puts it.
   const shell = cn(
-    "relative min-w-40 shrink-0 overflow-hidden rounded-card border p-5 text-left shadow-sm transition-colors md:min-w-0",
-    // Selected wins over the tone and means something different from it: a UI
-    // state, not a measure. So it OVERRIDES the tint rather than combining.
-    active ? "border-primary bg-accent ring-2 ring-ring/25" : cn("border-border", tone.tint),
+    "relative min-w-40 shrink-0 overflow-hidden rounded-card border bg-surface p-2.5 text-left shadow-sm transition-colors md:min-w-0",
+    // Selected is a UI state, not a measure, so it stays a ring and a border
+    // rather than another wash of colour.
+    active ? "border-primary ring-2 ring-ring/25" : "border-border hover:border-border-strong",
     interactive && "cursor-pointer outline-none",
     interactive &&
       "focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",

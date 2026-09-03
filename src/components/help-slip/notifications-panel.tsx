@@ -53,7 +53,7 @@ export function NotificationsPanel({
 
       {loading ? (
         <div
-          className="flex flex-col gap-3 p-4"
+          className="flex flex-col gap-2.5 p-3"
           role="status"
           aria-busy
           aria-label="Loading notifications"
@@ -71,11 +71,14 @@ export function NotificationsPanel({
            inbox. The two read identically and only one of them means try
            again. */
         <div role="alert" className="flex items-center gap-3 px-5 py-4">
+          {/* A 36×36 SQUARE at `rounded-lg`, not a circle: docs/DESIGN.md's
+              icon tile. A circular tile is the one shape nothing else in the
+              ERP uses, so it reads as another product's component. */}
           <span
             aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-status-red-dim text-status-red"
+            className="grid size-9 shrink-0 place-items-center rounded-lg bg-status-red-dim text-status-red"
           >
-            <IconAlertTriangle className="size-5" stroke={1.6} />
+            <IconAlertTriangle className="size-[18px]" stroke={1.6} />
           </span>
           <span className="min-w-0 flex-1">
             <span className={cn("deva block text-text-2", T.bodySm)}>
@@ -105,9 +108,9 @@ export function NotificationsPanel({
         <div className="flex items-center gap-3 px-5 py-4">
           <span
             aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-text"
+            className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-text"
           >
-            <IconBell className="size-5" stroke={1.6} />
+            <IconBell className="size-[18px]" stroke={1.6} />
           </span>
           <span className={cn("deva min-w-0 text-text-2", T.bodySm)}>
             <Bi en="Nothing new." hi="कुछ नया नहीं।" />
@@ -133,7 +136,7 @@ export function NotificationsPanel({
                     : "/help-slip/concerns"
                 }
                 className={cn(
-                  "flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-surface-2",
+                  "flex flex-col gap-0.5 px-4 py-2.5 transition-colors hover:bg-surface-2",
                   // Unread is a brand-tinted left edge AND a heavier title.
                   // Never colour alone — around 8% of the factory cannot tell
                   // two rows apart if a tint is the only difference.

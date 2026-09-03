@@ -137,14 +137,16 @@ export function EmployeeDashboard() {
     <div className="flex flex-col">
       {/* ─── 1. the greeting, and nothing else ──────────────────────────── */}
       <Reveal index={0}>
-        <div className="flex flex-col gap-4 py-3 md:flex-row md:items-center md:justify-between">
+        {/* `pb-2` matches PageHeader, which this screen hand-rolls rather than
+            uses (it has a greeting, not a title). */}
+        <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
           <div className="min-w-0 md:flex-1">
             <h1 className={cn("deva text-text-1", T.h1)}>
               {greeting.en}
               {firstName ? `, ${firstName}` : ""}
               <span className="deva hi"> ({greeting.hi})</span>
             </h1>
-            <p className={cn("deva mt-1 text-text-3", T.bodySm)}>
+            <p className={cn("deva mt-1 text-text-3", T.body)}>
               <Bi
                 en="Here's an overview of your concerns"
                 hi="आपकी शिकायतों का ब्यौरा"
@@ -153,37 +155,48 @@ export function EmployeeDashboard() {
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
-            {/* THE control. 44px and full width on a phone, because this is
-                the button that gets pressed one-handed on a factory floor. */}
+          {/* Full width on a phone. The wrapper used to inherit that from a
+              `flex-col` parent; once the header became `flex-wrap` it had to
+              be said out loud, or the one primary action on the screen shrinks
+              to its text on the device most people file from. */}
+          <div className="flex w-full shrink-0 items-center gap-2 md:w-auto">
+            {/* THE control.
+                44px + 16px text below md: the minimum touch target for a phone
+                held on the factory floor, and anything under 16px makes iOS
+                Safari auto-zoom on focus and never zoom back out. ERP-compact
+                (36px / 13px) from md up. */}
             <Button
               size="lg"
-              className="h-11 flex-1 px-5 text-base md:flex-none"
+              className="h-11 flex-1 px-5 text-base md:h-9 md:flex-none md:px-3 md:text-sm"
+              nativeButton={false}
               render={<Link href="/help-slip/concerns/new" />}
             >
-              <IconPlus className="size-5" stroke={1.8} aria-hidden />
+              <IconPlus className="size-5 md:size-4" stroke={1.8} aria-hidden />
               <Bi en="Raise a concern" hi="शिकायत दर्ज करें" />
             </Button>
 
-            {/* A quiet circle, deliberately NOT a primary button. It
+            {/* A quiet square, deliberately NOT a primary button. It
                 duplicates the notification centre one click away, which is
                 defensible: the sidebar entry is navigation, this is the unread
-                STATE where the eye already is. */}
+                STATE where the eye already is.
+                36×36 with an 8px radius, not a 48px circle — docs/DESIGN.md:
+                the ERP's icon buttons are squares (crm/followup-queue.tsx's
+                Refresh is the same string). Desktop-only, so no touch guard. */}
             <Link
               href="/help-slip/notifications"
               aria-label={
                 unread > 0 ? `Notifications (${unread} unread)` : "Notifications"
               }
-              className="relative hidden size-12 shrink-0 place-items-center rounded-full border border-border bg-surface text-text-2 shadow-sm transition-colors hover:text-text-1 md:grid"
+              className="relative hidden size-9 shrink-0 place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1 md:grid"
             >
-              <IconBell className="size-5" stroke={1.6} aria-hidden />
+              <IconBell className="size-4" stroke={1.6} aria-hidden />
               {unread > 0 ? (
                 // A DOT, not a count. The number lives on the notification
                 // centre a click away, and two badges disagreeing by one after
                 // a refetch is a bug report waiting to happen.
                 <span
                   aria-hidden
-                  className="absolute top-3 right-3 size-2.5 rounded-full bg-primary ring-2 ring-surface"
+                  className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-surface"
                 />
               ) : null}
             </Link>
@@ -191,11 +204,12 @@ export function EmployeeDashboard() {
         </div>
       </Reveal>
 
-      {/* gap-10 (40px) between the KPI strip and the Recent row: two different
-          questions ("what is true now" vs "what happened"), and the module's
-          rhythm rule reserves 40px for the seam between sections. The tighter
-          16px cluster rhythm still applies INSIDE each. */}
-      <div className="flex flex-col gap-10 pb-10">
+      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
+          The seam between sections is 20px here as it is in Order Entry, and
+          the KPI strip and the Recent row still read as two different
+          questions ("what is true now" vs "what happened") because they are
+          two cards, not because 40px sits between them. */}
+      <div className="flex flex-col gap-5 pb-6">
         <Reveal index={1}>
           <KpiStrip
             items={kpis}
@@ -277,14 +291,18 @@ function RecentConcerns({
   return (
     <>
       {/* ── cards, < 768 ───────────────────────────────────────────────── */}
-      <ul className="flex flex-col gap-3 p-3 md:hidden">
+      <ul className="flex flex-col gap-2.5 p-3 md:hidden">
         {rows.map((row) => (
           <li key={row.id}>
             {/* The whole card is the link — a real one, so back, new-tab and
-                the keyboard all work. */}
+                the keyboard all work.
+                The ERP's mobile row card (orders-dashboard.tsx's OrderCard):
+                bg-surface + shadow-sm + a border that strengthens on hover and
+                a press scale. `Panel` no longer ships shadow-sm, so a card that
+                really IS a press target says so itself. */}
             <Link
               href={`/help-slip/concerns/${row.id}`}
-              className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+              className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={cn("num text-text-3", T.caption)}>

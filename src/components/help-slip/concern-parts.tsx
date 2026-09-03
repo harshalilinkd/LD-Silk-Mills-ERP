@@ -111,7 +111,7 @@ export function SolutionList({
               )}
             >
               {accepted || chosen ? (
-                <IconCheck className="size-4" stroke={2.4} />
+                <IconCheck className="size-3.5" stroke={2.4} />
               ) : (
                 s.position
               )}
@@ -153,7 +153,7 @@ export function SolutionList({
         );
 
         const shell = cn(
-          "flex w-full gap-3 rounded-card border p-3 text-left transition-colors",
+          "flex w-full gap-2.5 rounded-card border p-3 text-left transition-colors",
           // The accepted one gets the ONLY green on the page: it is the payoff
           // of the entire product — the person who proposed the fix finding
           // out that it was theirs.
@@ -215,7 +215,9 @@ export function MetaRow({
 }) {
   return (
     <div className="flex items-baseline gap-3 border-b border-border py-1.5 last:border-b-0">
-      <dt className={cn("deva w-24 shrink-0 text-text-3", T.caption)}>
+      {/* No `uppercase`/`tracking` here, though the ERP's info-grid label
+          carries both: this label is bilingual and Devanagari shatters. */}
+      <dt className={cn("deva w-20 shrink-0 text-text-3", T.caption)}>
         <Bi en={labelEn} hi={labelHi} />
       </dt>
       <dd className={cn("deva min-w-0 flex-1 text-text-1", T.bodySm)}>
@@ -266,7 +268,12 @@ export function ConcernNumber({
       <span
         className={cn(
           "num",
-          large ? cn("text-text-1", T.display) : cn("text-text-3", T.caption),
+          // `tracking-[-0.02em]` is legal on this span ONLY: it carries `.num`
+          // and no `.deva`, and its content is `LD-019` — a number, never
+          // Hindi. It is the ERP's mini-figure treatment.
+          large
+            ? cn("text-text-1", "text-[24px] font-bold tracking-[-0.02em]")
+            : cn("text-text-3", T.caption),
         )}
       >
         {value}
@@ -282,18 +289,26 @@ export function ConcernNumber({
         }}
         className={cn(
           "grid cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-chip hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40",
-          large ? "size-11" : "size-6",
+          // 44px below md on the filed confirmation: the minimum touch target
+          // for a phone held on the factory floor. ERP-compact (36px) from md
+          // up. The inline `sm` affordance is a caption-scale glyph, not a
+          // primary control, and stays 24px at every width.
+          large ? "size-11 md:size-9" : "size-6",
         )}
       >
         {copied ? (
           <IconCheck
-            className={large ? "size-5 text-status-green" : "size-3.5 text-status-green"}
+            className={
+              large
+                ? "size-5 text-status-green md:size-4"
+                : "size-3.5 text-status-green"
+            }
             stroke={2}
             aria-hidden
           />
         ) : (
           <IconCopy
-            className={large ? "size-5" : "size-3.5"}
+            className={large ? "size-5 md:size-4" : "size-3.5"}
             stroke={1.6}
             aria-hidden
           />
@@ -409,8 +424,8 @@ export function HsModal({
           <p
             role="alert"
             className={cn(
-              "deva rounded-field border border-status-red/35 bg-status-red-dim px-3 py-2 text-status-red",
-              T.caption,
+              "deva rounded-field border border-status-red/30 bg-status-red-dim px-3 py-2 text-status-red",
+              T.bodySm,
             )}
           >
             {error}
@@ -427,7 +442,11 @@ export function HsModal({
 export function ModalCancel({ disabled }: { disabled?: boolean }) {
   return (
     <DialogClose
-      render={<Button variant="outline" className="h-11" disabled={disabled} />}
+      // 44px below md: the minimum touch target for a phone held on the
+      // factory floor. ERP-compact (36px) from md up.
+      render={
+        <Button variant="outline" className="h-11 md:h-9" disabled={disabled} />
+      }
     >
       <Bi en="Cancel" hi="रद्द करें" />
     </DialogClose>

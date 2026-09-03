@@ -176,11 +176,11 @@ export function TrendChart({
     return (
       <div
         className={cn(
-          "flex h-44 items-center justify-center rounded-card bg-surface-2 px-4 text-center",
+          "flex h-44 items-center justify-center rounded-field bg-surface-2 px-4 text-center",
           className,
         )}
       >
-        <p className="deva text-sm text-text-3">{emptyLabel}</p>
+        <p className="deva text-[13px] text-text-3">{emptyLabel}</p>
       </div>
     );
   }
@@ -206,7 +206,7 @@ export function TrendChart({
               style={{ background: `var(${s.ink})` }}
             />
             {/* Text wears text tokens, never the series colour. */}
-            <span className="deva text-[13px] leading-[18px] font-medium text-text-2">
+            <span className="deva text-[11px] font-medium text-text-2">
               {s.label}
             </span>
           </span>
@@ -321,16 +321,19 @@ export function TrendChart({
         {active !== null ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute top-0 z-20 w-max max-w-48 -translate-x-1/2 rounded-card border border-border-strong bg-surface-2 px-3 py-2 shadow-lg"
+            // The shadow is PAIRED, not a single dark-theme value: 40% black
+            // is the mockup's dark-canvas drop shadow and smears on the light
+            // one. Same treatment as order-form.tsx's sticky bar.
+            className="pointer-events-none absolute top-0 z-20 w-max max-w-48 -translate-x-1/2 rounded-card border border-border-strong bg-surface-2 px-2.5 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.10)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
             style={{ left: `${(active / Math.max(1, count - 1)) * 100}%` }}
           >
-            <p className="num text-[13px] leading-[18px] text-text-3">
+            <p className="num text-[11px] text-text-3">
               {labels[active]}
             </p>
             {series.map((s) => (
               <p
                 key={s.key}
-                className="deva flex items-center gap-2 text-sm text-text-1"
+                className="deva flex items-center gap-2 text-[13px] text-text-1"
               >
                 <span
                   className="size-2 shrink-0 rounded-full"
@@ -349,10 +352,10 @@ export function TrendChart({
       {/* The ends of the window, so the plot is anchored in time without an
           axis full of dates nobody reads. */}
       <div className="flex justify-between">
-        <span className="num text-[13px] leading-[18px] text-text-3">
+        <span className="num text-[11px] text-text-3">
           {labels[0]}
         </span>
-        <span className="num text-[13px] leading-[18px] text-text-3">
+        <span className="num text-[11px] text-text-3">
           {labels[count - 1]}
         </span>
       </div>
@@ -407,11 +410,11 @@ export function BarList({
     return (
       <div
         className={cn(
-          "flex h-32 items-center justify-center rounded-card bg-surface-2 px-4 text-center",
+          "flex h-32 items-center justify-center rounded-field bg-surface-2 px-4 text-center",
           className,
         )}
       >
-        <p className="deva text-sm text-text-3">{emptyLabel}</p>
+        <p className="deva text-[13px] text-text-3">{emptyLabel}</p>
       </div>
     );
   }
@@ -424,7 +427,7 @@ export function BarList({
       {anyAlert ? (
         <span className="flex items-center gap-2">
           <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-status-red" />
-          <span className="deva text-[13px] leading-[18px] font-medium text-text-2">
+          <span className="deva text-[11px] font-medium text-text-2">
             {alertLabel}
           </span>
         </span>
@@ -437,10 +440,10 @@ export function BarList({
           return (
             <li key={item.key} className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="deva min-w-0 truncate text-sm text-text-1">
+                <span className="deva min-w-0 truncate text-[13px] text-text-1">
                   {item.label}
                 </span>
-                <span className="num shrink-0 text-sm font-semibold text-text-1">
+                <span className="num shrink-0 text-[13px] font-semibold text-text-1">
                   {item.value}
                   <span className="deva ml-1 text-[13px] font-normal text-text-3">
                     {unitLabel}

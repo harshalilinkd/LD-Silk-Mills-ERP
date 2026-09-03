@@ -88,15 +88,22 @@ export function StatusPills({
             aria-pressed={on}
             onClick={() => toggle(s)}
             className={cn(
-              "deva inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-pill border px-3 transition-colors outline-none",
-              T.bodySm,
+              // 44px + 16px text below md: the minimum touch target for a
+              // phone held on the factory floor, and the size the labels stay
+              // readable at out there. ERP-compact from md up — `ui/segmented`'s
+              // md geometry (h-8 / px-3 / 13px), which is where the "this
+              // module looks like a different app" complaint lives. Still an
+              // `aria-pressed` MULTI-select, not a `Segmented` (that control is
+              // single-select with a roving tabindex): only the geometry
+              // converged, never the behaviour.
+              "deva inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:gap-1.5 md:px-2.5 md:text-[13px]",
               "focus-visible:ring-3 focus-visible:ring-ring/40",
               on
                 ? "border-primary bg-accent text-accent-text"
                 : "border-border bg-surface text-text-2 hover:border-border-strong hover:text-text-1",
             )}
           >
-            <Glyph className="size-4 shrink-0" stroke={1.6} aria-hidden />
+            <Glyph className="size-4 shrink-0 md:size-3.5" stroke={1.6} aria-hidden />
             {locale === "hi" ? meta.labelHi : meta.labelEn}
           </button>
         );
@@ -143,8 +150,12 @@ export function FilterSelect({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "deva h-11 max-w-full cursor-pointer rounded-field border px-3 transition-colors outline-none",
-        T.bodySm,
+        // 44px + 16px text below md: the minimum touch target for a phone held
+        // on the factory floor, and anything under 16px makes iOS Safari
+        // auto-zoom on focus — a `<select>` triggers that exactly as an
+        // `<input>` does — and never zoom back out. ERP-compact (36px / 13px)
+        // from md up: `orders-dashboard`'s `h-9 … text-[13px]` toolbar select.
+        "deva h-11 max-w-full cursor-pointer rounded-field border px-3 text-base transition-colors outline-none md:h-9 md:px-2.5 md:text-[13px]",
         "focus-visible:ring-3 focus-visible:ring-ring/40",
         active
           ? "border-primary bg-accent text-accent-text"
@@ -223,7 +234,7 @@ export function DateRangeFields({
         max={to ?? maxDate}
         onChange={(e) => onChange({ from: e.target.value || null, to })}
         aria-label={labelFrom}
-        className={cn(CONTROL, "num w-40")}
+        className={cn(CONTROL, "num w-40 md:w-36")}
       />
       <span aria-hidden className="text-text-3">
         –
@@ -235,7 +246,7 @@ export function DateRangeFields({
         max={maxDate}
         onChange={(e) => onChange({ from, to: e.target.value || null })}
         aria-label={labelTo}
-        className={cn(CONTROL, "num w-40")}
+        className={cn(CONTROL, "num w-40 md:w-36")}
       />
     </span>
   );
@@ -300,7 +311,7 @@ export function FilterSheet({
             </SheetTitle>
           </SheetHeader>
 
-          <div className="flex flex-col gap-5 px-4">{children}</div>
+          <div className="flex flex-col gap-4 px-4">{children}</div>
 
           <SheetFooter className="flex-row gap-2">
             <Button
@@ -366,9 +377,9 @@ export function CheckRow({
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        className="size-[17px] shrink-0 accent-[var(--primary)]"
+        className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
       />
-      <span className={cn("deva text-text-1", T.bodySm)}>
+      <span className={cn("deva text-text-1", T.body)}>
         <Bi en={labelEn} hi={labelHi} />
       </span>
     </label>

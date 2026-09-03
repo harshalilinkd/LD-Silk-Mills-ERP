@@ -168,11 +168,15 @@ export function ResolveDialog({
         descriptionHi={`${employeeName} को सूचना भेजी जाएगी।`}
         error={error}
         footer={
+          // 44px + 16px text below md: the minimum touch target for a phone
+          // held on the factory floor, and anything under 16px makes iOS
+          // Safari auto-zoom on focus and never zoom back out. ERP-compact
+          // (36px / 13px) from md up.
           <>
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-11 md:h-9"
               disabled={pending}
               onClick={requestClose}
             >
@@ -180,7 +184,7 @@ export function ResolveDialog({
             </Button>
             <Button
               type="button"
-              className="h-11"
+              className="h-11 md:h-9"
               disabled={pending}
               onClick={submit}
             >
@@ -261,7 +265,9 @@ export function ResolveDialog({
         {/* ── step 3: the sentence they will actually receive ─────────── *
          * Not decoration. This single line is what stops "done" and "fixed"
          * from reaching somebody as the entire answer to their problem.     */}
-        <div className="flex flex-col gap-1 rounded-field bg-surface-2 px-3 py-2.5">
+        {/* The ERP's left-rule callout: a 3px neutral rule says "this block is
+            different in kind" without spending a status hue on it. */}
+        <div className="flex flex-col gap-1 rounded-field border-l-[3px] border-l-border-strong bg-surface-2 px-3 py-2.5">
           <span className={cn("deva text-text-3", T.caption)}>
             <Bi
               en={`${employeeName} will see:`}
@@ -296,11 +302,13 @@ export function ResolveDialog({
         descriptionEn="The resolution message will be lost. The concern stays open either way."
         descriptionHi="लिखा हुआ संदेश चला जाएगा। शिकायत दोनों हालत में खुली रहेगी।"
         footer={
+          // 44px below md (factory-floor touch target), ERP-compact 36px from
+          // md up — see the note on the resolve footer above.
           <>
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-11 md:h-9"
               onClick={() => setConfirmingDiscard(false)}
             >
               <Bi en="Keep writing" hi="लिखते रहें" />
@@ -308,7 +316,7 @@ export function ResolveDialog({
             <Button
               type="button"
               variant="destructive"
-              className="h-11"
+              className="h-11 md:h-9"
               onClick={() => {
                 setConfirmingDiscard(false);
                 onOpenChange(false);

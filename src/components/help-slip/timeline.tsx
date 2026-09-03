@@ -216,7 +216,7 @@ export function Timeline({
                 No uppercase or tracking here, unlike a table header — this
                 string can be Devanagari ("आज"), which has no case and whose
                 conjuncts tracking shatters. */}
-            <h3 className="sticky top-0 z-10 -mx-1 bg-surface px-1 py-2">
+            <h3 className="sticky top-0 z-10 -mx-1 bg-surface px-1 py-1.5">
               <span
                 className={cn("deva font-semibold text-text-2", T.caption)}
               >
@@ -269,7 +269,7 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
         // link works from anywhere and not only from the row that was tapped.
         id={`update-${event.id}`}
         className={cn(
-          "relative pb-5 pl-8",
+          "relative pb-4 pl-8",
           // A deep link that lands in the middle of a long thread has to say
           // WHICH node it meant, or the scroll position is the only clue and
           // it is gone the moment somebody nudges the page. A tint on an
@@ -354,20 +354,23 @@ const TimelineNode = React.forwardRef<HTMLLIElement, NodeProps>(
           {event.message ? (
             <div
               className={cn(
-                "rounded-field border px-3 py-2",
+                "rounded-field border px-3 py-2.5",
                 // A real border, not a tinted fill alone — the bubble has to
                 // read as its own object against a card it shares a
                 // background family with.
+                //
+                // An internal note carries FOUR independent signals, none of
+                // them colour-only and none of them a status hue (every hue on
+                // this rail is already a status): the dashed rail above, the
+                // lock line above, this dashed edge + 3px left rule — the ERP's
+                // "different in kind" callout — and a different ground.
                 event.isInternal
-                  ? "border-dashed border-border-strong bg-chip"
+                  ? "border-dashed border-border-strong border-l-[3px] [border-left-style:solid] border-l-status-amber bg-chip"
                   : "border-border bg-surface-2",
               )}
             >
               <p
-                className={cn(
-                  "deva whitespace-pre-wrap text-text-1",
-                  T.bodySm,
-                )}
+                className={cn("deva whitespace-pre-wrap text-text-1", T.body)}
               >
                 {event.message}
               </p>

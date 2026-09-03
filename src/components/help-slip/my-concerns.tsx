@@ -183,24 +183,29 @@ export function MyConcerns() {
           meta={total > 0 ? `Showing ${rows.length} of ${total}` : null}
           actions={
             // The primary control of the whole module, on the screen somebody
-            // lands on when they came here to report something. 44px, because
-            // this is the one button that gets pressed standing up.
+            // lands on when they came here to report something. 44px + 16px
+            // text below md: the minimum touch target for a phone held on the
+            // factory floor, which is where this button gets pressed, standing
+            // up. ERP-compact (36px / 14px) from md up — the page-header CTA
+            // in Order Entry and CRM.
             <Button
               size="lg"
-              className="h-11 px-5 text-base"
+              className="h-11 px-5 text-base md:h-9 md:px-3 md:text-sm"
+              nativeButton={false}
               render={<Link href="/help-slip/concerns/new" />}
             >
-              <IconPlus className="size-5" stroke={1.8} aria-hidden />
+              <IconPlus className="size-5 md:size-4" stroke={1.8} aria-hidden />
               <Bi en="Raise a concern" hi="शिकायत दर्ज करें" />
             </Button>
           }
         />
       </Reveal>
 
-      {/* 40px between the controls and the list — two distinct sections
-          ("narrow it" and "here it is"). The tighter 12px cluster rhythm still
-          applies WITHIN each. */}
-      <div className="flex flex-col gap-10 pb-10">
+      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
+          The seam between "narrow it" and "here it is" is 20px here as it is in
+          Order Entry; the tighter 12px cluster rhythm still applies WITHIN
+          each section. */}
+      <div className="flex flex-col gap-5 pb-6">
         {/* ═══ controls ═══════════════════════════════════════════════ */}
         <Reveal index={1}>
           <div className="flex flex-col gap-3">
@@ -261,7 +266,7 @@ export function MyConcerns() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Quick filter, phone only. Three options that PARTITION the
                   statuses, so "All" really is the union of the other two. */}
               <Segmented<ListTab | "custom">
@@ -280,13 +285,13 @@ export function MyConcerns() {
               />
 
               {/* From 768 the same two dimensions sit inline above the table. */}
-              <div className="hidden flex-wrap items-center gap-3 md:flex">
+              <div className="hidden flex-wrap items-center gap-2 md:flex">
                 <StatusPills
                   value={filters.status}
                   onChange={(status) => apply({ ...filters, status })}
                   locale={locale}
                 />
-                <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+                <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
                 <DateRangeFields
                   from={filters.from}
                   to={filters.to}
@@ -355,16 +360,23 @@ export function MyConcerns() {
                 }
               >
                 {/* ── cards, < 768 ──────────────────────────────────── */}
-                <ul className="flex flex-col gap-3 p-3 md:hidden">
+                <ul className="flex flex-col gap-2.5 p-3 md:hidden">
                   {rows.map((row) => (
                     <li key={row.id}>
                       {/* The WHOLE CARD is the link, not a tap target inside
                           it. A real <Link>, so back works, the row can be
                           opened in a new tab, and a keyboard reaches it —
-                          none of which an onClick handler gives. */}
+                          none of which an onClick handler gives.
+
+                          Order Entry's mobile row card, verbatim
+                          (`orders/orders-dashboard.tsx`'s OrderCard): surface
+                          ground, border-strong on hover, and a press scale.
+                          It carries its own `shadow-sm` because `Panel` no
+                          longer does — a shadow marks a press TARGET here, not
+                          a panel. */}
                       <Link
                         href={`/help-slip/concerns/${row.id}`}
-                        className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+                        className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
                       >
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn("num text-text-3", T.caption)}>
@@ -398,7 +410,7 @@ export function MyConcerns() {
                         )}
                       >
                         <IconArrowRight
-                          className="mt-0.5 size-3.5 shrink-0 text-text-3"
+                          className="mt-px size-3 shrink-0 text-text-3"
                           stroke={1.6}
                           aria-hidden
                         />

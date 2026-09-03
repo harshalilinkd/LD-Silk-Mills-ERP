@@ -221,17 +221,19 @@ export function PcDashboard() {
         />
       </Reveal>
 
-      {/* gap-10 (40px): four blocks answering four different questions —
-          narrow it, what's true now, what's been happening, what needs me. A
-          flat 16px everywhere read as one long list of loosely related cards.
-          The tighter cluster rhythm still applies INSIDE each block. */}
-      <div className="flex flex-col gap-10 pb-10">
+      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
+          The seam between sections is 20px here as it is in Order Entry: four
+          blocks answering four different questions — narrow it, what's true
+          now, what's been happening, what needs me — separated by being four
+          cards rather than by 40px of canvas. */}
+      <div className="flex flex-col gap-5 pb-6">
         {/* ═══ 1. filters ═════════════════════════════════════════════ *
          * A card, not bare controls on the canvas — every other block on this
-         * screen is a card and this row was the one thing floating. p-4 rather
-         * than the full panel padding: a filter row is controls, not prose. */}
+         * screen is a card and this row was the one thing floating. This is
+         * the ERP's toolbar card verbatim (crm/followup-queue.tsx's Region B):
+         * p-2.5 and shadow-sm, because a filter row is controls, not prose.  */}
         <Reveal index={1}>
-          <Panel className="flex flex-wrap items-center gap-3 p-4">
+          <Panel className="flex flex-wrap items-center gap-2 p-2.5 shadow-sm">
             <FilterSelect
               ariaLabel="Department"
               value={filters.departmentId ?? ""}
@@ -255,21 +257,23 @@ export function PcDashboard() {
               locale={locale}
             />
 
-            <label className="flex min-h-11 cursor-pointer items-center gap-2">
+            {/* 44px tap row below md: the minimum touch target for a phone
+                held on the factory floor. ERP density (36px) from md up. */}
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 md:min-h-9">
               <input
                 type="checkbox"
                 checked={filters.needsReassignment}
                 onChange={(e) =>
                   apply({ ...filters, needsReassignment: e.target.checked })
                 }
-                className="size-[17px] shrink-0 accent-[var(--primary)]"
+                className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
               />
-              <span className={cn("deva text-text-2", T.bodySm)}>
+              <span className={cn("deva text-text-2", T.body)}>
                 <Bi en="Needs reassignment" hi="दोबारा सौंपना है" />
               </span>
             </label>
 
-            <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+            <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
 
             <DateRangePresets
               from={range.from}
@@ -403,16 +407,20 @@ function QueueRows({
   return (
     <>
       {/* ── cards, < 768 ───────────────────────────────────────────────── */}
-      <ul className="flex flex-col gap-3 p-3 md:hidden">
+      <ul className="flex flex-col gap-2.5 p-3 md:hidden">
         {rows.map((row) => (
           <li key={row.id}>
             {/* The queue's whole reason for existing is "open this one next",
                 so the card is the link — into the WORKSPACE, where a
-                coordinator can actually act on it. */}
+                coordinator can actually act on it.
+                The ERP's mobile row card (orders-dashboard.tsx's OrderCard).
+                `Panel` no longer ships shadow-sm, so a card that really IS a
+                press target says so itself. The overdue left rule stays a
+                rule, never a fill. */}
             <Link
               href={`/help-slip/all/${row.id}`}
               className={cn(
-                "flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40",
+                "flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]",
                 row.isOverdue && "border-l-[3px] border-l-status-red",
               )}
             >
@@ -664,8 +672,8 @@ function InsightsPanels({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:items-start">
-        <Panel className="flex flex-col gap-4 p-5">
+      <div className="grid gap-3.5 lg:grid-cols-[1.6fr_1fr] lg:items-start">
+        <Panel className="flex flex-col gap-3 p-4">
           <PanelTitle
             titleEn="Filed and resolved"
             titleHi="दर्ज और हल"
@@ -705,7 +713,7 @@ function InsightsPanels({
             against this panel stretching to match the chart beside it — one
             department bar in a card as tall as a 30-day chart is dead space
             with a heading on it, not "airy". */}
-        <Panel className="flex flex-col gap-4 self-start p-5">
+        <Panel className="flex flex-col gap-3 self-start p-4">
           <PanelTitle
             titleEn="Where concerns come from"
             titleHi="शिकायतें कहाँ से आती हैं"
@@ -757,12 +765,13 @@ function PanelTitle({
 /**
  * A headline number and the sentence that makes it mean something.
  *
- * `display` size is for a FIGURE. "No data yet" set at 30px is a sentence
+ * A figure size is for a FIGURE. "No data yet" set at 24px is a sentence
  * shouting that it has nothing to say — and until a coordinator resolves
  * something, both of these tiles say exactly that, which would make the two
  * largest things on the dashboard the two emptiest. A real number keeps the
- * size it earns; the absence drops to body and goes muted, which is what an
- * absence should look like.
+ * size it earns (the ERP's mini-figure, dashboard-view.tsx's 24/700); the
+ * absence drops to body and goes muted, which is what an absence should look
+ * like — and it stays untracked, because it holds a bilingual string.
  */
 function StatTile({
   icon: Glyph,
@@ -780,14 +789,16 @@ function StatTile({
   value: string | null;
 }) {
   return (
-    <Panel className="flex flex-col gap-2 p-5">
+    <Panel className="flex flex-col gap-1.5 p-4">
       <div className="flex items-center justify-between gap-3">
-        <span className={cn("deva text-text-3", T.caption)}>
+        <span className={cn("deva font-medium text-text-3", T.caption)}>
           <Bi en={labelEn} hi={labelHi} />
         </span>
+        {/* An icon TILE: a 36px-family square at the ERP's 10px radius, never
+            a circle (docs/DESIGN.md). */}
         <span
           aria-hidden
-          className="grid size-8 shrink-0 place-items-center rounded-field bg-accent text-accent-text"
+          className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-text"
         >
           <Glyph className="size-[17px]" stroke={1.6} />
         </span>
@@ -796,8 +807,12 @@ function StatTile({
         aria-live="polite"
         className={
           value === null
-            ? cn("deva text-text-3", T.body)
-            : cn("num text-text-1", T.display)
+            ? // No `tracking` on this branch: it holds a bilingual string.
+              cn("deva text-text-3", T.body)
+            : // The ERP's mini-figure (dashboard-view.tsx). `tracking` is legal
+              // on this branch ONLY: it carries `.num`, no `.deva`, and its
+              // content is "62%" / "9 h" — a number, never Devanagari.
+              cn("num text-text-1", "text-[24px] leading-none font-bold tracking-[-0.02em]")
         }
       >
         {value ?? <Bi en="No data yet" hi="अभी डेटा नहीं" />}
@@ -845,7 +860,7 @@ function DateRangePresets({
     presets.find((p) => p.from === from && p.to === to)?.key ?? null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2">
       <div className="flex flex-wrap gap-2">
         {presets.map((p) => (
           <button
@@ -853,9 +868,12 @@ function DateRangePresets({
             type="button"
             aria-pressed={activeKey === p.key}
             onClick={() => onChange(p.from, p.to)}
+            // 44px + 16px text below md: the minimum touch target for a phone
+            // held on the factory floor, and anything under 16px makes iOS
+            // Safari auto-zoom on focus and never zoom back out. ui/segmented's
+            // md geometry (32px / 13px) from md up.
             className={cn(
-              "deva inline-flex h-11 cursor-pointer items-center rounded-pill border px-3 transition-colors outline-none",
-              T.bodySm,
+              "deva inline-flex h-11 cursor-pointer items-center rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:px-2.5 md:text-[13px]",
               "focus-visible:ring-3 focus-visible:ring-ring/40",
               activeKey === p.key
                 ? "border-primary bg-accent text-accent-text"

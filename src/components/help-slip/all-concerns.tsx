@@ -182,12 +182,15 @@ export function AllConcerns() {
         />
       </Reveal>
 
-      <div className="flex flex-col gap-10 pb-10">
+      {/* gap-5 — the ERP page rhythm (`flex flex-col gap-5`, every page file).
+          The seam between the toolbar and the list is 20px here as it is in
+          Order Entry. */}
+      <div className="flex flex-col gap-5 pb-6">
         {/* ═══ controls ═══════════════════════════════════════════════ *
          * Search, the five filter dimensions and Clear share ONE row and one
          * baseline. On two rows they read as two unrelated toolbars.        */}
         <Reveal index={1}>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <SearchField
               value={term}
               onChange={setTerm}
@@ -287,13 +290,13 @@ export function AllConcerns() {
                 The source's desktop toolbar carries four of them and leaves
                 priority to the phone sheet only; a screen that advertises five
                 filter dimensions should reach all five where it is widest. */}
-            <div className="hidden flex-wrap items-center gap-3 md:flex">
+            <div className="hidden flex-wrap items-center gap-2 md:flex">
               <StatusPills
                 value={filters.status}
                 onChange={(status) => apply({ ...filters, status })}
                 locale={locale}
               />
-              <span aria-hidden className="h-6 w-px shrink-0 bg-border" />
+              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
               <FilterSelect
                 ariaLabel="Department"
                 value={filters.departmentId ?? ""}
@@ -387,15 +390,22 @@ export function AllConcerns() {
                 }
               >
                 {/* ── cards, < 768 ──────────────────────────────────── */}
-                <ul className="flex flex-col gap-3 p-3 md:hidden">
+                <ul className="flex flex-col gap-2.5 p-3 md:hidden">
                   {rows.map((row) => (
                     <li key={row.id}>
                       {/* Staff land in the WORKSPACE, not the employee's view:
                           this is the archive a coordinator opens in order to
-                          do something about a concern. */}
+                          do something about a concern.
+
+                          Order Entry's mobile row card, verbatim
+                          (`orders/orders-dashboard.tsx`'s OrderCard): surface
+                          ground, border-strong on hover, and a press scale.
+                          It carries its own `shadow-sm` because `Panel` no
+                          longer does — a shadow marks a press TARGET here, not
+                          a panel. */}
                       <Link
                         href={`/help-slip/all/${row.id}`}
-                        className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+                        className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-sm transition-colors outline-none hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/40 active:scale-[.99]"
                       >
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn("num text-text-3", T.caption)}>
