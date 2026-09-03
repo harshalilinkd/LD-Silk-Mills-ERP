@@ -29,6 +29,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        // REFUSES IN PRODUCTION, unconditionally and before anything else.
+        //
+        // The login page already hides this form when DEV_LOGIN_PASSWORD is
+        // unset, and the deploy instructions say not to copy that variable —
+        // but "we told somebody not to paste it" is not a control. One shared
+        // password that every ERP account answers to, on a public address, is
+        // the worst failure this app could have, and it would be caused by a
+        // single careless copy of an env var list.
+        //
+        // So the door does not exist off localhost. If Google sign-in ever
+        // fails in production the fix is to fix Google, not to reopen this.
+        if (process.env.NODE_ENV === "production") return null;
+
         const email = credentials?.email as string | undefined;
         const password = credentials?.password as string | undefined;
         const devPassword = process.env.DEV_LOGIN_PASSWORD;
