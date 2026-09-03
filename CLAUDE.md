@@ -284,6 +284,21 @@ included, with no error and no warning.
 - **Stale `.next` cache after deleting a source file** throws
   `Cannot find module for page: ...` on the next build — `rm -rf .next`
   fixes it.
+- **Never run `npm run build` while `npm run dev` is running.** They share the
+  one `.next` directory, so the production build replaces the chunks the dev
+  server has open and the very next request dies with
+  `Cannot find module './1331.js'` (or similar) from `webpack-runtime.js` —
+  pointing at whatever route was unlucky, which makes it look like a code bug
+  in that route. It is not. Reverting `package.json`/`package-lock.json` under
+  a running dev server does the same thing via the vendor chunks. Either stop
+  the dev server first, or accept that you must clear and restart afterwards.
+- **The restart order matters** and getting it wrong corrupts `.next` again:
+  kill the process → *wait for port 3000 to actually be free* → `rm -rf .next`
+  → start. Clearing the cache while the old process is still exiting races it,
+  and the symptom is a half-styled page or
+  `Invariant: missing bootstrap script`. On Windows a `.next` delete can also
+  fail with "Directory not empty" purely because of a file lock — verify the
+  delete succeeded rather than assuming.
 - **`ld_order_entry` and `ld_help_slip` both have RLS-related Supabase
   advisories** (RLS disabled on all 15 Order Entry tables; a few
   SECURITY DEFINER warnings on Help Slip) — pre-existing, not introduced by
