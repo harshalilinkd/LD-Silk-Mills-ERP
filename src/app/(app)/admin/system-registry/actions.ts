@@ -1,5 +1,7 @@
 "use server";
 
+import { requireErpAdmin } from "@/lib/admin";
+
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
@@ -13,6 +15,10 @@ export async function updateSystem(
     sortOrder: number;
   },
 ) {
+  // FIRST, before the arguments are even read. A server action is a POST
+  // endpoint: hiding the page does not hide it.
+  await requireErpAdmin();
+
   await db
     .update(systems)
     .set({

@@ -1,5 +1,6 @@
 import { IconUsers } from "@tabler/icons-react";
 import { EmptyState } from "@/components/shell/empty-state";
+import { requireErpAdmin } from "@/lib/admin";
 import { getAllUsersOrdered } from "@/lib/queries";
 import { UserEditDialog } from "./user-edit-dialog";
 
@@ -14,6 +15,10 @@ function initials(name: string) {
 }
 
 export default async function UsersAdminPage() {
+  // The layout above has already refused anybody who is not an admin, so this
+  // cannot throw in practice. It is called for the ID, which the dialog needs
+  // in order to disable the two controls an admin must not use on themselves.
+  const admin = await requireErpAdmin();
   const allUsers = await getAllUsersOrdered();
 
   return (
@@ -94,7 +99,7 @@ export default async function UsersAdminPage() {
                       })}
                     </td>
                     <td className="border-b border-border px-3.5 py-3">
-                      <UserEditDialog user={user} />
+                      <UserEditDialog user={user} isSelf={user.id === admin.id} />
                     </td>
                   </tr>
                 ))}

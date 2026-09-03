@@ -35,10 +35,25 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
 (port 6543), never the session pooler (5432) or direct connection.
 
 ## Auth — two layers, on purpose
-1. **Shell session**: Auth.js v5, Google OAuth (credentials still TODO — see
-   `.env.local`) plus a **temporary** shared-password `Credentials` provider
-   (`DEV_LOGIN_PASSWORD` env var) for local testing before Google is wired
-   up. Split `src/auth.config.ts` (Edge-safe, no DB import — used only by
+1. **Shell session**: Auth.js v5. Two providers, both real:
+   **Google OAuth**, and **email + password** per user
+   (`ld_erp_core.users.password_hash`, bcrypt cost 10 — the same cost Order
+   Entry uses). The old shared-password `DEV_LOGIN_PASSWORD` provider is gone
+   and that env var is read nowhere; delete it from any host it was copied to.
+
+   **Every login failure is identical** — wrong password, unknown email, no
+   password set, and deactivated account all return the same `null`, the same
+   sentence, and the same TIMING (the bcrypt compare runs against a dummy hash
+   when there is no stored one, so "no password" is not measurably faster).
+   Do not add a distinguishing message; it turns the form into a directory.
+
+   **`password_hash` leaves the server nowhere.** `src/lib/queries.ts` defines
+   `publicUserColumns` and the hash is not in it; the only reader is the
+   `password` provider in `src/auth.ts`. `getAllUsersOrdered` feeds
+   `/admin/users`, which hands rows to a Client Component — `db.select()`
+   there would serialise every hash into the page HTML.
+
+   Split `src/auth.config.ts` (Edge-safe, no DB import — used only by
    `src/middleware.ts`) vs `src/auth.ts` (full config, DB-touching
    callbacks) — `postgres.js` needs real Node APIs the Edge runtime doesn't
    have, so nothing DB-touching may ever be imported by middleware.
@@ -54,8 +69,25 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
    Orders/CRM; Order Entry's own bcrypt Credentials provider and login page
    were never ported.
 
-**Remove the `DEV_LOGIN_PASSWORD` provider before Phase 2** (auth
-hardening) — it's marked TEMPORARY in `src/auth.ts` and `.env.local`.
+## Shell admin — `ld_erp_core.users.role`
+`member` | `admin`, defaulting to `member`. This did not exist until Sep 2026
+and its absence was a live privilege escalation: `/admin/users`,
+`/admin/system-registry` and `/admin/access-control` sat behind nothing but
+middleware's "are you signed in", and their three server actions had no check
+at all — any employee could tick themselves into Order Entry.
+
+- `src/lib/admin.ts` — `requireErpAdmin()` (throws), `getErpRole()`,
+  `isErpAdmin()`.
+- **Every mutating action under `/admin` calls `requireErpAdmin()` FIRST**,
+  before reading its arguments. A server action is a POST endpoint; hiding the
+  page does not hide it. `src/app/(app)/admin/layout.tsx` also refuses
+  non-admins, but that is for the message, not the boundary.
+- **Shell admin is not module admin.** Order Entry resolves its role from
+  `ld_order_entry.users`, Help Slip from `ld_help_slip.profiles`. Neither
+  consults this column, and a shell admin is not automatically allowed to
+  delete an order.
+- An admin cannot deactivate or demote themselves — with no active admin
+  nobody can promote one back from inside the app.
 
 ## Two specs, and which wins where
 - **`docs/SCREENS.md`** — the source app's build-to-print spec (every region,

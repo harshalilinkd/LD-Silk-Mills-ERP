@@ -8,6 +8,20 @@
       "when": 1788254708235,
       "tag": "0000_lame_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788427681369,
+      "tag": "0001_military_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788427876538,
+      "tag": "0002_familiar_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

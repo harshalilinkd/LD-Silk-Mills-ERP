@@ -1,5 +1,7 @@
 "use server";
 
+import { requireErpAdmin } from "@/lib/admin";
+
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
@@ -10,6 +12,10 @@ export async function setSystemAccess(
   systemId: string,
   canView: boolean,
 ) {
+  // FIRST, before the arguments are even read. A server action is a POST
+  // endpoint: hiding the page does not hide it.
+  await requireErpAdmin();
+
   const existing = await db
     .select({ id: systemAccess.id })
     .from(systemAccess)

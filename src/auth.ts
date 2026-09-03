@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
+import { compare } from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -15,47 +16,71 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   providers: [
     Google,
-    // TEMPORARY dev-only login, added because Google OAuth credentials
-    // weren't available yet to unblock local testing. There is no
-    // password column on ld_erp_core.users — this checks a single
-    // shared password (DEV_LOGIN_PASSWORD env var), not a per-user one.
-    // Remove this provider before Phase 2 (auth hardening) / before any
-    // real deployment. Locked spec for Phase 1 was Google-only.
+    /**
+     * Email + password, per user.
+     *
+     * This REPLACES a temporary provider that checked one shared password from
+     * `DEV_LOGIN_PASSWORD` against any known email. That was a stopgap while
+     * Google credentials were unavailable and it is gone: the env var is no
+     * longer read anywhere, so copying it to a host does nothing.
+     *
+     * ── WHAT THIS DELIBERATELY DOES NOT DO ────────────────────────────────
+     *
+     * It never says WHICH half was wrong. An unknown email, a known email with
+     * no password set, a wrong password and a deactivated account all return
+     * the same `null` and the same sentence on screen. Distinguishing them
+     * turns the login form into a tool for discovering who works here.
+     *
+     * For the same reason the bcrypt comparison runs even when there is no
+     * stored hash — against a dummy hash of the same cost. Returning early on
+     * "no password set" makes that case measurably faster than a wrong
+     * password, and the difference is enough to enumerate accounts with a
+     * stopwatch.
+     *
+     * `passwordHash` is selected explicitly here and nowhere else in the app.
+     * It is never returned from an action, never sent to a page, never logged.
+     */
     Credentials({
-      id: "dev-password",
-      name: "Dev password (temporary)",
+      id: "password",
+      name: "Email and password",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        // REFUSES IN PRODUCTION, unconditionally and before anything else.
-        //
-        // The login page already hides this form when DEV_LOGIN_PASSWORD is
-        // unset, and the deploy instructions say not to copy that variable —
-        // but "we told somebody not to paste it" is not a control. One shared
-        // password that every ERP account answers to, on a public address, is
-        // the worst failure this app could have, and it would be caused by a
-        // single careless copy of an env var list.
-        //
-        // So the door does not exist off localhost. If Google sign-in ever
-        // fails in production the fix is to fix Google, not to reopen this.
-        if (process.env.NODE_ENV === "production") return null;
-
-        const email = credentials?.email as string | undefined;
+        const email = (credentials?.email as string | undefined)
+          ?.trim()
+          .toLowerCase();
         const password = credentials?.password as string | undefined;
-        const devPassword = process.env.DEV_LOGIN_PASSWORD;
-
-        if (!email || !password || !devPassword) return null;
-        if (password !== devPassword) return null;
+        if (!email || !password) return null;
 
         const [dbUser] = await db
-          .select()
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            avatar: users.avatar,
+            status: users.status,
+            passwordHash: users.passwordHash,
+          })
           .from(users)
           .where(eq(users.email, email))
           .limit(1);
 
-        if (!dbUser) return null;
+        // A bcrypt hash of a value nobody knows, at the same cost as a real
+        // one. Comparing against this when the account does not exist or has
+        // no password keeps every failure the same shape AND the same duration.
+        const DUMMY =
+          "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+        const ok = await compare(password, dbUser?.passwordHash ?? DUMMY);
+
+        if (!dbUser || !dbUser.passwordHash) return null;
+        if (!ok) return null;
+        // Status is checked here as well as in the `signIn` callback below,
+        // because a deactivated account must not be distinguishable from a
+        // wrong password by anything the caller can observe.
+        if (dbUser.status !== "active") return null;
 
         return {
           id: dbUser.id,
@@ -91,8 +116,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user }) {
       if (user?.email) {
+        // Explicit columns. `select()` pulled `password_hash` into memory on
+        // every token refresh for the three fields below — harmless while only
+        // these three are copied out, and one careless spread from not being.
         const [dbUser] = await db
-          .select()
+          .select({ id: users.id, name: users.name, avatar: users.avatar })
           .from(users)
           .where(eq(users.email, user.email))
           .limit(1);

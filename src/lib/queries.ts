@@ -30,17 +30,59 @@ export async function getVisibleSystemsForUser(userId: string) {
   );
 }
 
+/**
+ * THE COLUMNS A USER ROW IS ALLOWED TO LEAVE THE SERVER WITH.
+ *
+ * Every one of these three functions used `db.select().from(users)` — all
+ * columns. That was harmless until `password_hash` was added, and then it was
+ * not: `getAllUsersOrdered` feeds `/admin/users`, which hands each row to a
+ * Client Component, so React would have serialised every bcrypt hash into the
+ * HTML delivered to the browser. A hash in a page source is an offline
+ * cracking target, and nothing on that screen needs it.
+ *
+ * So the columns are listed, and `passwordHash` is not among them. The ONLY
+ * place that column is read is the `password` provider in `src/auth.ts`, which
+ * selects it by name. `passwordSetAt` is safe and useful — it lets the admin
+ * screen say whether somebody has a password without revealing anything about
+ * it.
+ *
+ * Add a column here only after asking whether the browser needs it.
+ */
+const publicUserColumns = {
+  id: users.id,
+  name: users.name,
+  email: users.email,
+  avatar: users.avatar,
+  status: users.status,
+  role: users.role,
+  passwordSetAt: users.passwordSetAt,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+} as const;
+
+export type PublicUser = {
+  [K in keyof typeof publicUserColumns]: (typeof users)["$inferSelect"][K];
+};
+
 export async function getAllUsersOrdered() {
-  return db.select().from(users).orderBy(asc(users.name));
+  return db.select(publicUserColumns).from(users).orderBy(asc(users.name));
 }
 
 export async function getUserByEmail(email: string) {
-  const [row] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const [row] = await db
+    .select(publicUserColumns)
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
   return row ?? null;
 }
 
 export async function getUserById(id: string) {
-  const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  const [row] = await db
+    .select(publicUserColumns)
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
   return row ?? null;
 }
 

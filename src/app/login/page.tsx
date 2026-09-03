@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { signInWithGoogle, signInWithDevPassword } from "./actions";
+import { signInWithGoogle, signInWithPassword } from "./actions";
 
 export default async function LoginPage({
   searchParams,
@@ -13,7 +13,6 @@ export default async function LoginPage({
   if (session) redirect("/");
 
   const { callbackUrl, error } = await searchParams;
-  const devLoginEnabled = Boolean(process.env.DEV_LOGIN_PASSWORD);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -31,13 +30,14 @@ export default async function LoginPage({
             LD Silk Mills ERP
           </h1>
           <p className="text-[13px] text-text-3">
-            Sign in with your work Google account to continue.
+            Sign in with Google, or with your email and password.
           </p>
         </div>
 
         {error === "invalid_credentials" && (
           <p className="mb-4 rounded-lg border border-status-red/30 bg-status-red-dim px-3 py-2 text-center text-[12.5px] text-status-red">
-            That email/password combination didn&apos;t work.
+            That email and password didn&apos;t work. If you have never set
+            one, sign in with Google instead.
           </p>
         )}
 
@@ -53,51 +53,51 @@ export default async function LoginPage({
           </Button>
         </form>
 
-        {devLoginEnabled && (
-          <>
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-3">
-                Temporary dev login
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
+        <div className="my-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10.5px] font-semibold tracking-[0.04em] text-text-3 uppercase">
+            or
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
 
-            <form
-              action={async (formData: FormData) => {
-                "use server";
-                await signInWithDevPassword(
-                  String(formData.get("email") ?? ""),
-                  String(formData.get("password") ?? ""),
-                  callbackUrl,
-                );
-              }}
-              className="flex flex-col gap-2.5"
-            >
-              <Input
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-                className="text-[13px]"
-              />
-              <Input
-                name="password"
-                type="password"
-                placeholder="Dev password"
-                required
-                className="text-[13px]"
-              />
-              <Button type="submit" variant="outline" className="w-full">
-                Sign in with password
-              </Button>
-            </form>
-            <p className="mt-3 text-center text-[11px] text-text-3">
-              Not a real login — one shared dev password, no per-user
-              credentials. Remove before Phase 2.
-            </p>
-          </>
-        )}
+        {/* Shown to everybody, always. Whether a given person HAS a password is
+            not something this form may reveal — an input that appeared only for
+            accounts with one would answer "does this person work here?" to
+            anybody who typed an address. */}
+        <form
+          action={async (formData: FormData) => {
+            "use server";
+            await signInWithPassword(
+              String(formData.get("email") ?? ""),
+              String(formData.get("password") ?? ""),
+              callbackUrl,
+            );
+          }}
+          className="flex flex-col gap-2.5"
+        >
+          <Input
+            name="email"
+            type="email"
+            autoComplete="username"
+            placeholder="you@example.com"
+            required
+            aria-label="Email"
+            className="text-[13px]"
+          />
+          <Input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Password"
+            required
+            aria-label="Password"
+            className="text-[13px]"
+          />
+          <Button type="submit" variant="outline" className="w-full">
+            Sign in
+          </Button>
+        </form>
 
         <p className="mt-6 text-center text-xs text-text-3">
           Access is restricted to accounts an administrator has already set
