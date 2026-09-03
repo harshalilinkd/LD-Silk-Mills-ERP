@@ -4,7 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { IconClipboardList, IconSearch } from "@tabler/icons-react";
+import {
+  IconAdjustmentsHorizontal,
+  IconClipboardList,
+  IconSearch,
+} from "@tabler/icons-react";
 
 import {
   OverdueBadge,
@@ -36,6 +40,7 @@ import {
   SortHeader,
 } from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
+import { Button } from "@/components/ui/button";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
 import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
@@ -141,6 +146,12 @@ export function AllConcerns() {
   const departments = first?.departments ?? [];
   const assignees: AssigneeOption[] = first?.assignees ?? [];
   const filtered = hasPcFilter(filters);
+  /* The narrowing dimensions start CLOSED, as they do on Orders. They were
+     always-open, and four labelled fields in a well is ~120px of the first
+     screen spent on controls a coordinator touches occasionally — above the
+     list they came to read. The button carries a dot when any is set, so a
+     collapsed well can never hide an active filter. */
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const [draft, setDraft] = React.useState<PcListFilters>(filters);
 
@@ -293,6 +304,25 @@ export function AllConcerns() {
               className="hidden md:flex"
             />
 
+            {/* Orders' own control, verbatim (orders-dashboard.tsx): an
+                outline button with the adjustments glyph and a primary dot
+                when something is set. Desktop only — below md the whole well
+                is the bottom sheet above, which has its own trigger. */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters((v) => !v)}
+              aria-pressed={showFilters}
+              aria-controls="all-concerns-filters"
+              className="hidden md:inline-flex"
+            >
+              <IconAdjustmentsHorizontal className="size-3.5" />
+              Filters
+              {activePcFilterCount(filters) > 0 ? (
+                <span className="ml-1 size-1.5 rounded-full bg-primary" />
+              ) : null}
+            </Button>
+
             {filtered ? (
               <button
                 type="button"
@@ -313,63 +343,70 @@ export function AllConcerns() {
               region rather than beside the list, and a card inside a card
               reads as two things when it is one. From 768 only — below that
               these five dimensions live in the sheet above. */}
-          <div className={cn(FILTER_WELL, "hidden md:block")}>
-            <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className={WELL_LABEL}>Department</span>
-                <FilterSelect
-                  ariaLabel="Department"
-                  value={filters.departmentId ?? ""}
-                  onChange={(v) =>
-                    apply({ ...filters, departmentId: v || null })
-                  }
-                  options={departmentOptions(departments, "Any department")}
-                  className="w-full"
-                />
-              </div>
+          {showFilters ? (
+            <div
+              id="all-concerns-filters"
+              className={cn(FILTER_WELL, "hidden md:block")}
+            >
+              <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className={WELL_LABEL}>Department</span>
+                  <FilterSelect
+                    ariaLabel="Department"
+                    value={filters.departmentId ?? ""}
+                    onChange={(v) =>
+                      apply({ ...filters, departmentId: v || null })
+                    }
+                    options={departmentOptions(departments, "Any department")}
+                    className="w-full"
+                  />
+                </div>
 
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className={WELL_LABEL}>Assigned to</span>
-                <FilterSelect
-                  ariaLabel="Assigned to"
-                  value={filters.assignee ?? ""}
-                  onChange={(v) => apply({ ...filters, assignee: v || null })}
-                  options={assigneeSelectOptions}
-                  className="w-full"
-                />
-              </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className={WELL_LABEL}>Assigned to</span>
+                  <FilterSelect
+                    ariaLabel="Assigned to"
+                    value={filters.assignee ?? ""}
+                    onChange={(v) => apply({ ...filters, assignee: v || null })}
+                    options={assigneeSelectOptions}
+                    className="w-full"
+                  />
+                </div>
 
-              {/* Single-select: a coordinator narrowing by priority almost
+                {/* Single-select: a coordinator narrowing by priority almost
                   always means "just Urgent" or "just High", not a combination.
                   The sheet keeps the multi-select for the rare case. */}
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className={WELL_LABEL}>Priority</span>
-                <FilterSelect
-                  ariaLabel="Priority"
-                  value={filters.priority[0] ?? ""}
-                  onChange={(v) =>
-                    apply({
-                      ...filters,
-                      priority: v ? [v as (typeof ALL_PRIORITIES)[number]] : [],
-                    })
-                  }
-                  options={priorityOptions("All priorities")}
-                  className="w-full"
-                />
-              </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className={WELL_LABEL}>Priority</span>
+                  <FilterSelect
+                    ariaLabel="Priority"
+                    value={filters.priority[0] ?? ""}
+                    onChange={(v) =>
+                      apply({
+                        ...filters,
+                        priority: v
+                          ? [v as (typeof ALL_PRIORITIES)[number]]
+                          : [],
+                      })
+                    }
+                    options={priorityOptions("All priorities")}
+                    className="w-full"
+                  />
+                </div>
 
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className={WELL_LABEL}>Filed between</span>
-                <DateRangeFields
-                  from={filters.from}
-                  to={filters.to}
-                  onChange={(range) => apply({ ...filters, ...range })}
-                  labelFrom="Filed from"
-                  labelTo="Filed to"
-                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className={WELL_LABEL}>Filed between</span>
+                  <DateRangeFields
+                    from={filters.from}
+                    to={filters.to}
+                    onChange={(range) => apply({ ...filters, ...range })}
+                    labelFrom="Filed from"
+                    labelTo="Filed to"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </Reveal>
 

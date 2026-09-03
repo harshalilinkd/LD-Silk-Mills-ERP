@@ -169,10 +169,24 @@ export function TrendChart({
   const peak = Math.max(1, ...series.flatMap((s) => s.values));
   const empty = series.every((s) => s.values.every((v) => v === 0));
 
+  /**
+   * The top of the scale, forced EVEN and at least 2.
+   *
+   * These are counts of concerns, so "1.5 filed" is not a number that exists —
+   * the ERP's own chart says the same thing with `allowDecimals={false}`. The
+   * three gridlines are top / top-half / 0, so an odd top puts a fraction on
+   * the middle rule; rounding that for display gave a literal `1, 1, 0` axis on
+   * a day with one concern, which reads as a rendering fault rather than a
+   * scale. Even-and-at-least-2 makes all three ticks distinct whole numbers at
+   * every data size, and keeps the ~15% headroom that stops a single spike
+   * touching the top of the panel.
+   */
+  const axisTop = Math.max(2, Math.ceil((peak * 1.15) / 2) * 2);
+
   const x = (i: number) =>
     PAD_X + (i / Math.max(1, count - 1)) * (W - PAD_X * 2);
   const y = (v: number) =>
-    PAD_T + (1 - v / (peak * 1.15)) * (H - PAD_T - PAD_B);
+    PAD_T + (1 - v / axisTop) * (H - PAD_T - PAD_B);
 
   if (empty || count === 0) {
     // The ERP's own "no rows in this range" block (order-entry/dashboard/
@@ -217,7 +231,33 @@ export function TrendChart({
         ))}
       </div>
 
-      <div className="relative">
+      {/* `pl-9` reserves the gutter the y-axis labels sit in. The ERP's chart
+          gives its YAxis `width={48}`; this plot is narrower, and the counts
+          here are concern counts rather than rupees, so 36px is the same idea
+          at this scale. */}
+      <div className="relative pl-9">
+        {/* THE Y AXIS, as HTML rather than SVG text.
+            Order Entry's chart labels both axes at 11px on `--text-3`, and
+            Help Slip's labelled neither — a plot with no numbers on it was one
+            of the "charts don't match" differences. It cannot be SVG <text>:
+            the viewBox is stretched with `preserveAspectRatio="none"`, which
+            would scale the glyphs horizontally with the plot. Same reason the
+            tooltip below is HTML.
+
+            The three values sit on the three gridlines, so the label and the
+            rule it names can never drift apart — both are derived from `f`. */}
+        {[0, 0.5, 1].map((f) => (
+          <span
+            key={f}
+            aria-hidden
+            className="num absolute left-0 w-8 -translate-y-1/2 text-right text-[11px] text-text-3"
+            style={{
+              top: `${((PAD_T + f * (H - PAD_T - PAD_B)) / H) * 100}%`,
+            }}
+          >
+            {axisTop * (1 - f)}
+          </span>
+        ))}
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
@@ -246,7 +286,7 @@ export function TrendChart({
                 <stop
                   offset="0%"
                   stopColor={`var(${s.ink})`}
-                  stopOpacity="0.18"
+                  stopOpacity="0.3"
                 />
                 <stop
                   offset="100%"
@@ -352,8 +392,10 @@ export function TrendChart({
       </div>
 
       {/* The ends of the window, so the plot is anchored in time without an
-          axis full of dates nobody reads. */}
-      <div className="flex justify-between">
+          axis full of dates nobody reads. `pl-9` matches the plot's own
+          gutter above, so these line up with the first and last point rather
+          than with the y-axis labels. */}
+      <div className="flex justify-between pl-9">
         <span className="num text-[11px] text-text-3">{labels[0]}</span>
         <span className="num text-[11px] text-text-3">{labels[count - 1]}</span>
       </div>

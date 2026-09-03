@@ -27,7 +27,20 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type StatTone = "accent" | "success" | "warning" | "danger" | "neutral";
+export type StatTone =
+  | "accent"
+  | "success"
+  | "warning"
+  | "danger"
+  | "neutral"
+  // `violet` and `info` exist for Help Slip, whose five cells are CATEGORIES
+  // (New / In Progress / Waiting / Resolved) rather than a ranking — using
+  // success/warning for two of them would say "Waiting is bad, Resolved is
+  // good" about a workflow where both are ordinary. They are additive and no
+  // Orders or CRM call site passes them; the alternative was a second KPI card
+  // in Help Slip, which is exactly how the two drifted apart the first time.
+  | "violet"
+  | "info";
 
 const TONE_TILE: Record<StatTone, string> = {
   // --accent is already a translucent teal wash in both themes, so it needs
@@ -37,6 +50,19 @@ const TONE_TILE: Record<StatTone, string> = {
   warning: "bg-status-amber-dim text-status-amber",
   danger: "bg-status-red-dim text-status-red",
   neutral: "bg-chip text-text-2",
+  violet: "bg-status-purple-dim text-status-purple",
+  info: "bg-status-blue-dim text-status-blue",
+};
+
+/** Figure colours, for the rare cell whose VALUE is the alarm. */
+const TONE_VALUE: Record<StatTone, string> = {
+  accent: "text-accent-text",
+  success: "text-status-green",
+  warning: "text-status-amber",
+  danger: "text-status-red",
+  neutral: "text-text-1",
+  violet: "text-status-purple",
+  info: "text-status-blue",
 };
 
 export type StatCardProps = {
@@ -48,11 +74,31 @@ export type StatCardProps = {
   tone?: StatTone;
   /** Signed percentage/delta. Positive reads green, negative red, 0 neutral. */
   trend?: number | null;
+  /**
+   * Recolours the FIGURE, for a cell where the number itself is the alarm —
+   * Help Slip's "Overdue". Distinct from `tone`, which colours the icon tile:
+   * a red tile says "this cell is about lateness", a red figure says "this
+   * many are late right now", and only the second should shout.
+   */
+  valueTone?: StatTone;
+  /**
+   * Rendered hard right, after the label/value column — a sparkline. Kept
+   * generic because the moment this becomes `series?: number[]` this card owns
+   * a charting decision for every module that renders it.
+   */
+  trailing?: React.ReactNode;
   onClick?: () => void;
   active?: boolean;
   className?: string;
   /** Forwarded to the button so screen readers get more than the label. */
   "aria-label"?: string;
+  /**
+   * Defaults to `active`, which is right for a tile that FILTERS in place and
+   * stays pressed. Pass `undefined` for a tile that navigates away instead —
+   * "not pressed" describes a state those do not have. Spread after the
+   * default below, so an explicit `undefined` removes the attribute.
+   */
+  "aria-pressed"?: boolean;
 };
 
 export function StatCard({
@@ -62,6 +108,8 @@ export function StatCard({
   sub,
   tone = "accent",
   trend,
+  valueTone,
+  trailing,
   onClick,
   active = false,
   className,
@@ -89,7 +137,12 @@ export function StatCard({
           {label}
         </span>
         <span className="flex items-baseline gap-1.5">
-          <span className="num text-[19px] leading-tight font-semibold text-text-1">
+          <span
+            className={cn(
+              "num text-[19px] leading-tight font-semibold",
+              valueTone ? TONE_VALUE[valueTone] : "text-text-1",
+            )}
+          >
             {value}
           </span>
           {trend != null && trend !== 0 && (
@@ -111,6 +164,11 @@ export function StatCard({
           </span>
         )}
       </span>
+      {trailing != null && (
+        <span className="ml-auto shrink-0" aria-hidden>
+          {trailing}
+        </span>
+      )}
     </>
   );
 

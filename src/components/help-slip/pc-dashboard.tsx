@@ -853,16 +853,20 @@ function DateRangePresets({
             type="button"
             aria-pressed={activeKey === p.key}
             onClick={() => onChange(p.from, p.to)}
-            // 44px + 16px text below md: the minimum touch target for a phone
-            // held on the factory floor, and anything under 16px makes iOS
-            // Safari auto-zoom on focus and never zoom back out. ui/segmented's
-            // md geometry (32px / 13px) from md up.
+            // The ERP's own range pill (order-entry/dashboard/filter-bar.tsx):
+            // the active one is a SOLID primary fill, not a washed outline.
+            // Help Slip had the outline, so the same control on two dashboards
+            // one sidebar entry apart looked like two different controls.
+            //
+            // 44px + 16px text below md is kept on top of it: the minimum touch
+            // target for a phone held on the factory floor, and anything under
+            // 16px makes iOS Safari auto-zoom on focus and never zoom back.
             className={cn(
-              "inline-flex h-11 cursor-pointer items-center rounded-pill border px-3 text-base transition-colors outline-none md:h-8 md:px-2.5 md:text-[13px]",
+              "inline-flex h-11 cursor-pointer items-center rounded-pill px-3 text-base font-semibold transition-colors outline-none md:h-8 md:text-[12.5px]",
               "focus-visible:ring-3 focus-visible:ring-ring/40",
               activeKey === p.key
-                ? "border-primary bg-accent text-accent-text"
-                : "border-border bg-surface text-text-2 hover:border-border-strong",
+                ? "bg-primary text-primary-foreground"
+                : "border border-border bg-surface-2 text-text-2 hover:text-text-1",
             )}
           >
             {p.label}
