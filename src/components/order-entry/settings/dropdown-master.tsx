@@ -592,7 +592,7 @@ export function DropdownMaster() {
           value={bulkText}
           onChange={(e) => setBulkText(e.target.value)}
           placeholder={"Value one\nValue two\nValue three"}
-          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-3 focus-visible:border-border-strong"
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-placeholder focus-visible:border-border-strong"
         />
         <Button
           size="lg"

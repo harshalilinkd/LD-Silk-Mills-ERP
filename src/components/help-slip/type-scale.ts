@@ -72,4 +72,4 @@ export const T = {
  * `md` breaks the touch target above.
  */
 export const CONTROL =
-  "h-11 rounded-field border border-border bg-surface px-3 text-base text-text-1 outline-none transition-colors placeholder:text-text-3 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:px-2.5 md:text-[13px]";
+  "h-11 rounded-field border border-border bg-surface px-3 text-base text-text-1 outline-none transition-colors placeholder:text-text-placeholder focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50 md:h-9 md:px-2.5 md:text-[13px]";

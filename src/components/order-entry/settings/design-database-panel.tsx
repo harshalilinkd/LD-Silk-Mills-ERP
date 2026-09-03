@@ -185,7 +185,7 @@ export function DesignDatabasePanel() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Order no, fabric, design no…"
-              className="w-full bg-transparent text-[13px] text-text-1 placeholder:text-text-3 focus:outline-none"
+              className="w-full bg-transparent text-[13px] text-text-1 placeholder:text-text-placeholder focus:outline-none"
             />
           </div>
           <input

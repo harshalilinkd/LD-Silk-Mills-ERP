@@ -66,7 +66,7 @@ export async function apiJson<T>(
 export const PANEL_CLS = "rounded-[10px] border border-border bg-surface";
 
 export const INPUT_CLS =
-  "h-9 w-full min-w-0 rounded-lg border border-border bg-surface-2 px-2.5 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-3 focus-visible:border-border-strong disabled:opacity-50";
+  "h-9 w-full min-w-0 rounded-lg border border-border bg-surface-2 px-2.5 text-[13px] text-text-1 outline-none transition-colors placeholder:text-text-placeholder focus-visible:border-border-strong disabled:opacity-50";
 
 export const LABEL_CLS =
   "mb-1 block text-[11px] font-semibold uppercase tracking-[0.04em] text-text-3";

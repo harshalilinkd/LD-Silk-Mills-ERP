@@ -17,33 +17,49 @@ or spacing scales without updating this file first.
 
 ## Text colour — the rule every module follows
 
-**Text runs to pure black on light and pure white on dark.** `--text-1` is
-`#000000` / `#ffffff`; secondary and muted are steps down a *dark* ramp, not a
-fade to grey.
+**Body text is BLACK on light and WHITE on dark.** Not "a dark ramp" — black.
+Both `--text-1` and `--text-2` are `#000000` / `#ffffff`. Hierarchy is carried
+by **weight and size**, never by fading the colour.
 
-| | `--text-1` | `--text-2` | `--text-3` |
-|---|---|---|---|
-| Light | `#000000` | `#2b3038` | `#5c6270` |
-| Dark | `#ffffff` | `#d6dae1` | `#a9afba` |
-| Contrast on white | 21.0 : 1 | 13.3 : 1 | 6.1 : 1 |
+| | `--text-1` | `--text-2` | `--text-3` | `--text-placeholder` |
+|---|---|---|---|---|
+| Light | `#000000` | `#000000` | `#3f4650` | `#6a707c` |
+| Dark | `#ffffff` | `#ffffff` | `#c4ccd8` | `#8b93a1` |
+| Contrast on white | 21.0 : 1 | 21.0 : 1 | 9.5 : 1 | 5.0 : 1 |
+| Contrast on `--surface` (dark) | 18.5 : 1 | 18.5 : 1 | 11.5 : 1 | 6.0 : 1 |
 
-**Three steps, all readable.** The steps exist because a table where the value
-and its caption weigh the same is harder to scan — but every step must be
-legible on its own. An earlier palette started secondary at `#57686d` and muted
-at `#718184` (and, worse, dropped to `#98a3a8`/`#5e6a70` on dark) which read as
-washed out and sent people hunting for the value. If a new token is ever added,
-it sits on this ramp or it does not ship.
+**Why this changed.** `--text-2` was `#2b3038` and `--text-3` was `#5c6270`, on
+the reasoning that a table where the value and its caption weigh the same is
+harder to scan. That is true in the abstract, and it lost against the actual
+screens: those two tokens carry **583 of the ~930** text utilities in this app,
+so most of what anybody reads was grey. The report back, twice, was that the
+system "looks light and blurry". Weight and size do the same job without
+costing legibility, so the ramp collapsed to black and the two remaining greys
+became genuinely secondary rather than merely dimmer.
+
+**Which token to use.**
+
+- `text-text-1` — headings, values, anything a reader is looking *for*.
+- `text-text-2` — body copy, labels, nav. Same black; kept as a separate token
+  so a future adjustment does not have to touch 269 call sites.
+- `text-text-3` — genuinely secondary and never load-bearing: timestamps,
+  captions, helper text, "3 of 40". At 9.5 : 1 it is a step down, not a fade
+  out. If losing it would lose meaning, it is not `text-3`.
+- `text-text-placeholder` — **empty form fields only.** This is the one thing
+  that must stay light: a placeholder as dark as typed text makes an empty
+  field look filled, which is worse than a faint one. `--muted-foreground`
+  points here, not at `--text-3`. Never use it for content.
 
 **Applies to every module, existing and future.** Use `text-text-1/2/3` — never
 a hardcoded hex, never a Tailwind palette grey (`text-gray-500` and friends
-bypass the themes and will be wrong in one of them).
+bypass the themes and will be wrong in one of them). Every value above clears
+WCAG AA; the first three clear AAA.
 
 **Table headers are `font-bold text-text-1`**, uppercase with
 `tracking-[0.04em]`. Not `font-semibold`, not muted — a column header is a
 label for everything beneath it and has to survive being scanned past. The
 `Th` in `src/components/ui/data-table.tsx` already does this; match it in any
-hand-rolled table. (Form field labels and section captions are a different
-thing and stay on `text-text-2`/`text-text-3`.)
+hand-rolled table.
 
 ## Color tokens
 

@@ -53,11 +53,17 @@ Defined in `app/globals.css` as CSS variables, exposed to Tailwind through
 | `--warning` | `#d97706` | |
 | `--danger` | `#dc2626` | |
 
-Contrast on white: ink 21.0 : ink-soft 13.3 : ink-muted 6.1. **Three steps are
-deliberate** — a table where the value and its caption weigh the same is harder
-to scan.
-
-Dark mode mirrors toward white: `#ffffff` / `#d6dae1` / `#a9afba`.
+> **⚠ The three ink values above are the SOURCE APP's and are no longer what
+> this ERP ships.** `--ink-soft` (`#2b3038`) and `--ink-muted` (`#5c6270`) were
+> ported as `--text-2` / `--text-3` and have since been replaced: body text is
+> now pure black (`--text-2: #000000`), and the muted step is `#3f4650` at
+> 9.5 : 1. Empty form fields use a separate `--text-placeholder`.
+>
+> **`docs/DESIGN.md` § Text colour is the authority on every colour in this
+> repo, including these.** This table is kept only so the source app's own
+> names (`ink`, `ink-soft`, `ink-muted`) can still be translated when reading
+> the rest of this spec — see the mapping in `CLAUDE.md`. Do not restore these
+> values.
 
 ### 0.3 Radii, shadow, type
 

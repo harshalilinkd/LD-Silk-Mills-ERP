@@ -101,7 +101,7 @@ export const SPAN_HALF = "col-span-1 sm:col-span-2 lg:col-span-2";
 export const TEXTAREA = cn(
   "w-full rounded-field border border-border bg-surface px-3 py-2.5",
   "text-base text-text-1 outline-none transition-colors",
-  "placeholder:text-text-3 focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",
+  "placeholder:text-text-placeholder focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-ring/40",
   "disabled:cursor-not-allowed disabled:opacity-50",
   "md:px-2.5 md:py-2 md:text-[13px]",
 );
