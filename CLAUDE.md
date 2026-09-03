@@ -76,12 +76,22 @@ and its absence was a live privilege escalation: `/admin/users`,
 middleware's "are you signed in", and their three server actions had no check
 at all — any employee could tick themselves into Order Entry.
 
-- `src/lib/admin.ts` — `requireErpAdmin()` (throws), `getErpRole()`,
-  `isErpAdmin()`.
-- **Every mutating action under `/admin` calls `requireErpAdmin()` FIRST**,
+- `src/lib/admin.ts` — `requireErpAdmin()` (throws, for ACTIONS),
+  `getErpAdmin()` (returns the session or null, for PAGES), `getErpRole()`,
+  `isErpAdmin()`. Use the throwing one in an action and the null-returning one
+  in a Server Component: a throw there renders a raw 500 instead of a redirect,
+  which is exactly what `/settings/users` did to a member until it was fixed.
+- **Every mutating action under `/settings` calls `requireErpAdmin()` FIRST**,
   before reading its arguments. A server action is a POST endpoint; hiding the
-  page does not hide it. `src/app/(app)/admin/layout.tsx` also refuses
-  non-admins, but that is for the message, not the boundary.
+  page does not hide it. Each admin TAB also guards itself and redirects — the
+  settings layout cannot, because the profile tab beside them is for everybody.
+- **`/admin/*` no longer exists.** Users / Access / Systems / Audit are tabs
+  under `/settings`, because the four screens were real and working under
+  `/admin` while `/settings` rendered "coming soon" — so the answer to "how do
+  I add a user?" was a page saying the feature did not exist, one menu entry
+  below the page that did it. Own-account actions live in
+  `src/app/(app)/settings/actions.ts` and resolve the target from the SESSION,
+  never an id parameter, so they structurally cannot touch anybody else.
 - **Shell admin is not module admin.** Order Entry resolves its role from
   `ld_order_entry.users`, Help Slip from `ld_help_slip.profiles`. Neither
   consults this column, and a shell admin is not automatically allowed to

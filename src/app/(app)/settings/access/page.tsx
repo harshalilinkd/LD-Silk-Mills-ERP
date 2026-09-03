@@ -1,21 +1,30 @@
+import { redirect } from "next/navigation";
+
+import { isErpAdmin } from "@/lib/admin";
 import { getSystemAccessMatrix } from "@/lib/queries";
 import { getSystemIcon } from "@/lib/system-icons";
 import { AccessCheckbox } from "./access-checkbox";
 
 export default async function AccessControlPage() {
+  // This tab guards itself — the settings layout cannot, because the profile
+  // tab beside it is for everybody. Not the boundary either way: the actions
+  // this screen calls each run requireErpAdmin() before reading their input.
+  if (!(await isErpAdmin())) redirect("/settings");
+
+
   const { allUsers, allSystems, accessByPair } = await getSystemAccessMatrix();
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        <h2 className="text-[15px] font-semibold text-text-1">
           Access Control
-        </h1>
-        <p className="mt-1 text-[13px] text-text-3">
+                </h2>
+        <p className="mt-0.5 text-[13px] text-text-3">
           Toggle which systems each user can see in their sidebar. This
           controls visibility only — each system keeps its own in-app
           permissions.
-        </p>
+                </p>
       </div>
 
       <div className="overflow-x-auto rounded-[10px] border border-border bg-surface">

@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+
+import { isErpAdmin } from "@/lib/admin";
 import { IconHistory } from "@tabler/icons-react";
 import { EmptyState } from "@/components/shell/empty-state";
 import { getRecentAuditLogs } from "@/lib/queries";
@@ -7,18 +10,24 @@ const TH =
 const TD = "border-b border-border px-3.5 py-3";
 
 export default async function AuditLogsPage() {
+  // This tab guards itself — the settings layout cannot, because the profile
+  // tab beside it is for everybody. Not the boundary either way: the actions
+  // this screen calls each run requireErpAdmin() before reading their input.
+  if (!(await isErpAdmin())) redirect("/settings");
+
+
   const logs = await getRecentAuditLogs();
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        <h2 className="text-[15px] font-semibold text-text-1">
           Audit Logs
-        </h1>
-        <p className="mt-1 text-[13px] text-text-3">
+                </h2>
+        <p className="mt-0.5 text-[13px] text-text-3">
           Read-only history of ERP-level events (logins, system opens,
           access changes).
-        </p>
+                </p>
       </div>
 
       <div className="rounded-[10px] border border-border bg-surface">

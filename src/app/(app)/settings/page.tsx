@@ -1,17 +1,30 @@
-import { IconSettings } from "@tabler/icons-react";
-import { ComingSoon } from "@/components/shell/coming-soon";
+import { redirect } from "next/navigation";
 
-export default function SettingsPage() {
+import { auth } from "@/auth";
+import { getUserByEmail } from "@/lib/queries";
+import { ProfileForm } from "./profile-form";
+
+/**
+ * Your profile — the one settings tab everybody gets.
+ *
+ * `getUserByEmail` returns `PublicUser`, so `passwordHash` is not in scope
+ * here at all. Whether somebody HAS a password is derived from
+ * `passwordSetAt`, which is safe to render; the hash itself never leaves
+ * `src/auth.ts`.
+ */
+export default async function SettingsProfilePage() {
+  const session = await auth();
+  if (!session?.user?.email) redirect("/login");
+
+  const me = await getUserByEmail(session.user.email);
+  if (!me) redirect("/not-registered");
+
   return (
-    <div className="flex flex-col gap-5">
-      <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-        Settings
-      </h1>
-      <ComingSoon
-        icon={IconSettings}
-        title="Settings — coming soon"
-        description="Workspace preferences will live here in a later phase."
-      />
-    </div>
+    <ProfileForm
+      name={me.name}
+      email={me.email}
+      hasPassword={me.passwordSetAt !== null}
+      role={me.role}
+    />
   );
 }

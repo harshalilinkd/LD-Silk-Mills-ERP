@@ -2,10 +2,6 @@ import {
   IconLayoutDashboard,
   IconReportAnalytics,
   IconSparkles,
-  IconUsers,
-  IconShieldLock,
-  IconApps,
-  IconHistory,
   IconSettings,
 } from "@tabler/icons-react";
 import { NavLink } from "./nav-link";
@@ -82,23 +78,17 @@ export function Sidebar({
           </NavLink>
         </div>
 
-        <CollapsibleSection title="Administration">
-          <NavLink href="/admin/users" icon={<IconUsers />}>
-            Users
-          </NavLink>
-          <NavLink href="/admin/access-control" icon={<IconShieldLock />}>
-            Access Control
-          </NavLink>
-          <NavLink href="/admin/system-registry" icon={<IconApps />}>
-            System Registry
-          </NavLink>
-          <NavLink href="/admin/audit-logs" icon={<IconHistory />}>
-            Audit Logs
-          </NavLink>
+        {/* ONE entry, not five. Users / Access / Systems / Audit were their
+            own sidebar section under /admin while /settings said "coming
+            soon" — so the answer to "how do I add somebody?" was a page
+            saying the feature did not exist, directly below a menu that did
+            it. They are tabs inside Settings now, and the admin-only ones
+            hide themselves for a member. */}
+        <div className="flex flex-col gap-0.5">
           <NavLink href="/settings" icon={<IconSettings />}>
             Settings
           </NavLink>
-        </CollapsibleSection>
+        </div>
       </div>
 
       <SidebarUserCard name={name} email={email} avatar={avatar} />

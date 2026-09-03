@@ -1,6 +1,8 @@
 import { IconUsers } from "@tabler/icons-react";
 import { EmptyState } from "@/components/shell/empty-state";
-import { requireErpAdmin } from "@/lib/admin";
+import { redirect } from "next/navigation";
+
+import { getErpAdmin } from "@/lib/admin";
 import { getAllUsersOrdered } from "@/lib/queries";
 import { UserEditDialog } from "./user-edit-dialog";
 
@@ -15,21 +17,23 @@ function initials(name: string) {
 }
 
 export default async function UsersAdminPage() {
-  // The layout above has already refused anybody who is not an admin, so this
-  // cannot throw in practice. It is called for the ID, which the dialog needs
-  // in order to disable the two controls an admin must not use on themselves.
-  const admin = await requireErpAdmin();
+  // Non-throwing, so a member gets the redirect its three sibling tabs give
+  // rather than a raw 500. The session is returned rather than a boolean
+  // because the dialog needs the admin's own id, to disable the two controls
+  // they must not use on themselves.
+  const admin = await getErpAdmin();
+  if (!admin) redirect("/settings");
   const allUsers = await getAllUsersOrdered();
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        <h2 className="text-[15px] font-semibold text-text-1">
           Users
-        </h1>
-        <p className="mt-1 text-[13px] text-text-3">
+                </h2>
+        <p className="mt-0.5 text-[13px] text-text-3">
           {allUsers.length} people in the LD Silk Mills workspace
-        </p>
+                </p>
       </div>
 
       <div className="rounded-[10px] border border-border bg-surface">

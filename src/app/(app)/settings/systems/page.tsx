@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+
+import { isErpAdmin } from "@/lib/admin";
 import { getAllSystemsOrdered } from "@/lib/queries";
 import { getSystemIcon } from "@/lib/system-icons";
 import { SystemEditDialog } from "./system-edit-dialog";
@@ -7,17 +10,23 @@ const TH =
 const TD = "border-b border-border px-3.5 py-3";
 
 export default async function SystemRegistryPage() {
+  // This tab guards itself — the settings layout cannot, because the profile
+  // tab beside it is for everybody. Not the boundary either way: the actions
+  // this screen calls each run requireErpAdmin() before reading their input.
+  if (!(await isErpAdmin())) redirect("/settings");
+
+
   const allSystems = await getAllSystemsOrdered();
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+        <h2 className="text-[15px] font-semibold text-text-1">
           System Registry
-        </h1>
-        <p className="mt-1 text-[13px] text-text-3">
+                </h2>
+        <p className="mt-0.5 text-[13px] text-text-3">
           Add or update a system here — the sidebar reads from this list
-        </p>
+                </p>
       </div>
 
       <div className="rounded-[10px] border border-border bg-surface">

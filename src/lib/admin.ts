@@ -92,3 +92,37 @@ export async function requireErpAdmin(): Promise<ErpAdminSession> {
 
   return { id: row.id, email: row.email, name: row.name };
 }
+
+/**
+ * The admin session, or null — the non-throwing twin of `requireErpAdmin`.
+ *
+ * A PAGE wants this: it can redirect somebody who is not an admin to a screen
+ * they can use. `requireErpAdmin` throws, which is right inside an action (a
+ * refused POST should be an error) and wrong in a Server Component, where it
+ * renders a raw 500 instead of a redirect. The users page used the throwing
+ * one and answered a member with a 500 while its three sibling tabs redirected
+ * cleanly.
+ *
+ * Returns the session rather than a boolean because that page also needs the
+ * admin's own id, to disable the two controls they must not use on themselves.
+ */
+export async function getErpAdmin(): Promise<ErpAdminSession | null> {
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email) return null;
+
+  const [row] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      status: users.status,
+    })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (!row || row.status !== "active" || row.role !== "admin") return null;
+  return { id: row.id, email: row.email, name: row.name };
+}
