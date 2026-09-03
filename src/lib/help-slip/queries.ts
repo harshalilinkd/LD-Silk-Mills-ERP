@@ -13,15 +13,21 @@ import {
 
 import type { HelpSlipDb } from "@/db/help-slip/rls";
 import {
+  concernSolutions,
   departments,
   notifications,
   profiles,
+  vConcernUpdates,
   vConcerns,
   type AccountStatus,
   type ConcernPriority,
   type ConcernStatus,
+  type UpdateType,
+  type UserRole,
+  type Visibility,
+  type WaitReason,
 } from "@/db/help-slip/schema";
-import type { HelpSlipSession } from "@/lib/help-slip/authz";
+import { isStaff, type HelpSlipSession } from "@/lib/help-slip/authz";
 import { cumulativeByDay } from "./series";
 import {
   CONCERN_PAGE_SIZE,
@@ -30,9 +36,12 @@ import {
   PC_PAGE_SIZE,
   QUEUE_BUCKETS,
   type AssigneeOption,
+  type ConcernDetail,
+  type ConcernDetailPayload,
   type ConcernFilters,
   type ConcernListPayload,
   type ConcernRow,
+  type ConcernSolutionRow,
   type DepartmentOption,
   type EmployeeDashboardPayload,
   type Insights,
@@ -45,6 +54,7 @@ import {
   type QueuePayload,
   type QueueRow,
   type SortDir,
+  type TimelineEvent,
 } from "./types";
 
 /**
@@ -700,6 +710,214 @@ export async function loadInsights(
 
 /** The default window: the last 30 days ending today. */
 export const DEFAULT_INSIGHTS_DAYS = 30;
+
+// ─── one concern ───────────────────────────────────────────────────────────
+
+const DETAIL_COLUMNS = {
+  id: vConcerns.id,
+  concernNumber: vConcerns.concernNumber,
+  title: vConcerns.title,
+  status: vConcerns.status,
+  priority: vConcerns.priority,
+  visibility: vConcerns.visibility,
+  departmentName: vConcerns.departmentName,
+  departmentNameHi: vConcerns.departmentNameHi,
+  employeeId: vConcerns.employeeId,
+  employeeName: vConcerns.employeeName,
+  filedForName: vConcerns.filedForName,
+  assignedTo: vConcerns.assignedTo,
+  assignedToName: vConcerns.assignedToName,
+  acceptedSolutionId: vConcerns.acceptedSolutionId,
+  resolutionMessage: vConcerns.resolutionMessage,
+  waitReason: vConcerns.waitReason,
+  createdAt: vConcerns.createdAt,
+  resolvedAt: vConcerns.resolvedAt,
+  closedAt: vConcerns.closedAt,
+  lastPublicUpdateAt: vConcerns.lastPublicUpdateAt,
+  slaDueAt: vConcerns.slaDueAt,
+  isOverdue: vConcerns.isOverdue,
+} as const;
+
+/**
+ * ONE concern, or null.
+ *
+ * NULL FOR "NOT YOURS" IS THE POINT, not an oversight. RLS answers a concern
+ * you may not read with ZERO ROWS — it does not raise — so a guessed uuid and
+ * a typo'd one produce the identical answer. The screen turns both into an
+ * ordinary "Not found", and that indistinguishability IS the security
+ * property: a 403 would confirm the id exists.
+ *
+ * `employeeId` is read but never returned. The one question a screen asks of
+ * it — "is this mine?" — is answered here, so no profile id crosses the wire.
+ */
+export async function loadConcernDetail(
+  db: HelpSlipDb,
+  session: HelpSlipSession,
+  concernId: string,
+): Promise<ConcernDetail | null> {
+  const rows = await db
+    .select(DETAIL_COLUMNS)
+    .from(vConcerns)
+    .where(eq(vConcerns.id, concernId))
+    .limit(1);
+
+  const r = rows[0];
+  if (!r) return null;
+
+  return {
+    // Same assertion pattern as toConcernRow: drizzle types every column of an
+    // `.existing()` view as nullable because a view carries no NOT NULL
+    // information, and these six are `not null` on `concerns` itself.
+    id: r.id as string,
+    concernNumber: r.concernNumber as string,
+    title: r.title as string,
+    status: r.status as ConcernStatus,
+    priority: r.priority as ConcernPriority,
+    visibility: r.visibility as Visibility,
+    departmentName: r.departmentName,
+    departmentNameHi: r.departmentNameHi,
+    employeeName: r.employeeName,
+    filedForName: r.filedForName,
+    isMine: r.employeeId === session.profileId,
+    assignedTo: r.assignedTo,
+    assignedToName: r.assignedToName,
+    acceptedSolutionId: r.acceptedSolutionId,
+    resolutionMessage: r.resolutionMessage,
+    waitReason: r.waitReason as WaitReason | null,
+    createdAt: (r.createdAt as Date).toISOString(),
+    resolvedAt: r.resolvedAt?.toISOString() ?? null,
+    closedAt: r.closedAt?.toISOString() ?? null,
+    lastPublicUpdateAt: r.lastPublicUpdateAt?.toISOString() ?? null,
+    slaDueAt: r.slaDueAt?.toISOString() ?? null,
+    isOverdue: r.isOverdue ?? false,
+  };
+}
+
+/**
+ * The employee's own proposed fixes, in slip order.
+ *
+ * Read from the base table rather than a view because there is no view — and
+ * `solutions_select` is `using (can_read_concern(concern_id))`, the same
+ * function the concerns policy defers to, so a solution can never be more
+ * readable than the concern it belongs to.
+ */
+export async function loadConcernSolutions(
+  db: HelpSlipDb,
+  concernId: string,
+): Promise<ConcernSolutionRow[]> {
+  const rows = await db
+    .select({
+      id: concernSolutions.id,
+      position: concernSolutions.position,
+      body: concernSolutions.body,
+    })
+    .from(concernSolutions)
+    .where(eq(concernSolutions.concernId, concernId))
+    .orderBy(concernSolutions.position);
+  return rows;
+}
+
+/**
+ * The timeline, from `v_concern_updates` and never the base table.
+ *
+ * ⚠️ INTERNAL NOTES. `canSeeInternal` is the SECOND lock, not the first. The
+ * view runs with definer semantics on purpose (migration 0010/0014) and its
+ * WHERE clause reproduces `updates_select` exactly — `is_internal = false or
+ * is_staff()` — so a coordinator-only note is already gone before it reaches
+ * this function for an employee. The `.eq(false)` below is here because a
+ * future refactor could hand this a staff session by accident, and because
+ * "the UI must also never leak that one exists" is a rule this module states
+ * in three places rather than one.
+ *
+ * The view is the only route to the actor's NAME, too: `profiles_select` is
+ * self-or-staff, so an employee cannot join `profiles` to find out who
+ * answered them.
+ */
+export async function loadConcernUpdates(
+  db: HelpSlipDb,
+  session: HelpSlipSession,
+  concernId: string,
+  canSeeInternal: boolean,
+): Promise<TimelineEvent[]> {
+  const rows = await db
+    .select({
+      id: vConcernUpdates.id,
+      actorId: vConcernUpdates.actorId,
+      actorName: vConcernUpdates.actorName,
+      actorRole: vConcernUpdates.actorRole,
+      updateType: vConcernUpdates.updateType,
+      message: vConcernUpdates.message,
+      isInternal: vConcernUpdates.isInternal,
+      oldStatus: vConcernUpdates.oldStatus,
+      newStatus: vConcernUpdates.newStatus,
+      createdAt: vConcernUpdates.createdAt,
+      acceptedSolutionPosition: vConcernUpdates.acceptedSolutionPosition,
+    })
+    .from(vConcernUpdates)
+    .where(
+      and(
+        eq(vConcernUpdates.concernId, concernId),
+        canSeeInternal ? undefined : eq(vConcernUpdates.isInternal, false),
+      ),
+    )
+    .orderBy(
+      sql`${vConcernUpdates.createdAt} asc`,
+      // ── the tiebreak, and it is load-bearing ──────────────────────────
+      // A hold writes the NOTE and then moves the status, and a reopen does
+      // the same. Both happen inside ONE transaction here (the source needed
+      // two round trips), and `created_at default now()` is TRANSACTION START
+      // TIME in Postgres — so the note and the trigger's status row carry the
+      // identical timestamp and a bare `order by created_at` returns them in
+      // whatever order the planner feels like. This pins it: the reason, then
+      // the state change. Migration 0014 fixed the same class of bug upstream
+      // by collapsing a resolve into one row.
+      sql`case when ${vConcernUpdates.updateType} in ('status_change', 'resolution') then 1 else 0 end asc`,
+      // Total order, so two comments posted in the same transaction cannot
+      // swap places between two reads of the same thread.
+      sql`${vConcernUpdates.id} asc`,
+    );
+
+  return rows.map((r) => ({
+    id: r.id as string,
+    createdAt: (r.createdAt as Date).toISOString(),
+    type: r.updateType as UpdateType,
+    message: r.message,
+    isInternal: r.isInternal ?? false,
+    actorName: r.actorName ?? "—",
+    actorRole: (r.actorRole as UserRole | null) ?? null,
+    isOwnAction: r.actorId === session.profileId,
+    oldStatus: (r.oldStatus as ConcernStatus | null) ?? null,
+    newStatus: (r.newStatus as ConcernStatus | null) ?? null,
+    acceptedSolutionPosition: r.acceptedSolutionPosition ?? null,
+  }));
+}
+
+/**
+ * The whole concern page, in ONE transaction.
+ *
+ * Four sequential reads inside the caller's single `withCurrentUser`. The
+ * source runs four separate queries because they have different cache
+ * lifetimes in the browser; here they share a pinned connection and running
+ * them in parallel would be no faster (postgres.js serialises statements on a
+ * connection anyway) while breaking the rule rls.ts warns about.
+ */
+export async function loadConcernDetailPayload(
+  db: HelpSlipDb,
+  session: HelpSlipSession,
+  concernId: string,
+): Promise<ConcernDetailPayload | null> {
+  const concern = await loadConcernDetail(db, session, concernId);
+  if (!concern) return null;
+
+  const staff = isStaff(session.role);
+  const solutions = await loadConcernSolutions(db, concernId);
+  const updates = await loadConcernUpdates(db, session, concernId, staff);
+  // Only the workspace needs them, and only staff can see the workspace. An
+  // employee's page does not ship a directory of coordinators.
+  const assignees = staff ? await loadAssignees(db) : [];
+
+  return { concern, solutions, updates, assignees, viewerIsStaff: staff };
+}
 
 // ─── notifications ─────────────────────────────────────────────────────────
 

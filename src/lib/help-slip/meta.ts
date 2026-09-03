@@ -14,6 +14,7 @@ import type {
   ConcernPriority,
   ConcernStatus,
   UserRole,
+  WaitReason,
 } from "@/db/help-slip/schema";
 
 /**
@@ -219,6 +220,47 @@ export const ROLE_META: Record<UserRole, EnumMeta> = {
   admin: { labelEn: "Admin", labelHi: "एडमिन" },
 };
 
+/**
+ * Why a concern is on hold. A DB enum, so it is never printed raw:
+ * `awaiting_vendor` is a storage value and "A vendor" is the answer to the
+ * question the dialog actually asks — "waiting for what?".
+ *
+ * Ported verbatim (EN + HI) from the source's `ws.reason.*` strings.
+ */
+export const WAIT_REASON_META: Record<WaitReason, EnumMeta> = {
+  awaiting_employee: { labelEn: "The employee", labelHi: "कर्मचारी" },
+  awaiting_vendor: { labelEn: "A vendor", labelHi: "वेंडर" },
+  awaiting_approval: { labelEn: "An approval", labelHi: "मंज़ूरी" },
+  awaiting_parts: { labelEn: "Parts", labelHi: "पुर्ज़े" },
+  other: { labelEn: "Something else", labelHi: "कुछ और" },
+};
+
+/**
+ * What a timeline row SAYS. The source keeps these in its i18n dictionary and
+ * wires them in through `timelineLabels()`; this module renders EN + HI inline
+ * everywhere instead, so each entry is the pair and `<Bi>` places it.
+ *
+ * "Accepted your 2nd solution" is the line this entire product exists to
+ * produce, so the three ordinals are written out rather than interpolated —
+ * English ordinals are irregular and the Hindi forms are separate words, not a
+ * number with a suffix.
+ */
+export const TIMELINE_COPY = {
+  today: { en: "Today", hi: "आज" },
+  yesterday: { en: "Yesterday", hi: "कल" },
+  filed: { en: "Submitted", hi: "दर्ज किया गया" },
+  you: { en: "You", hi: "आपने" },
+  internalNote: {
+    en: "Internal note — the employee cannot see this",
+    hi: "आंतरिक नोट — कर्मचारी को नहीं दिखता",
+  },
+  accepted: [
+    { en: "Accepted your 1st solution", hi: "आपका पहला समाधान माना गया" },
+    { en: "Accepted your 2nd solution", hi: "आपका दूसरा समाधान माना गया" },
+    { en: "Accepted your 3rd solution", hi: "आपका तीसरा समाधान माना गया" },
+  ],
+} as const;
+
 export const ACCOUNT_STATUS_META: Record<AccountStatus, EnumMeta> = {
   active: { labelEn: "Active", labelHi: "सक्रिय" },
   inactive: { labelEn: "Inactive", labelHi: "निष्क्रिय" },
@@ -301,4 +343,12 @@ export function accountStatusLabel(
 
 export function hrAccessLabel(locale: HelpSlipLocale = "en"): string {
   return read(HR_ACCESS_META, locale);
+}
+
+export function waitReasonLabel(
+  reason: string | null | undefined,
+  locale: HelpSlipLocale = "en",
+): string {
+  if (!reason) return EM_DASH;
+  return read(WAIT_REASON_META[reason as WaitReason], locale);
 }

@@ -38,6 +38,25 @@ export class HelpSlipForbiddenError extends Error {
 }
 
 /**
+ * "You may do this, but not to this row, in this state."
+ *
+ * Distinct from `HelpSlipForbiddenError` because the two are different answers
+ * and deserve different codes: 403 means the wrong person is asking, 422 means
+ * the right person asked for something the concern's current state does not
+ * allow — a hold on a closed concern, a resolve on one somebody else resolved
+ * thirty seconds ago, a department that has since been deactivated.
+ *
+ * Every one of these carries a sentence written HERE, for the screen. The
+ * upstream message never reaches the client (see `withHelpSlipRoute` below).
+ */
+export class HelpSlipRejectedError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+    this.name = "HelpSlipRejectedError";
+  }
+}
+
+/**
  * Run one handler inside ONE RLS context and turn its result into a response.
  *
  * This is the only shape a Help Slip route should have. It exists to make the
@@ -66,6 +85,9 @@ export async function withHelpSlipRoute<T>(
     }
     if (e instanceof HelpSlipForbiddenError) {
       return jsonError(e.reason, 403);
+    }
+    if (e instanceof HelpSlipRejectedError) {
+      return jsonError(e.reason, 422);
     }
     // The upstream message never reaches the client. A Postgres error can
     // quote a query, and a query here can quote a confidential concern's

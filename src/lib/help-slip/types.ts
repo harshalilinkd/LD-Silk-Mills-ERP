@@ -4,6 +4,10 @@ import {
   type AccountStatus,
   type ConcernPriority,
   type ConcernStatus,
+  type UpdateType,
+  type UserRole,
+  type Visibility,
+  type WaitReason,
 } from "@/db/help-slip/schema";
 
 /**
@@ -359,6 +363,115 @@ export type NotificationsPayload = {
   items: NotificationRow[];
   hasMore: boolean;
 };
+
+// ─── one concern: the detail page and the coordinator's workspace ──────────
+
+/**
+ * Everything BOTH screens read about a single concern.
+ *
+ * Note what is NOT on it: `employeeId`. The one question a screen actually
+ * asks — "is this mine?" — is answered on the server as `isMine`, so a profile
+ * id never reaches the browser and nothing can be tempted to send one back up
+ * as a parameter. Same reasoning as `HelpSlipClientSession` in context.tsx.
+ */
+export type ConcernDetail = {
+  id: string;
+  concernNumber: string;
+  title: string;
+  status: ConcernStatus;
+  priority: ConcernPriority;
+  visibility: Visibility;
+  departmentName: string | null;
+  departmentNameHi: string | null;
+  /** The ACCOUNT that filed it. This is identity. */
+  employeeName: string | null;
+  /**
+   * The name typed into the Name box on the form. Free text, often null, and
+   * NOT identity — render it as what somebody wrote on the slip, never as who
+   * the concern belongs to.
+   */
+  filedForName: string | null;
+  /** Whether the person reading this is the person who raised it. */
+  isMine: boolean;
+  assignedTo: string | null;
+  assignedToName: string | null;
+  acceptedSolutionId: string | null;
+  resolutionMessage: string | null;
+  waitReason: WaitReason | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  lastPublicUpdateAt: string | null;
+  slaDueAt: string | null;
+  isOverdue: boolean;
+};
+
+/** One of the up-to-three fixes the raiser proposed. `position` is 1..3. */
+export type ConcernSolutionRow = {
+  id: string;
+  position: number;
+  body: string;
+};
+
+export type TimelineEvent = {
+  id: string;
+  createdAt: string;
+  type: UpdateType;
+  message: string | null;
+  /**
+   * ⚠️ Coordinator-only. A row carrying `true` must never be sent to an
+   * employee — the route does not select them for a non-staff viewer, the
+   * `v_concern_updates` view refuses them before that, and `<Timeline>`
+   * filters them again before it groups. Three locks, one door.
+   */
+  isInternal: boolean;
+  actorName: string;
+  actorRole: UserRole | null;
+  /** Renders "You" instead of the name when the reader is the actor. */
+  isOwnAction: boolean;
+  oldStatus: ConcernStatus | null;
+  newStatus: ConcernStatus | null;
+  /**
+   * 1 | 2 | 3, on the resolution row only — which of the raiser's own
+   * suggested solutions was accepted. The line this product exists to produce.
+   */
+  acceptedSolutionPosition: number | null;
+};
+
+export type ConcernDetailPayload = {
+  concern: ConcernDetail;
+  solutions: ConcernSolutionRow[];
+  updates: TimelineEvent[];
+  /** Staff only — who a concern can be handed to. Empty for an employee. */
+  assignees: AssigneeOption[];
+  /** Rendering hint. RLS is the boundary; this only picks which controls draw. */
+  viewerIsStaff: boolean;
+};
+
+// ─── raising one ───────────────────────────────────────────────────────────
+
+/** Three, because the paper HELP SLIP has three lines. Not an arbitrary cap. */
+export const MAX_SOLUTIONS = 3;
+export const TITLE_SOFT_MAX = 60;
+/**
+ * Generous, and far above the soft cap. The soft cap is advice ("keep it
+ * short"); this is the point at which a title has clearly become the
+ * description and belongs in a suggested solution instead.
+ */
+export const TITLE_HARD_MAX = 140;
+export const SOLUTION_MAX = 500;
+export const NAME_MAX = 120;
+export const MESSAGE_MAX = 4000;
+export const NOTE_MAX = 2000;
+
+export type RaiseConcernResult = {
+  concernId: string;
+  concernNumber: string;
+  /** false when an earlier attempt with the same request id already filed it. */
+  created: boolean;
+};
+
+export type DepartmentsPayload = { departments: DepartmentOption[] };
 
 // ─── parsing, shared by the URL and the route handler ──────────────────────
 

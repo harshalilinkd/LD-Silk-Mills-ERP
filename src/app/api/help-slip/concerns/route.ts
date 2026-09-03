@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
 
-import { withHelpSlipRoute } from "@/lib/help-slip/api";
+import { jsonError, withHelpSlipRoute } from "@/lib/help-slip/api";
+import { raiseConcern } from "@/lib/help-slip/mutations";
 import { loadMyConcerns } from "@/lib/help-slip/queries";
+import { firstIssue, raiseConcernSchema } from "@/lib/help-slip/validation";
 import {
   CONCERN_SORTS,
   DEFAULT_CONCERN_FILTERS,
@@ -47,5 +49,36 @@ export async function GET(req: NextRequest) {
     (db, session) =>
       loadMyConcerns(db, session, filters, parsePage(p.get("page"))),
     "Could not load your concerns. Check your connection and try again.",
+  );
+}
+
+/**
+ * POST /api/help-slip/concerns — file one.
+ *
+ * The concern and its up-to-three proposed solutions are written inside the
+ * ONE transaction `withCurrentUser` opens, so there is no state in which a
+ * concern exists without the fixes its author suggested — the single artefact
+ * this product exists to prevent.
+ *
+ * IDEMPOTENT on `clientRequestId`, which the form mints once per mount and
+ * sends with every attempt. A phone on mobile data times out on requests the
+ * server actually processed; a retry returns the concern that already exists
+ * with `created: false`, rather than a second one for the coordinator to
+ * disambiguate.
+ *
+ * NOT SENT, and refused if it were: `concernNumber` (a BEFORE INSERT trigger
+ * assigns it from a sequence — D5), the employee id, the org, the status and
+ * the timestamps. The schema below has no field for any of them, so the only
+ * way to file a concern as somebody else is to be somebody else.
+ */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const parsed = raiseConcernSchema.safeParse(body);
+  if (!parsed.success) return jsonError(firstIssue(parsed.error), 422);
+
+  return withHelpSlipRoute(
+    "POST /api/help-slip/concerns",
+    (db, session) => raiseConcern(db, session, parsed.data),
+    "Couldn't send that. Check your connection and try again.",
   );
 }
