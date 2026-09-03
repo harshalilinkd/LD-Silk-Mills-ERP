@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
+  ACCOUNT_STATUSES,
   CONCERN_STATUSES,
   PRIORITIES,
+  USER_ROLES,
   WAIT_REASONS,
 } from "@/db/help-slip/schema";
 import { RESOLUTION_MIN } from "./state-machine";
@@ -135,3 +137,95 @@ export function firstIssue(error: z.ZodError): string {
   if (!issue) return "That didn't look right.";
   return issue.message;
 }
+
+// ─── settings ──────────────────────────────────────────────────────────────
+//
+// Ported from the standalone app's admin screens. Every message is a sentence
+// a person reads at the moment the form refuses them, not a field name.
+
+/** Editing somebody else. Every field optional — the screen PATCHes deltas. */
+export const userPatchSchema = z
+  .object({
+    fullName: z.string().trim().min(1, "A name cannot be blank.").max(120),
+    phone: z.string().trim().max(30).nullable(),
+    departmentId: z.string().uuid("Choose a department from the list.").nullable(),
+    role: z.enum(USER_ROLES),
+    hrAccess: z.boolean(),
+    status: z.enum(ACCOUNT_STATUSES),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Nothing to save.");
+
+/** Your own profile. Deliberately NOT a subset of the above: role, department
+ *  and status are absent by construction, so this schema cannot be used to
+ *  smuggle a self-promotion even if a route wired it to the wrong handler. */
+export const profilePatchSchema = z
+  .object({
+    fullName: z.string().trim().min(1, "Your name cannot be blank.").max(120),
+    phone: z.string().trim().max(30).nullable(),
+    avatarUrl: z.string().trim().max(500).nullable(),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Nothing to save.");
+
+export const departmentCreateSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(2, "A code needs at least two characters.")
+    .max(40)
+    .regex(
+      /^[A-Za-z0-9_ -]+$/,
+      "Use letters, numbers, spaces, hyphens or underscores.",
+    ),
+  name: z.string().trim().min(2, "A department needs a name.").max(80),
+});
+
+export const departmentPatchSchema = z
+  .object({
+    name: z.string().trim().min(2, "A department needs a name.").max(80),
+    status: z.enum(ACCOUNT_STATUSES),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Nothing to save.");
+
+/** Approving somebody names their role and department in the same step — a
+ *  profile with no role is not a thing the database will accept. */
+export const accessDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({
+    decision: z.literal("approve"),
+    fullName: z.string().trim().min(1, "A name is required.").max(120),
+    role: z.enum(USER_ROLES),
+    departmentId: z.string().uuid().nullable(),
+    hrAccess: z.boolean(),
+  }),
+  z.object({
+    decision: z.literal("reject"),
+    reason: z
+      .string()
+      .trim()
+      .min(3, "Say why, so they know what to do next.")
+      .max(300),
+  }),
+]);
+
+const hour = z.number().int().min(0, "Hours run 0–23.").max(23, "Hours run 0–23.");
+const slaDays = z
+  .number()
+  .int()
+  .min(1, "An SLA of less than a day cannot be met.")
+  .max(60, "60 days is the longest this supports.");
+
+export const generalSettingsSchema = z.object({
+  org_name: z.string().trim().min(1, "The organisation needs a name.").max(80),
+  logo_url: z.string().trim().max(500),
+  default_theme: z.enum(["light", "dark", "system"]),
+  sla_days: z.object({
+    urgent: slaDays,
+    high: slaDays,
+    normal: slaDays,
+    low: slaDays,
+  }),
+  whatsapp_enabled: z.boolean(),
+  quiet_hours: z.object({ from: hour, to: hour }),
+});
