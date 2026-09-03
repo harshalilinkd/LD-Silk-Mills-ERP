@@ -1,9 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { IconArrowRight, IconMoodSmile, IconSearch } from "@tabler/icons-react";
+import {
+  IconArrowRight,
+  IconMoodSmile,
+  IconPlus,
+  IconSearch,
+} from "@tabler/icons-react";
 
 import { OverdueBadge, StatusBadge } from "@/components/help-slip/badges";
 import { Bi } from "@/components/help-slip/bilingual";
@@ -24,6 +30,7 @@ import {
   SortHeader,
 } from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
+import { Button } from "@/components/ui/button";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
 import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
@@ -174,6 +181,19 @@ export function MyConcerns() {
             />
           }
           meta={total > 0 ? `Showing ${rows.length} of ${total}` : null}
+          actions={
+            // The primary control of the whole module, on the screen somebody
+            // lands on when they came here to report something. 44px, because
+            // this is the one button that gets pressed standing up.
+            <Button
+              size="lg"
+              className="h-11 px-5 text-base"
+              render={<Link href="/help-slip/concerns/new" />}
+            >
+              <IconPlus className="size-5" stroke={1.8} aria-hidden />
+              <Bi en="Raise a concern" hi="शिकायत दर्ज करें" />
+            </Button>
+          }
         />
       </Reveal>
 
@@ -324,16 +344,28 @@ export function MyConcerns() {
                         titleHi: "सब ठीक है।",
                         bodyEn: "No open concerns right now.",
                         bodyHi: "अभी कोई शिकायत नहीं है।",
+                        // An empty list is the other place somebody arrives
+                        // wanting to file something — and the one place the
+                        // header CTA is furthest from the eye.
+                        action: {
+                          label: "Raise a concern",
+                          onClick: () => router.push("/help-slip/concerns/new"),
+                        },
                       }
                 }
               >
                 {/* ── cards, < 768 ──────────────────────────────────── */}
                 <ul className="flex flex-col gap-3 p-3 md:hidden">
                   {rows.map((row) => (
-                    <li
-                      key={row.id}
-                      className="flex flex-col gap-2 rounded-card border border-border p-3"
-                    >
+                    <li key={row.id}>
+                      {/* The WHOLE CARD is the link, not a tap target inside
+                          it. A real <Link>, so back works, the row can be
+                          opened in a new tab, and a keyboard reaches it —
+                          none of which an onClick handler gives. */}
+                      <Link
+                        href={`/help-slip/concerns/${row.id}`}
+                        className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+                      >
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn("num text-text-3", T.caption)}>
                           {row.concernNumber}
@@ -381,6 +413,7 @@ export function MyConcerns() {
                           )}
                         </span>
                       </p>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -408,9 +441,20 @@ export function MyConcerns() {
                       </THead>
                       <TBody>
                         {rows.map((row) => (
-                          <Tr key={row.id}>
+                          // `relative`, so the ID cell's link can cover the
+                          // whole row with a pseudo-element. That keeps ONE
+                          // real <Link> per row — back, new-tab and keyboard
+                          // all work — while the entire row is the target,
+                          // which an onClick on <Tr> would not give.
+                          <Tr key={row.id} className="relative">
                             <Td className="num whitespace-nowrap">
-                              {row.concernNumber}
+                              <Link
+                                href={`/help-slip/concerns/${row.id}`}
+                                aria-label={`${row.concernNumber}: ${row.title}`}
+                                className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
+                              >
+                                {row.concernNumber}
+                              </Link>
                             </Td>
                             <Td className="deva max-w-0">
                               <span className="line-clamp-1">{row.title}</span>

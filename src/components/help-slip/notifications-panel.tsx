@@ -118,11 +118,20 @@ export function NotificationsPanel({
           {items.map((n) => (
             <li key={n.id} className="border-b border-border last:border-0">
               <Link
-                // Land on the LIST, not a bare detail route. A notification is
-                // a reason to look at something, and arriving somewhere with
-                // no way back but the browser button is how people get
-                // stranded.
-                href="/help-slip/concerns"
+                // The concern itself, with `?u=` naming the timeline row the
+                // notification was about — `<Timeline targetId>` scrolls to it
+                // and marks it. A notification with no concern (a sign-in
+                // request) has nowhere on a concern to land, so it falls back
+                // to the list rather than to a dead link.
+                //
+                // Always the EMPLOYEE's view: this panel only renders on the
+                // employee dashboard. The coordinator's equivalent is the
+                // notification centre, which picks by role.
+                href={
+                  n.concernId
+                    ? `/help-slip/concerns/${n.concernId}${n.concernUpdateId ? `?u=${n.concernUpdateId}` : ""}`
+                    : "/help-slip/concerns"
+                }
                 className={cn(
                   "flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-surface-2",
                   // Unread is a brand-tinted left edge AND a heavier title.

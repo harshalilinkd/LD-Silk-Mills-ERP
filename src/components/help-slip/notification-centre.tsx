@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { Spinner } from "@/components/ui/spinner";
 import { helpSlipGet, helpSlipSend } from "@/lib/help-slip/api-client";
-import { useHelpSlipLocale } from "@/lib/help-slip/context";
+import { useHelpSlipLocale, useHelpSlipSession } from "@/lib/help-slip/context";
 import { isToday, relativeTime } from "@/lib/help-slip/format";
 import type { HelpSlipLocale } from "@/lib/help-slip/meta";
 import { HELP_SLIP_STALE_TIME } from "@/lib/help-slip/use-unread-count";
@@ -54,8 +54,14 @@ import { cn } from "@/lib/utils";
  */
 export function NotificationCentre() {
   const locale = useHelpSlipLocale();
+  const session = useHelpSlipSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // Same rule as `isStaff()` on the server, so a notification cannot land a
+  // coordinator on the employee's read-only view of a concern they are meant
+  // to be working. It decides a URL and nothing else.
+  const staff = session.role === "pc" || session.role === "admin";
 
   const q = useInfiniteQuery({
     queryKey: ["help-slip", "notifications"],
@@ -162,19 +168,31 @@ export function NotificationCentre() {
   /**
    * Read, THEN navigate — in that order and not the other way round.
    *
+   * WHERE it lands depends on who is reading. A coordinator wants the
+   * workspace (the screen they can act from); an employee wants their own
+   * view of their own concern. `role` is a RENDERING hint and nothing more —
+   * an employee who somehow reached the workspace URL gets told to use their
+   * own view, and RLS would have refused the writes regardless.
+   *
+   * `?u=` names the timeline row the notification was about, which
+   * `<Timeline targetId>` scrolls to and marks. Without it three
+   * notifications read a day apart all drop the reader on the same bottom
+   * node, which teaches people the links do not work.
+   *
    * The one kind with nowhere on a concern to land is `access_requested`: it
-   * announces a sign-in request, not a concern, and has no `concern_id`. Until
-   * the admin screens are ported it stays on this page rather than falling
-   * through to a no-op that looks like a broken link.
+   * announces a sign-in request, not a concern, and carries no `concernId`.
+   * Until the admin screens are ported it stays on this page rather than
+   * falling through to a no-op that looks like a broken link.
    */
   const open = (n: NotificationRow) => {
     if (!n.readAt) markRead.mutate(n.id);
     if (!n.concernId) return;
-    // The LIST, not a bare detail route — a notification is a reason to look
-    // at something, and arriving somewhere with no way back but the browser
-    // button is how people get stranded. The concern's own page lands here
-    // once the detail screen is ported.
-    router.push("/help-slip/concerns");
+    const base = staff
+      ? `/help-slip/all/${n.concernId}`
+      : `/help-slip/concerns/${n.concernId}`;
+    router.push(
+      n.concernUpdateId ? `${base}?u=${n.concernUpdateId}` : base,
+    );
   };
 
   const { today, earlier } = splitByDay(items);

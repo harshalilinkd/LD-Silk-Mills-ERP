@@ -11,6 +11,7 @@ import {
   IconInbox,
   IconLoader2,
   IconMoodSmile,
+  IconPlus,
 } from "@tabler/icons-react";
 
 import { Bi } from "@/components/help-slip/bilingual";
@@ -19,6 +20,7 @@ import { KpiStrip, type Kpi } from "@/components/help-slip/kpi-strip";
 import { NotificationsPanel } from "@/components/help-slip/notifications-panel";
 import { ListState, Panel, PanelHead } from "@/components/help-slip/page-parts";
 import { T } from "@/components/help-slip/type-scale";
+import { Button } from "@/components/ui/button";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
 import { HScroll } from "@/components/ui/hscroll";
 import { Reveal } from "@/components/ui/reveal";
@@ -47,11 +49,11 @@ import { cn } from "@/lib/utils";
  * Written phone-first. Everything desktop is additive: nothing here is a
  * shrunk-down 1440 layout.
  *
- * ── WHAT IS DELIBERATELY MISSING ──────────────────────────────────────────
- * The source's primary control is a "Raise a concern" CTA, and it is the most
- * important control in that app. It is not here: this phase is READ screens,
- * and a button that goes nowhere is worse than no button — it teaches people
- * the feature is broken. It goes back in with the raise form.
+ * ── THE PRIMARY CONTROL ───────────────────────────────────────────────────
+ * "Raise a concern" is the most important control in the source app, and it is
+ * back now that the form exists. It sits in the greeting row, ahead of the
+ * KPIs: somebody who opened this app in order to report something should not
+ * have to read four numbers first.
  */
 export function EmployeeDashboard() {
   const session = useHelpSlipSession();
@@ -151,28 +153,41 @@ export function EmployeeDashboard() {
             </p>
           </div>
 
-          {/* A quiet circle, deliberately NOT a primary button. It duplicates
-              the notification centre one click away, which is defensible: the
-              sidebar entry is navigation, this is the unread STATE where the
-              eye already is. */}
-          <Link
-            href="/help-slip/notifications"
-            aria-label={
-              unread > 0 ? `Notifications (${unread} unread)` : "Notifications"
-            }
-            className="relative hidden size-12 shrink-0 place-items-center rounded-full border border-border bg-surface text-text-2 shadow-sm transition-colors hover:text-text-1 md:grid"
-          >
-            <IconBell className="size-5" stroke={1.6} aria-hidden />
-            {unread > 0 ? (
-              // A DOT, not a count. The number lives on the notification
-              // centre a click away, and two badges disagreeing by one after a
-              // refetch is a bug report waiting to happen.
-              <span
-                aria-hidden
-                className="absolute top-3 right-3 size-2.5 rounded-full bg-primary ring-2 ring-surface"
-              />
-            ) : null}
-          </Link>
+          <div className="flex shrink-0 items-center gap-3">
+            {/* THE control. 44px and full width on a phone, because this is
+                the button that gets pressed one-handed on a factory floor. */}
+            <Button
+              size="lg"
+              className="h-11 flex-1 px-5 text-base md:flex-none"
+              render={<Link href="/help-slip/concerns/new" />}
+            >
+              <IconPlus className="size-5" stroke={1.8} aria-hidden />
+              <Bi en="Raise a concern" hi="शिकायत दर्ज करें" />
+            </Button>
+
+            {/* A quiet circle, deliberately NOT a primary button. It
+                duplicates the notification centre one click away, which is
+                defensible: the sidebar entry is navigation, this is the unread
+                STATE where the eye already is. */}
+            <Link
+              href="/help-slip/notifications"
+              aria-label={
+                unread > 0 ? `Notifications (${unread} unread)` : "Notifications"
+              }
+              className="relative hidden size-12 shrink-0 place-items-center rounded-full border border-border bg-surface text-text-2 shadow-sm transition-colors hover:text-text-1 md:grid"
+            >
+              <IconBell className="size-5" stroke={1.6} aria-hidden />
+              {unread > 0 ? (
+                // A DOT, not a count. The number lives on the notification
+                // centre a click away, and two badges disagreeing by one after
+                // a refetch is a bug report waiting to happen.
+                <span
+                  aria-hidden
+                  className="absolute top-3 right-3 size-2.5 rounded-full bg-primary ring-2 ring-surface"
+                />
+              ) : null}
+            </Link>
+          </div>
         </div>
       </Reveal>
 
@@ -264,29 +279,33 @@ function RecentConcerns({
       {/* ── cards, < 768 ───────────────────────────────────────────────── */}
       <ul className="flex flex-col gap-3 p-3 md:hidden">
         {rows.map((row) => (
-          <li
-            key={row.id}
-            className="flex flex-col gap-2 rounded-card border border-border p-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className={cn("num text-text-3", T.caption)}>
-                {row.concernNumber}
-              </span>
-              <span className="flex items-center gap-1">
-                <StatusBadge status={row.status} locale={locale} />
-                {row.isOverdue ? <OverdueBadge locale={locale} /> : null}
-              </span>
-            </div>
-            {/* 2-line clamp: a long title must not push the meta row off the
-                card on a 360px screen. */}
-            <p className={cn("deva line-clamp-2 text-text-1", T.h3)}>
-              {row.title}
-            </p>
-            <p className={cn("deva text-text-3", T.caption)}>
-              {departmentOf(row, locale)}
-              {" · "}
-              {relativeTime(row.lastPublicUpdateAt ?? row.createdAt, locale)}
-            </p>
+          <li key={row.id}>
+            {/* The whole card is the link — a real one, so back, new-tab and
+                the keyboard all work. */}
+            <Link
+              href={`/help-slip/concerns/${row.id}`}
+              className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={cn("num text-text-3", T.caption)}>
+                  {row.concernNumber}
+                </span>
+                <span className="flex items-center gap-1">
+                  <StatusBadge status={row.status} locale={locale} />
+                  {row.isOverdue ? <OverdueBadge locale={locale} /> : null}
+                </span>
+              </div>
+              {/* 2-line clamp: a long title must not push the meta row off the
+                  card on a 360px screen. */}
+              <p className={cn("deva line-clamp-2 text-text-1", T.h3)}>
+                {row.title}
+              </p>
+              <p className={cn("deva text-text-3", T.caption)}>
+                {departmentOf(row, locale)}
+                {" · "}
+                {relativeTime(row.lastPublicUpdateAt ?? row.createdAt, locale)}
+              </p>
+            </Link>
           </li>
         ))}
       </ul>
@@ -310,8 +329,17 @@ function RecentConcerns({
             </THead>
             <TBody>
               {rows.map((row) => (
-                <Tr key={row.id}>
-                  <Td className="num whitespace-nowrap">{row.concernNumber}</Td>
+                // `relative`, so the ID cell's link can cover the whole row.
+                <Tr key={row.id} className="relative">
+                  <Td className="num whitespace-nowrap">
+                    <Link
+                      href={`/help-slip/concerns/${row.id}`}
+                      aria-label={`${row.concernNumber}: ${row.title}`}
+                      className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
+                    >
+                      {row.concernNumber}
+                    </Link>
+                  </Td>
                   <Td className="deva max-w-0">
                     <span className="line-clamp-1">{row.title}</span>
                   </Td>

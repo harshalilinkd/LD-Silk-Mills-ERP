@@ -209,8 +209,45 @@ and is the contract of record.
 - `GET /api/order-entry/lookups` returns **`string[]`**, not row objects,
   unless you pass `?all=1`. Typing it wrong yields `[undefined]` and crashes
   on mount.
-- **Help Slip**: still a plain external link (opens its own app in a new
-  tab) — no integration work done.
+- **Help Slip** (`/help-slip/*`, system_code `help-slip`): employee concerns
+  — dashboard (forks by role), Raise a concern, My concerns, All concerns,
+  concern detail, the coordinator workspace, Notifications. Ported from
+  `github.com/harshalilinkd/LD-Help-Slip`; reads/writes the same live
+  `ld_help_slip` schema. Bilingual EN/HI throughout.
+
+## Help Slip — RLS is the security boundary, and we bypass it by default
+**Read `src/db/help-slip/rls.ts` before writing any query against
+`ld_help_slip`.** That module keeps its entire authorization model in Row
+Level Security: which employee may see which concern, and which coordinator
+may see a confidential (`hr_only`) one. Our pool connects as `postgres`,
+which has `rolbypassrls` — a bare query returns everything, confidential rows
+included, with no error and no warning.
+
+- Every read and write goes through **`withCurrentUser`/`withHelpSlip`**,
+  which opens a transaction, drops to the `authenticated` role and injects
+  the caller's profile id as the JWT claim `auth.uid()` reads. The database
+  then enforces exactly what it enforces for the standalone app.
+- **One call per request**, wrapping all that request's queries.
+  These transactions pin a connection and the pool is capped at 5; twelve
+  concurrent calls wedged it. `withHelpSlipRoute` exists to make that shape
+  the easy one.
+- The single bypassing read is `unsafeLookupProfileByEmail` — named to be
+  conspicuous. Do not add a second.
+- Role is re-checked in `mutations.ts` **as well as** in RLS, because a
+  zero-row UPDATE reports success and "saved" must never be said when
+  nothing was.
+- Writes go through the database's own functions (`raise_concern`,
+  `resolve_concern`, `unresolve_concern`) — they are transactional and their
+  triggers write the timeline, stamp `first_response_at` and fire
+  notifications. Never re-implement those; you get two of each.
+- **Never bind a JS array** into `db.execute` (`${arr}::text[]` arrives as
+  its `toString` and Postgres rejects it). Pass JSON and expand with
+  `jsonb_array_elements_text`.
+- Not ported: photo attachments (needs Supabase Storage, which this shell
+  has no client for), realtime (we refetch instead), and Help Slip's own
+  login/password/Google-linking — the ERP owns sign-in, Help Slip owns role.
+  `profiles.id` is a FK to `auth.users`, so this app can edit a person but
+  cannot create one.
 
 ## Known gotchas (hit these once already — don't re-discover them)
 - **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base

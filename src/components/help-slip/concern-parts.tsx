@@ -235,8 +235,22 @@ export function MetaRow({
  * touchscreen. Falls back silently when the Clipboard API is unavailable
  * (an insecure origin, an old webview) — a copy button that throws is worse
  * than one that quietly does nothing, because the number is still on screen.
+ *
+ * `size` is the one thing that varies, and it varies for a reason. Beside a
+ * title the number is a caption — a handle on a page that already says what it
+ * is about. On the FILED confirmation it IS the message: the only thing the
+ * person now holds, and the thing they will read out across a noisy floor. One
+ * component either way, so there is still exactly one copy affordance in this
+ * module rather than a second one written out at display size.
  */
-export function ConcernNumber({ value }: { value: string }) {
+export function ConcernNumber({
+  value,
+  size = "sm",
+}: {
+  value: string;
+  /** `lg` is the filed confirmation. Everywhere else is `sm`. */
+  size?: "sm" | "lg";
+}) {
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -245,9 +259,18 @@ export function ConcernNumber({ value }: { value: string }) {
     return () => window.clearTimeout(timer);
   }, [copied]);
 
+  const large = size === "lg";
+
   return (
-    <span className="inline-flex items-center gap-1">
-      <span className={cn("num text-text-3", T.caption)}>{value}</span>
+    <span className={cn("inline-flex items-center", large ? "gap-2" : "gap-1")}>
+      <span
+        className={cn(
+          "num",
+          large ? cn("text-text-1", T.display) : cn("text-text-3", T.caption),
+        )}
+      >
+        {value}
+      </span>
       <button
         type="button"
         aria-label={copied ? "Copied" : `Copy concern number ${value}`}
@@ -257,12 +280,23 @@ export function ConcernNumber({ value }: { value: string }) {
             .then(() => setCopied(true))
             .catch(() => undefined);
         }}
-        className="grid size-6 cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-chip hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40"
+        className={cn(
+          "grid cursor-pointer place-items-center rounded-field text-text-3 outline-none transition-colors hover:bg-chip hover:text-text-1 focus-visible:ring-3 focus-visible:ring-ring/40",
+          large ? "size-11" : "size-6",
+        )}
       >
         {copied ? (
-          <IconCheck className="size-3.5 text-status-green" stroke={2} aria-hidden />
+          <IconCheck
+            className={large ? "size-5 text-status-green" : "size-3.5 text-status-green"}
+            stroke={2}
+            aria-hidden
+          />
         ) : (
-          <IconCopy className="size-3.5" stroke={1.6} aria-hidden />
+          <IconCopy
+            className={large ? "size-5" : "size-3.5"}
+            stroke={1.6}
+            aria-hidden
+          />
         )}
       </button>
     </span>

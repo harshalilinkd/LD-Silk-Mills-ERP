@@ -77,7 +77,16 @@ export async function raiseConcern(
       ${""},
       ${input.priority}::ld_help_slip.priority,
       ${input.confidential ? "hr_only" : "standard"}::ld_help_slip.visibility,
-      ${solutions}::text[],
+      -- Handed over as JSON and expanded here, NOT bound as a JS array.
+      -- A bound array arrives as its JS toString and Postgres rejects it with
+      -- "malformed array literal" — which, for a one-solution slip, means the
+      -- concern silently fails to file at the last step. Still fully
+      -- parameterised: the text never leaves the placeholder.
+      (
+        select coalesce(array_agg(value order by ordinality), '{}')
+        from jsonb_array_elements_text(${JSON.stringify(solutions)}::jsonb)
+             with ordinality
+      )::text[],
       ${input.filedForName?.trim() || null}
     )
   `);
@@ -286,8 +295,13 @@ export async function withdrawConcerns(
   db: HelpSlipDb,
   ids: string[],
 ): Promise<number> {
+  // Same array-binding rule as raiseConcern above — expanded from JSON rather
+  // than bound as a JS array.
   const rows = await db.execute(sql`
-    select ld_help_slip.withdraw_concerns(${ids}::uuid[]) as n
+    select ld_help_slip.withdraw_concerns((
+      select coalesce(array_agg(value::uuid), '{}')
+      from jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)
+    )::uuid[]) as n
   `);
   return firstRow<{ n: number }>(rows)?.n ?? 0;
 }

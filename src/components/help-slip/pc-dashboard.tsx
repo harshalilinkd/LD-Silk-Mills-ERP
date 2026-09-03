@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -404,13 +405,17 @@ function QueueRows({
       {/* ── cards, < 768 ───────────────────────────────────────────────── */}
       <ul className="flex flex-col gap-3 p-3 md:hidden">
         {rows.map((row) => (
-          <li
-            key={row.id}
-            className={cn(
-              "flex flex-col gap-2 rounded-card border border-border p-3",
-              row.isOverdue && "border-l-[3px] border-l-status-red",
-            )}
-          >
+          <li key={row.id}>
+            {/* The queue's whole reason for existing is "open this one next",
+                so the card is the link — into the WORKSPACE, where a
+                coordinator can actually act on it. */}
+            <Link
+              href={`/help-slip/all/${row.id}`}
+              className={cn(
+                "flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40",
+                row.isOverdue && "border-l-[3px] border-l-status-red",
+              )}
+            >
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5">
                 {row.isOverdue ? (
@@ -450,6 +455,7 @@ function QueueRows({
                 <Bi en="Needs reassignment" hi="दोबारा सौंपना है" />
               </p>
             ) : null}
+            </Link>
           </li>
         ))}
       </ul>
@@ -475,6 +481,8 @@ function QueueRows({
                 <Tr
                   key={row.id}
                   className={cn(
+                    // `relative`, so the ID cell's link can cover the row.
+                    "relative",
                     row.isOverdue && "border-l-[3px] border-l-status-red",
                   )}
                 >
@@ -487,7 +495,15 @@ function QueueRows({
                       />
                     ) : null}
                   </Td>
-                  <Td className="num whitespace-nowrap">{row.concernNumber}</Td>
+                  <Td className="num whitespace-nowrap">
+                    <Link
+                      href={`/help-slip/all/${row.id}`}
+                      aria-label={`${row.concernNumber}: ${row.title}`}
+                      className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
+                    >
+                      {row.concernNumber}
+                    </Link>
+                  </Td>
                   <Td className="deva hidden whitespace-nowrap lg:table-cell">
                     {row.employeeName ?? "—"}
                   </Td>

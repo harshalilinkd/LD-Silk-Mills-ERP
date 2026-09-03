@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { IconLock } from "@tabler/icons-react";
 
 import { AllConcerns } from "@/components/help-slip/all-concerns";
@@ -30,12 +31,12 @@ export default async function HelpSlipAllConcernsPage() {
         </h1>
         <p className="max-w-sm text-sm text-text-3">
           It lists every concern on record. Yours are all under{" "}
-          <a
+          <Link
             href="/help-slip/concerns"
             className="text-accent-text underline underline-offset-2"
           >
             My Concerns
-          </a>
+          </Link>
           .
         </p>
       </div>

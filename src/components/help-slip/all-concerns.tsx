@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { IconClipboardList, IconSearch } from "@tabler/icons-react";
@@ -388,10 +389,14 @@ export function AllConcerns() {
                 {/* ── cards, < 768 ──────────────────────────────────── */}
                 <ul className="flex flex-col gap-3 p-3 md:hidden">
                   {rows.map((row) => (
-                    <li
-                      key={row.id}
-                      className="flex flex-col gap-2 rounded-card border border-border p-3"
-                    >
+                    <li key={row.id}>
+                      {/* Staff land in the WORKSPACE, not the employee's view:
+                          this is the archive a coordinator opens in order to
+                          do something about a concern. */}
+                      <Link
+                        href={`/help-slip/all/${row.id}`}
+                        className="flex flex-col gap-2 rounded-card border border-border p-3 transition-colors outline-none hover:bg-surface-2 focus-visible:ring-3 focus-visible:ring-ring/40"
+                      >
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn("num text-text-3", T.caption)}>
                           {row.concernNumber}
@@ -434,6 +439,7 @@ export function AllConcerns() {
                           {row.assignedToName ?? "Unassigned"}
                         </span>
                       </p>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -459,9 +465,17 @@ export function AllConcerns() {
                       </THead>
                       <TBody>
                         {rows.map((row) => (
-                          <Tr key={row.id}>
+                          // `relative`, so the ID cell's link can cover the
+                          // whole row — one real <Link>, whole-row target.
+                          <Tr key={row.id} className="relative">
                             <Td className="num whitespace-nowrap">
-                              {row.concernNumber}
+                              <Link
+                                href={`/help-slip/all/${row.id}`}
+                                aria-label={`${row.concernNumber}: ${row.title}`}
+                                className="rounded-field outline-none after:absolute after:inset-0 after:content-[''] hover:text-accent-text focus-visible:text-accent-text focus-visible:underline"
+                              >
+                                {row.concernNumber}
+                              </Link>
                             </Td>
                             <Td className="max-w-0">
                               <span className="flex items-center gap-2">

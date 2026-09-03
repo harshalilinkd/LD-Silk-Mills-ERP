@@ -14,6 +14,19 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "Operations", href: "/order-entry/tracking" },
     { label: "Settings", href: "/order-entry/settings" },
   ],
+  // Help Slip's own nav differs by role — an employee has no queue and a
+  // coordinator has no "my concerns" CTA. The sidebar is DB-driven and knows
+  // nothing about Help Slip roles, so this lists the union and each screen
+  // refuses what the viewer may not have: "All concerns" answers with the
+  // coordinators-only screen for an employee rather than a filtered list they
+  // would reasonably mistake for the whole archive.
+  "help-slip": [
+    { label: "Dashboard", href: "/help-slip", exact: true },
+    { label: "Raise a concern", href: "/help-slip/concerns/new" },
+    { label: "My concerns", href: "/help-slip/concerns" },
+    { label: "All concerns", href: "/help-slip/all" },
+    { label: "Notifications", href: "/help-slip/notifications" },
+  ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },
     { label: "Issues", href: "/crm/issues" },
