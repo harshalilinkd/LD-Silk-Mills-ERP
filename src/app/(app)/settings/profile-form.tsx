@@ -5,6 +5,7 @@ import { IconKey, IconUser } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { changeOwnPassword, removeOwnPassword, updateOwnName } from "./actions";
 
 const MIN = 10;
@@ -125,8 +126,7 @@ export function ProfileForm({
               <span className="text-[13px] font-medium text-text-2">
                 Current password
               </span>
-              <Input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 value={current}
                 onChange={(e) => setCurrent(e.target.value)}
@@ -139,8 +139,7 @@ export function ProfileForm({
             <span className="text-[13px] font-medium text-text-2">
               {hasPassword ? "New password" : "Password"}
             </span>
-            <Input
-              type="password"
+            <PasswordInput
               autoComplete="new-password"
               value={next}
               onChange={(e) => setNext(e.target.value)}

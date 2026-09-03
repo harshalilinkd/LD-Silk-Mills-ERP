@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { LoomBackdrop } from "./loom-backdrop";
 import { signInWithGoogle, signInWithPassword } from "./actions";
 
@@ -235,11 +236,10 @@ export default async function LoginPage({
               <span className="text-[12.5px] font-medium text-text-2">
                 Password
               </span>
-              <Input
+              <PasswordInput
                 name="password"
-                type="password"
                 autoComplete="current-password"
-                placeholder="••••••••••"
+                placeholder="Password"
                 required
                 className="h-11 text-base sm:h-10 sm:text-[13.5px]"
               />

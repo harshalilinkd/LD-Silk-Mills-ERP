@@ -73,6 +73,10 @@ export async function updateOwnName(name: string) {
  */
 export async function changeOwnPassword(current: string, next: string) {
   const me = await currentUser();
+  // Trimmed to match how it was STORED — every set path trims before hashing,
+  // so an untrimmed comparison rejects a correct password that arrived with a
+  // stray space from a paste or a phone keyboard.
+  current = current.trim();
 
   const value = next.trim();
   if (value.length < MIN) throw new Error(`Use at least ${MIN} characters.`);
@@ -108,6 +112,7 @@ export async function changeOwnPassword(current: string, next: string) {
  */
 export async function removeOwnPassword(current: string) {
   const me = await currentUser();
+  current = current.trim();
   if (!me.passwordHash) return;
 
   if (!current) throw new Error("Enter your current password.");
