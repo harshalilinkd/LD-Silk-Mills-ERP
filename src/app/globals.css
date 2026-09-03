@@ -103,7 +103,14 @@
  * accent-text) are redeclared under .dark below.
  */
 :root {
-  --background: #f4f6f6;
+  /* THE PAGE WAS TOO CLOSE TO THE CARDS. #f4f6f6 behind #ffffff is 1.085:1 —
+     white on near-white — so nothing on any screen looked raised and the whole
+     app read as one flat sheet with lines drawn on it. This is the identical
+     fault that made dark mode "gaudy and unpleasant", measured the same way and
+     fixed the same way: the ground drops until a card is visibly a card.
+     #e9edee gives 1.179:1, slightly more separation than dark's 1.127, and
+     still leaves black text at 17.8:1. */
+  --background: #e9edee;
   /* `--foreground` is what <body> inherits, so it is the colour of any text
      that never names a token. It was #10171a — near-black, but a DIFFERENT
      near-black from --text-1, which meant a handful of elements per page
@@ -111,10 +118,16 @@
      It follows --text-1 now, in both themes. */
   --foreground: var(--text-1);
   --surface: #ffffff;
-  --surface-2: #eef2f2;
-  --surface-3: #e4e9e9;
-  --border: rgba(15, 23, 23, 0.08);
-  --border-strong: rgba(15, 23, 23, 0.14);
+  /* Both had to come UP with the ground. `--surface-2` is the recessed tone
+     used for wells and hover INSIDE a card, so it must sit between the card and
+     the page — at its old #eef2f2 it would now be lighter than the page behind
+     it, and a "recessed" well would read as raised. */
+  --surface-2: #f2f5f5;
+  --surface-3: #e7ecec;
+  /* 8% was a hairline you had to look for. Dark went to 12% for the same
+     reason — a card with no visible edge is not a card. */
+  --border: rgba(15, 23, 23, 0.11);
+  --border-strong: rgba(15, 23, 23, 0.18);
   /* TEXT IS BLACK. Not "a dark ramp" — black.
 
      This was three steps (#000000 / #2b3038 / #5c6270) on the reasoning that a

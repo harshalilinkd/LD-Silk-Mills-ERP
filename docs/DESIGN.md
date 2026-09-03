@@ -142,6 +142,24 @@ channel. Guessing a fourth time was the thing to avoid.
 
 ### Light
 
+**The page must be visibly darker than a card.** It was `#f4f6f6` behind
+`#ffffff` — 1.085 : 1, white on near-white — so nothing looked raised and the
+app read as one flat sheet with lines drawn on it. That is the identical fault
+that made dark mode "gaudy and unpleasant", and it was measured and fixed the
+same way: the ground drops until a card is visibly a card. `#e9edee` gives
+1.179 : 1, slightly more than dark's 1.127, with black text still at 17.8 : 1.
+
+`--surface-2` and `--surface-3` had to come up with it. `--surface-2` is the
+recessed tone for wells and hover INSIDE a card, so it has to sit BETWEEN the
+card and the page; left at `#eef2f2` it would now be lighter than the page
+behind it, and a recessed well would read as raised.
+
+**When adding a light value, measure card-vs-page separation, not just text
+contrast.** Every text token here clears AA on white (black 21.0, muted 9.5,
+placeholder 5.0, accent 5.5, green 5.0, amber 5.0, red 4.8) — and all of that
+was already true while the app looked flat, because legibility and depth are
+different problems.
+
 Built as light mode's complement, not an afterthought: the page canvas is
 a soft cool-grey (never stark white) so pure-white cards read as
 "elevated" above it — the same lighter-means-more-elevated relationship
@@ -157,12 +175,12 @@ all but disappear on white.
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#f4f6f6` | Page background |
+| `--bg` | `#e9edee` | Page background |
 | `--surface` | `#ffffff` | Sidebar, topbar background |
-| `--surface-2` | `#eef2f2` | Hover state background |
-| `--surface-3` | `#e4e9e9` | Avatar background, dropdown item hover |
-| `--border` | `rgba(15,23,23,.08)` | Default hairline border |
-| `--border-strong` | `rgba(15,23,23,.14)` | Emphasized border (dropdowns, focus) |
+| `--surface-2` | `#f2f5f5` | Hover state background |
+| `--surface-3` | `#e7ecec` | Avatar background, dropdown item hover |
+| `--border` | `rgba(15,23,23,.11)` | Default hairline border |
+| `--border-strong` | `rgba(15,23,23,.18)` | Emphasized border (dropdowns, focus) |
 | `--text-1` | `#000000` | Primary text |
 | `--text-2` | `#2b3038` | Secondary text |
 | `--text-3` | `#5c6270` | Muted / tertiary text, placeholders |
