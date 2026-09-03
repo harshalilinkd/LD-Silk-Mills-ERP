@@ -383,41 +383,71 @@
 
 /* ld-drape — the slow breath of the cloth itself.
  *
- * A 70s Ken Burns: 1.00 -> 1.055 with a hair of pan. `alternate` rather than a
- * loop, because a scale that snaps back to 1.0 at the seam is a visible jolt.
- * Under 3% of scale per 30 seconds is below the threshold where the eye reads
- * it as movement — you perceive the scene as alive without catching it. */
+ * RETUNED after "your animations are not much visible to me". It was 70s and
+ * 5.5% of scale, which is genuinely below the threshold at which the eye reads
+ * movement — I had tuned it so far toward restraint that it did nothing. Now
+ * 42s and 8%, which is perceptible when you look at it and still invisible
+ * while you are typing.
+ *
+ * `alternate` rather than a loop, because a scale that snaps back to 1.0 at
+ * the seam is a visible jolt. */
 @keyframes ld-drape {
   from {
     transform: scale(1) translate3d(0, 0, 0);
   }
   to {
-    transform: scale(1.055) translate3d(-1.1%, -0.7%, 0);
+    transform: scale(1.08) translate3d(-1.6%, -1%, 0);
   }
 }
 
 @utility ld-drape {
-  animation: ld-drape 70s ease-in-out infinite alternate;
+  animation: ld-drape 42s ease-in-out infinite alternate;
 }
 
-/* ld-sheen — light travelling across silk. The signature of the material.
+/* ld-sheen — light travelling across silk. The signature of the material, and
+ * the one effect on this page that is meant to be NOTICED.
  *
- * A wide, very soft band crossing on the diagonal. The long 0%-to-38% dead
- * zone is the point: it passes, then the cloth is still for about nine
- * seconds. A sheen on a short loop stops being light and becomes a scanner. */
+ * Also retuned: it peaked at 20% white on a 15s cycle with a nine-second dead
+ * zone, so it was both faint and easy to miss entirely. Now it crosses every
+ * 9s and the band is warm rather than white — sunlight through a window is not
+ * grey, and a warm core reads as light on cloth where a white one reads as a
+ * glare bar sliding over a photograph.
+ *
+ * There is still a rest between passes. A sheen on a continuous loop stops
+ * being light and becomes a scanner. */
 @keyframes ld-sheen {
   0%,
-  38% {
-    transform: translate3d(-130%, 0, 0);
+  22% {
+    transform: translate3d(-135%, 0, 0);
   }
-  72%,
+  70%,
   100% {
-    transform: translate3d(130%, 0, 0);
+    transform: translate3d(135%, 0, 0);
   }
 }
 
 @utility ld-sheen {
-  animation: ld-sheen 15s cubic-bezier(0.4, 0, 0.25, 1) infinite;
+  animation: ld-sheen 9s cubic-bezier(0.42, 0, 0.3, 1) infinite;
+}
+
+/* ld-sun — the room's light shifting, under everything else.
+ *
+ * A single wide warm pool drifting on a 26s round trip. On its own you would
+ * never name it; with the drape it is what stops the photograph reading as a
+ * flat pane of glass. This is the layer that does the "real fabric" work. */
+@keyframes ld-sun {
+  from {
+    transform: translate3d(-8%, -4%, 0) scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: translate3d(9%, 5%, 0) scale(1.14);
+    opacity: 0.9;
+  }
+}
+
+@utility ld-sun {
+  animation: ld-sun 26s ease-in-out infinite alternate;
 }
 
 /* ld-thread — the accent rule under the headline, drawn rather than revealed.
@@ -478,6 +508,12 @@
   .ld-sheen {
     animation: none;
     opacity: 0;
+  }
+  /* Parked at its mid brightness, so the lighting still looks deliberate
+     rather than like a layer that failed to load. */
+  .ld-sun {
+    animation: none;
+    opacity: 0.7;
   }
   /* Drawn and settled both end in their finished state, so they just skip. */
   .ld-thread {

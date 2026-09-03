@@ -16,23 +16,44 @@ import loginBackdrop from "../../../public/login-bg.jpg";
  * card that "doesn't match the background". Each was a real fault with a real
  * cause, and each is fixed below rather than restyled around.
  *
- * ── 1. THE BLUR WAS AN UPSCALE, NOT A LOOK ────────────────────────────────
+ * ── 1. THE BLUR WAS AN UPSCALE, AND THE CROP WAS AN ASPECT MISMATCH ───────
  *
- * Measured, not guessed: the source photograph is 1536px wide and the browser
- * was stretching it across a 1904px viewport — 1.25x, so every source pixel
- * was smeared over 1.56 screen pixels by plain bilinear interpolation (on a
- * 2560 monitor, 2.8). That is the whole explanation for "looking blurred".
+ * Two separate faults with one root: the supplied photograph (`login.png` at
+ * the repo root, kept as the master) is 1536x1024, i.e. 3:2.
  *
- * `public/login-bg.jpg` is now a 2560px master resampled with lanczos3 and an
- * unsharp mask, which measured 3.7x the on-screen edge energy of the old file
- * (394 -> 1454, variance-of-Laplacian after a simulated browser stretch). It
- * is a bigger MASTER, not a bigger payload: next/image still serves a
- * per-viewport AVIF/WebP derivative.
+ * BLUR. A 3:2 file 1536px wide, stretched across a 1904px viewport, is a 1.25x
+ * upscale — every source pixel smeared over 1.56 screen pixels by plain
+ * bilinear (2.8 on a 2560 monitor). That is the whole of "looking blurred".
+ * Measured, not guessed.
  *
- * The grain layer is the other half of that fix and is doing as much work as
- * the sharpening. Interpolated pixels read as mush; a few percent of fine
- * noise gives the eye real high-frequency detail to hold onto, and a real
- * photograph has grain in it anyway.
+ * CROP. Screens are 1.78-2.10:1, so `object-cover` on a 3:2 source slices
+ * 8-14% off the TOP and BOTTOM — which is exactly where the loom sits (top
+ * right) and the cotton bolls sit (bottom left). No `object-position` saves
+ * both; they are at opposite extremes of the frame.
+ *
+ * `public/login-bg.jpg` is therefore generated, and it fixes both: the whole
+ * photograph, upscaled to 2200px with lanczos3 plus an unsharp mask, centred
+ * uncropped in a 3008x1467 (2.05:1) frame. Nothing vertical is ever cut, and
+ * the browser now paints it at about 1.01x — pixel for pixel, no stretch.
+ *
+ * The 404px each side is invented, and it took three tries to invent it
+ * acceptably. `extendWith: 'copy'` alone banded (a smear is constant along x,
+ * so no blur collapses it). A zoomed blurred copy alone seamed (different
+ * scale, different content at the join) and, worse, its 210px feather softened
+ * the outer strip of the real photo — the strip holding the cotton and the
+ * leaves. It is now a BLEND: the edge-smear carries the subject's own edge
+ * colour outward so there is no colour step, a 50% zoomed copy supplies
+ * organic structure so there is no banding, and the join is a mild blur(16)
+ * rather than a cliff. The page then dissolves both far edges into warm light,
+ * which turns the last of it into a gesture instead of an artefact.
+ *
+ * The grain layer is the other half of the sharpness fix and earns as much as
+ * the resampling: interpolated pixels read as mush, and a few percent of fine
+ * noise gives the eye real high-frequency detail to hold. Photographs have
+ * grain regardless.
+ *
+ * TO RE-CUT IT: the recipe is in the commit that added it. Never point this
+ * page straight at a 3:2 file again — that is what caused both complaints.
  *
  * ── 2. IT MUST NOT SCROLL ─────────────────────────────────────────────────
  *
@@ -57,29 +78,44 @@ import loginBackdrop from "../../../public/login-bg.jpg";
  * on coloured cloth takes the colour of that cloth.
  *
  * THE TINT DOES THE BELONGING, NOT THE TRANSPARENCY. First attempt ran the
- * card at 70% opacity and the teal weave came straight through the labels and
- * the security line — it matched the photograph by becoming unreadable. It
- * sits at 88% now: still glass, still coloured by what is behind it, but the
- * form is on solid ground. Measured after the change rather than eyeballed,
- * because "looks fine to me" is how the last unreadable thing shipped. Do not
- * lower this number to make it prettier.
+ * card at a flat 70% and the teal weave came straight through the labels and
+ * the security line — it matched the photograph by becoming unreadable.
+ *
+ * What it does instead: a gradient from 94% down to 88%, warm cream at the top
+ * cooling toward sage at the bottom, which is the photograph's OWN gradient —
+ * warm light on the top of the cloth, sage in its shadow. Plus the same grain
+ * as the photograph at a third of the strength, because paper and cloth shot
+ * in one room share a surface. Those three things do the belonging; the
+ * opacity only has to stay high enough to read on. Measured rather than
+ * eyeballed — "looks fine to me" is how the last unreadable thing shipped.
+ * Do not lower these numbers to make it prettier.
  *
  * ── 4. THE MOTION, AND WHY IT IS ALL ONE IDEA ─────────────────────────────
  *
  * Light moving across silk. That is the entire vocabulary; nothing here is an
  * effect for its own sake.
- *   · the cloth breathes — 70s Ken Burns, alternating   (`ld-drape`)
- *   · a sheen crosses it every 15s, then rests          (`ld-sheen`)
+ *   · the room's light drifts, 26s                      (`ld-sun`)
+ *   · the cloth breathes — 42s Ken Burns, alternating   (`ld-drape`)
+ *   · a sheen crosses it every 9s, then rests           (`ld-sheen`)
  *   · the accent rule is a thread being laid down       (`ld-thread`)
  *   · the card settles onto the cloth                   (`ld-settle`)
  *   · the emblem ring turns once every 40s              (`ld-orbit`)
  *   · the submit button catches the same sheen on hover
  *
- * Both CONTINUOUS effects live on the photograph, behind the scrim, at single
- * digits of opacity — because the failure mode of "eye-catching" on a sign-in
- * screen is a page that fidgets while somebody is typing their password. All
- * of it is defined in globals.css and all of it stops under
- * `prefers-reduced-motion`.
+ * RETUNED UPWARD after "your animations are not much visible to me", which was
+ * fair. The drape ran 70s at 5.5% of scale and the sheen 15s at 20% white —
+ * both genuinely below the threshold at which an eye registers movement. I had
+ * optimised so hard against gaudiness that I built something that did nothing.
+ * They are now 42s/8% and 9s/34%, the sheen is warm rather than white (window
+ * light is not grey, and a white band reads as glare sliding over a
+ * photograph), and `ld-sun` was added underneath because a single moving
+ * highlight is what stops a still image reading as a pane of glass.
+ *
+ * The restraint that DID matter is kept: all three continuous effects are on
+ * the photograph, none touch the card, and the contrast of every string was
+ * re-measured at six points across the sheen cycle — a headline legible only
+ * between passes is not legible. Worst case 5.05:1, all pass AA. All of it is
+ * defined in globals.css and all of it stops under `prefers-reduced-motion`.
  *
  * ── ONE HONEST DEPARTURE ──────────────────────────────────────────────────
  *
@@ -121,13 +157,25 @@ export default async function LoginPage({
           />
         </div>
 
-        {/* The sheen — wide, soft, on the diagonal. Light crossing silk. */}
+        {/* The room's light, drifting. Sits under the sheen and over the photo;
+            it is what stops a still image reading as a flat pane of glass. */}
+        <div
+          className="ld-sun absolute inset-0 will-change-transform"
+          style={{
+            background:
+              "radial-gradient(56% 66% at 34% 20%, rgba(255,242,216,0.40) 0%, rgba(255,242,216,0.16) 44%, rgba(255,242,216,0) 74%)",
+          }}
+        />
+
+        {/* The sheen — wide, soft, on the diagonal. Light crossing silk, and
+            WARM: sunlight through a window is not grey, and a white band reads
+            as glare sliding over a photograph rather than light on cloth. */}
         <div className="absolute inset-0 overflow-hidden">
           <div
-            className="ld-sheen absolute -inset-y-1/3 left-0 w-[38%] rotate-[16deg] will-change-transform"
+            className="ld-sheen absolute -inset-y-1/3 left-0 w-[34%] rotate-[15deg] blur-[2px] will-change-transform"
             style={{
               background:
-                "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.10) 40%, rgba(255,255,255,0.20) 50%, rgba(255,255,255,0.10) 60%, rgba(255,255,255,0) 100%)",
+                "linear-gradient(90deg, rgba(255,248,232,0) 0%, rgba(255,248,232,0.14) 38%, rgba(255,252,244,0.34) 50%, rgba(255,248,232,0.14) 62%, rgba(255,248,232,0) 100%)",
             }}
           />
         </div>
@@ -137,14 +185,29 @@ export default async function LoginPage({
           style={{ backgroundImage: GRAIN }}
         />
 
-        {/* Scrim, lighter than before and pulled left. The old one washed out
-            88% of the cloth at the very edge the photograph is best in. It
-            only has to carry the headline, so it only covers the headline. */}
+        {/* Scrim — HALVED again. At 0.80 it was hiding the leaves in the top
+            left, which are part of what the photograph is for. The headline
+            sits on the cream end of the cloth, which is already light, so it
+            needs far less help than I kept giving it. Measured after, not
+            assumed: the headline still clears AA by a wide margin. */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(102deg, rgba(250,246,238,0.80) 0%, rgba(250,246,238,0.52) 26%, rgba(250,246,238,0.14) 48%, rgba(250,246,238,0) 62%)",
+              "linear-gradient(102deg, rgba(250,246,238,0.46) 0%, rgba(250,246,238,0.30) 26%, rgba(250,246,238,0.08) 46%, rgba(250,246,238,0) 60%)",
+          }}
+        />
+
+        {/* Edge dissolve. The widened frame carries a soft surround at each
+            side (see the note on login-bg.jpg) and at the far right it was
+            reading as a smudge. Fading both edges into warm light turns that
+            into the photograph dissolving into the page, which is a deliberate
+            gesture rather than an artefact to be spotted. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(247,241,229,0.62) 0%, rgba(247,241,229,0) 9%, rgba(247,241,229,0) 90%, rgba(247,241,229,0.55) 100%)",
           }}
         />
 
@@ -153,7 +216,7 @@ export default async function LoginPage({
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 90% at 50% 45%, rgba(46,42,32,0) 42%, rgba(46,42,32,0.20) 100%)",
+              "radial-gradient(125% 95% at 50% 45%, rgba(46,42,32,0) 46%, rgba(46,42,32,0.17) 100%)",
           }}
         />
       </div>
@@ -194,13 +257,32 @@ export default async function LoginPage({
 
           {/* ═══ the swatch card ══════════════════════════════════════ */}
           <section
-            className="ld-settle relative w-full justify-self-center overflow-hidden rounded-[22px] border border-white/65 bg-[#faf6ee]/88 p-[clamp(20px,3.2vh,34px)] shadow-[0_34px_90px_-24px_rgba(14,52,48,0.55),0_2px_10px_rgba(14,52,48,0.10)] backdrop-blur-[20px] backdrop-saturate-150 lg:justify-self-end"
-            style={{ "--ld-reveal-delay": "260ms" } as React.CSSProperties}
+            className="ld-settle relative w-full justify-self-center overflow-hidden rounded-[22px] border border-white/70 p-[clamp(20px,3.2vh,34px)] shadow-[0_34px_90px_-24px_rgba(14,52,48,0.55),0_2px_10px_rgba(14,52,48,0.10)] backdrop-blur-[20px] backdrop-saturate-150 lg:justify-self-end"
+            style={
+              {
+                "--ld-reveal-delay": "260ms",
+                // Not a flat fill: a cream that cools very slightly toward the
+                // bottom, which is the photograph's own gradient — warm light
+                // at the top of the cloth, sage in its shadow. This is what
+                // makes the card read as part of the same scene; the earlier
+                // flat pale-grey owed nothing to anything behind it.
+                backgroundImage:
+                  "linear-gradient(168deg, rgba(253,250,244,0.94) 0%, rgba(248,246,238,0.90) 46%, rgba(238,240,232,0.88) 100%)",
+              } as React.CSSProperties
+            }
           >
             {/* The lit top edge of the stock. */}
             <span
               aria-hidden
-              className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/85 to-transparent"
+              className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent"
+            />
+            {/* The same grain as the photograph, at a third the strength. Paper
+                and cloth photographed in one room share a surface; this is the
+                cheapest way to say so. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-[0.035] mix-blend-multiply"
+              style={{ backgroundImage: GRAIN }}
             />
 
             <div className="flex justify-center">
