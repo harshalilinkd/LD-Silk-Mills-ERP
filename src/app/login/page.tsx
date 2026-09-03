@@ -1,50 +1,53 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-
+import Image from "next/image";
 import { redirect } from "next/navigation";
-import {
-  IconChartBar,
-  IconClipboardList,
-  IconFileDescription,
-  IconLock,
-  IconMail,
-  IconSettings,
-  IconShieldCheck,
-  IconUsers,
-} from "@tabler/icons-react";
+import { IconLock, IconMail, IconShieldCheck } from "@tabler/icons-react";
 
 import { auth } from "@/auth";
 import { PasswordInput } from "@/components/ui/password-input";
-import { SilkBackdrop } from "./silk-backdrop";
 import { signInWithGoogle, signInWithPassword } from "./actions";
+import loginBackdrop from "../../../public/login-bg.jpg";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  Sign in — the approved design, built.
+ *  Sign in
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Full-bleed fabric, the brand and the promise on the left, one card on the
- * right. Every element of the mockup is here: the wordmark, the two-line serif
- * headline with `Power` in teal, the rule, the five module tiles, the trust
- * pill, the ringed emblem, both sign-in methods, the security note and the
- * browser row.
+ * Full-bleed fabric, the brand on the left, one card on the right.
  *
  * ── THE PHOTOGRAPH ────────────────────────────────────────────────────────
  *
- * Drop the real image at `public/login-bg.jpg` and it is used automatically.
- * The check is at MODULE scope, so it costs one `existsSync` per server start
- * rather than one per request. Until the file exists, `SilkBackdrop` draws
- * generated drapery in the same palette — so adding it changes the texture and
- * nothing else about the layout.
+ * `public/login-bg.jpg` is the real supplied photograph and is now THE
+ * design. The generated `SilkBackdrop` canvas that stood in for it while it
+ * was missing is deleted, along with the `existsSync` fork that chose between
+ * the two — there is one background now and this is it.
+ *
+ * Imported STATICALLY rather than referenced as a CSS `url()`, which buys
+ * three things a background-image cannot: Next serves AVIF/WebP to browsers
+ * that take them, it knows the intrinsic size so nothing reflows, and
+ * `placeholder="blur"` gets a real generated blur-up instead of a flash of
+ * bare colour on a slow connection. `priority` because it is unambiguously
+ * the largest paint on the page.
+ *
+ * The source PNG was 2.7 MB; it ships as a 268 KB mozjpeg at its native
+ * 1536×1024. `object-cover` crops it to the viewport, which the composition
+ * survives because the subject fills the frame edge to edge rather than
+ * sitting in the middle of it.
+ *
+ * ── WHAT IS DELIBERATELY NOT HERE ─────────────────────────────────────────
+ *
+ * The strapline, the five module tiles, the "Secure. Reliable." pill and the
+ * "Best experienced in" browser row were all built and then removed at the
+ * owner's request. The left column is the wordmark, the headline and the
+ * rule; everything else is the card. Do not reinstate them as "polish" — the
+ * emptiness is the brief.
  *
  * ── MOTION ────────────────────────────────────────────────────────────────
  *
  * Gentle, and never more than one thing moving at once:
- *   · the drape breathes over ~90s (canvas)
- *   · the emblem's ring turns once every 40s
+ *   · the photo blurs up once on first paint
+ *   · the emblem ring turns once every 40s
  *   · content arrives on a stagger, left column first
- *   · fields lift their ring on focus, tiles lift on hover, the submit arrow
- *     travels on hover
+ *   · fields lift their ring on focus, the submit arrow travels on hover
  * All of it sits behind `prefers-reduced-motion`.
  *
  * ── ONE HONEST DEPARTURE ──────────────────────────────────────────────────
@@ -55,17 +58,6 @@ import { signInWithGoogle, signInWithPassword } from "./actions";
  * actually works. `<details>` rather than script, so it works before
  * hydration.
  */
-
-const BG = path.join(process.cwd(), "public", "login-bg.jpg");
-const HAS_PHOTO = existsSync(BG);
-
-const MODULES = [
-  { label: "Order Entry", Icon: IconClipboardList },
-  { label: "Operations", Icon: IconSettings },
-  { label: "CRM", Icon: IconUsers },
-  { label: "Help Slip", Icon: IconFileDescription },
-  { label: "Reports", Icon: IconChartBar },
-];
 
 export default async function LoginPage({
   searchParams,
@@ -80,15 +72,16 @@ export default async function LoginPage({
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#efe7da]">
       {/* ═══ the fabric ═══════════════════════════════════════════════ */}
-      {HAS_PHOTO ? (
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url(/login-bg.jpg)" }}
-        />
-      ) : (
-        <SilkBackdrop className="absolute inset-0 size-full" />
-      )}
+      <Image
+        src={loginBackdrop}
+        alt=""
+        aria-hidden
+        fill
+        priority
+        placeholder="blur"
+        sizes="100vw"
+        className="object-cover object-center"
+      />
 
       {/* Warm scrim. The headline is near-black on cloth that is bright in
           places and dark in others, so the left third gets a soft lift —
@@ -102,7 +95,12 @@ export default async function LoginPage({
         }}
       />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-6 py-8 lg:px-12 lg:py-10">
+      {/* The card is ~760px of unavoidable form, so the page's own padding is
+          what has to give. At `py-10` the whole thing measured 959px and the
+          security note fell off the bottom of every 1080p laptop (viewport
+          ~864) — the design was drawn at 1024 and quietly assumed it. Padding
+          is not the design; the card is. So the padding pays. */}
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-6 py-6 lg:px-12 lg:py-7">
         {/* ═══ wordmark ═══════════════════════════════════════════════ */}
         <header
           className="ld-reveal flex items-center gap-3.5"
@@ -116,7 +114,7 @@ export default async function LoginPage({
           </span>
         </header>
 
-        <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[1.15fr_minmax(0,520px)] lg:gap-16 lg:py-4">
+        <div className="grid flex-1 items-center gap-10 py-4 lg:grid-cols-[1.15fr_minmax(0,520px)] lg:gap-16 lg:py-0">
           {/* ═══ the promise ══════════════════════════════════════════ */}
           <section className="max-w-[560px]">
             <h1
@@ -132,58 +130,18 @@ export default async function LoginPage({
               className="ld-reveal mt-7 h-[3px] w-14 rounded-full bg-[#0d6b62]"
               style={{ "--ld-reveal-delay": "160ms" } as React.CSSProperties}
             />
-
-            <p
-              className="ld-reveal mt-6 max-w-[42ch] text-[16px] leading-relaxed text-[#3d4f4d]"
-              style={{ "--ld-reveal-delay": "220ms" } as React.CSSProperties}
-            >
-              A unified ERP that connects orders, operations, people and
-              performance — seamlessly.
-            </p>
-
-            <ul className="mt-9 flex flex-wrap gap-3">
-              {MODULES.map(({ label, Icon }, i) => (
-                <li
-                  key={label}
-                  className="ld-reveal flex w-[92px] flex-col items-center gap-2 rounded-[14px] border border-white/70 bg-white/80 px-3 py-3.5 shadow-[0_4px_16px_rgba(20,49,47,0.07)] backdrop-blur-sm transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_10px_26px_rgba(20,49,47,0.14)] motion-reduce:hover:translate-y-0"
-                  style={
-                    {
-                      "--ld-reveal-delay": `${300 + i * 70}ms`,
-                    } as React.CSSProperties
-                  }
-                >
-                  <Icon className="size-[22px] text-[#0d6b62]" stroke={1.6} />
-                  <span className="text-center text-[12px] font-medium text-[#2a423f]">
-                    {label}
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            <div
-              className="ld-reveal mt-10 inline-flex items-center gap-2.5 rounded-full bg-[#16302e]/85 px-5 py-3 backdrop-blur-sm"
-              style={{ "--ld-reveal-delay": "700ms" } as React.CSSProperties}
-            >
-              <IconShieldCheck
-                className="size-[18px] text-[#8fd6c9]"
-                stroke={1.7}
-              />
-              <span className="text-[13.5px] font-medium text-white/90">
-                Secure. Reliable. Built for textile.
-              </span>
-            </div>
           </section>
 
           {/* ═══ the card ═════════════════════════════════════════════ */}
           <section
-            className="ld-reveal w-full justify-self-center rounded-[26px] border border-white/70 bg-[#faf7f2]/92 p-7 shadow-[0_28px_70px_rgba(20,49,47,0.22)] backdrop-blur-xl sm:p-9 lg:justify-self-end"
+            className="ld-reveal w-full justify-self-center rounded-[26px] border border-white/70 bg-[#faf7f2]/92 p-7 shadow-[0_28px_70px_rgba(20,49,47,0.22)] backdrop-blur-xl sm:p-8 lg:justify-self-end"
             style={{ "--ld-reveal-delay": "140ms" } as React.CSSProperties}
           >
             {/* The ringed emblem. The ring turns once every 40 seconds — slow
                 enough to read as "alive" rather than as a spinner saying
                 "wait". */}
             <div className="flex justify-center">
-              <div className="relative grid size-[104px] place-items-center">
+              <div className="relative grid size-[92px] place-items-center">
                 <span
                   aria-hidden
                   className="ld-orbit absolute inset-0 rounded-full border border-dashed border-[#0d4f4a]/25"
@@ -192,13 +150,13 @@ export default async function LoginPage({
                   aria-hidden
                   className="absolute inset-[11px] rounded-full border border-[#0d4f4a]/15"
                 />
-                <span className="grid size-[68px] place-items-center rounded-full bg-[#0d4f4a] text-[19px] font-bold tracking-wide text-white shadow-[0_10px_26px_rgba(13,79,74,0.34)]">
+                <span className="grid size-[62px] place-items-center rounded-full bg-[#0d4f4a] text-[19px] font-bold tracking-wide text-white shadow-[0_10px_26px_rgba(13,79,74,0.34)]">
                   LD
                 </span>
               </div>
             </div>
 
-            <h2 className="mt-5 text-center text-[27px] font-bold tracking-[-0.02em] text-[#14312f]">
+            <h2 className="mt-4 text-center text-[27px] font-bold tracking-[-0.02em] text-[#14312f]">
               Welcome back
             </h2>
             <p className="mt-1.5 text-center text-[14px] text-[#5a6b69]">
@@ -231,7 +189,7 @@ export default async function LoginPage({
               </button>
             </form>
 
-            <div className="my-6 flex items-center gap-4">
+            <div className="my-5 flex items-center gap-4">
               <span className="h-px flex-1 bg-[#14312f]/12" />
               <span className="text-[11.5px] font-semibold tracking-[0.12em] text-[#7b8988]">
                 OR
@@ -285,6 +243,11 @@ export default async function LoginPage({
                     className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[18px] -translate-y-1/2 text-[#0d6b62]/70"
                     stroke={1.7}
                   />
+                  {/* No `minLength` here, deliberately. This field proves you
+                      know an EXISTING password; the length rule belongs where
+                      one is CHOSEN, in Settings. Enforcing it here would lock
+                      out anybody still holding a password set under an older
+                      rule, and would advertise the rule to anyone probing. */}
                   <PasswordInput
                     name="password"
                     autoComplete="current-password"
@@ -333,7 +296,7 @@ export default async function LoginPage({
               </button>
             </form>
 
-            <div className="mt-6 flex items-start gap-2.5 border-t border-[#14312f]/10 pt-5">
+            <div className="mt-5 flex items-start gap-2.5 border-t border-[#14312f]/10 pt-4">
               <IconShieldCheck
                 className="mt-px size-[19px] shrink-0 text-[#0d6b62]"
                 stroke={1.7}
@@ -349,29 +312,6 @@ export default async function LoginPage({
             </div>
           </section>
         </div>
-
-        <footer
-          className="ld-reveal flex flex-col items-center gap-2 pb-2 lg:items-end"
-          style={{ "--ld-reveal-delay": "820ms" } as React.CSSProperties}
-        >
-          <span className="text-[11.5px] text-[#5a6b69]">
-            Best experienced in
-          </span>
-          <div className="flex items-center gap-6">
-            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
-              <ChromeIcon className="size-[18px]" />
-              Chrome
-            </span>
-            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
-              <EdgeIcon className="size-[18px]" />
-              Edge
-            </span>
-            <span className="flex items-center gap-2 text-[12.5px] font-medium text-[#3d4f4d]">
-              <FirefoxIcon className="size-[18px]" />
-              Firefox
-            </span>
-          </div>
-        </footer>
       </div>
     </div>
   );
@@ -395,59 +335,6 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
       <path
         fill="#EA4335"
         d="M12 4.77c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.63l3.98 3.09C6.22 6.88 8.87 4.77 12 4.77Z"
-      />
-    </svg>
-  );
-}
-
-function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <circle cx="12" cy="12" r="11" fill="#fff" />
-      <path
-        fill="#EA4335"
-        d="M12 1a11 11 0 0 1 9.53 5.5H12a5.5 5.5 0 0 0-4.9 3L3.4 4.1A11 11 0 0 1 12 1Z"
-      />
-      <path
-        fill="#34A853"
-        d="M3.4 4.1 7.1 9.5A5.5 5.5 0 0 0 12 17.5l-3.5 5.2A11 11 0 0 1 3.4 4.1Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M21.53 6.5A11 11 0 0 1 8.5 22.7L12 17.5a5.5 5.5 0 0 0 4.77-8.25l4.76-2.75Z"
-      />
-      <circle cx="12" cy="12" r="4.4" fill="#4285F4" />
-    </svg>
-  );
-}
-
-function EdgeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <circle cx="12" cy="12" r="11" fill="#0F7EC1" />
-      <path
-        fill="#3DD5B0"
-        d="M6 15.5c2.2 3.4 6.6 4.6 10.2 2.8-1.6 2.6-4.6 4-7.6 3.4A9.4 9.4 0 0 1 6 15.5Z"
-      />
-      <path
-        fill="#fff"
-        d="M4.2 9.2C5.6 5.3 9.7 3 13.8 3.9c3 .7 5.1 3 5.4 5.9H9.9c-2.4 0-4.4 1.4-5.7-.6Z"
-      />
-    </svg>
-  );
-}
-
-function FirefoxIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <circle cx="12" cy="12.6" r="10.4" fill="#FF7139" />
-      <path
-        fill="#FFBD4F"
-        d="M12 3.4a9.2 9.2 0 0 1 8.6 6c-1.7-2.3-4.3-3.4-7-2.9-2.4.5-4 2-4.6 4.2-.5 1.9 0 3.7 1.2 5-2.4-.6-4-2.5-4.4-4.9A9.2 9.2 0 0 1 12 3.4Z"
-      />
-      <path
-        fill="#FF4F5E"
-        d="M17.7 10.6c1.4 2.1 1.2 5-.6 6.9a6.6 6.6 0 0 1-8.3.9c2.6.6 5.2-.4 6.6-2.6 1.1-1.7 1.2-3.6.3-5.2Z"
       />
     </svg>
   );

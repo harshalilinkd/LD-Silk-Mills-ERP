@@ -19,7 +19,14 @@ import { users } from "@/db/schema";
  */
 
 const BCRYPT_COST = 10;
-const MIN = 10;
+
+/**
+ * Six characters, any characters. Mirrors `PASSWORD_MIN` in
+ * `./users/actions.ts` — see that file for why there is no complexity rule and
+ * for bcrypt's own 72-byte ceiling. Both are enforced server-side; the length
+ * constants in the two forms are for the disabled state only.
+ */
+const MIN = 6;
 
 async function currentUser() {
   const session = await auth();

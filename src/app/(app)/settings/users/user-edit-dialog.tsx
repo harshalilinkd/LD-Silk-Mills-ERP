@@ -23,7 +23,7 @@ import type { PublicUser } from "@/lib/queries";
 import { clearUserPassword, setUserPassword, updateUser } from "./actions";
 
 /** Mirrors PASSWORD_MIN in ./actions.ts — the server is the one that enforces it. */
-const PASSWORD_MIN = 10;
+const PASSWORD_MIN = 6;
 
 /**
  * `PublicUser`, deliberately, not `User`.
@@ -110,7 +110,10 @@ export function UserEditDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-text-2" htmlFor="u-email">
+            <label
+              className="text-xs font-medium text-text-2"
+              htmlFor="u-email"
+            >
               Email
             </label>
             <Input id="u-email" value={user.email} disabled />
@@ -214,8 +217,8 @@ export function UserEditDialog({
                 somebody, and a masked field they cannot check is how a
                 mistyped password becomes a locked-out colleague. */}
             <p className="text-[11.5px] text-text-3">
-              Typed in the clear so you can read it back. It is stored
-              scrambled and can never be shown again — only replaced.
+              Typed in the clear so you can read it back. It is stored scrambled
+              and can never be shown again — only replaced.
             </p>
 
             {hasPassword && !isSelf ? (
@@ -225,7 +228,8 @@ export function UserEditDialog({
                 onClick={() =>
                   run(
                     () => clearUserPassword(user.id),
-                    () => setNotice("Password removed. Google sign-in only now."),
+                    () =>
+                      setNotice("Password removed. Google sign-in only now."),
                   )
                 }
                 className="self-start text-[12px] text-status-red underline underline-offset-2 disabled:opacity-50"

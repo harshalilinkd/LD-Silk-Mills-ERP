@@ -19,21 +19,35 @@ import { requireErpAdmin } from "@/lib/admin";
 const BCRYPT_COST = 10;
 
 /**
- * Short enough that people will actually use it, long enough to matter.
+ * SIX. Set by the owner, lowered from ten, and it is the ONLY rule.
  *
- * Deliberately NOT a complexity rule (one capital, one digit, one symbol):
- * those push people toward `Password1!` and a sticky note. Length is the thing
- * that helps, and this is an internal ERP behind Google sign-in on a list of
- * approved accounts, not a public site.
+ * No complexity requirement (one capital, one digit, one symbol) — those push
+ * people toward `Password1!` and a sticky note. No character is rejected:
+ * spaces, punctuation, emoji and every alphabet are all fine, and nothing here
+ * strips or normalises them beyond a `.trim()` of the outer edges, which every
+ * set-path does identically so a stored password always compares back equal.
+ *
+ * The one length limit nobody can remove: bcrypt hashes at most 72 BYTES and
+ * silently ignores the rest, so two passwords sharing their first 72 bytes are
+ * the same password to it. No practical human hits that, and blocking it would
+ * be a "limit" the owner explicitly did not want — but it is real, so it is
+ * written down here rather than discovered later.
+ *
+ * This is an internal ERP behind Google sign-in on a list of approved
+ * accounts, not a public site.
  */
 // NOT exported: a "use server" file may only export async functions, and Next
 // refuses the whole module otherwise. The dialog keeps its own copy for the
 // disabled state; this one is what actually enforces it.
-const PASSWORD_MIN = 10;
+const PASSWORD_MIN = 6;
 
 export async function updateUser(
   id: string,
-  data: { name: string; status: "active" | "inactive"; role?: "member" | "admin" },
+  data: {
+    name: string;
+    status: "active" | "inactive";
+    role?: "member" | "admin";
+  },
 ) {
   const admin = await requireErpAdmin();
 

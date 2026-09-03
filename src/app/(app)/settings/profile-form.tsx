@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { changeOwnPassword, removeOwnPassword, updateOwnName } from "./actions";
 
-const MIN = 10;
+const MIN = 6;
 
 /**
  * Your own account, as two cards: who you are, and how you sign in.

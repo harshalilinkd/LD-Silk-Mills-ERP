@@ -41,6 +41,24 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
    Entry uses). The old shared-password `DEV_LOGIN_PASSWORD` provider is gone
    and that env var is read nowhere; delete it from any host it was copied to.
 
+   **Password rule: six characters, and that is the whole rule.** Set by the
+   owner (Sep 2026, lowered from ten). No complexity requirement, no rejected
+   characters — spaces, punctuation, emoji and any alphabet are all valid, and
+   nothing normalises them beyond a `.trim()` that every set-path applies
+   identically. Do not reintroduce a stricter minimum or a "must contain a
+   digit" rule; it was removed deliberately. The four constants are
+   `MIN` in `(app)/settings/actions.ts` + `profile-form.tsx` and `PASSWORD_MIN`
+   in `(app)/settings/users/actions.ts` + `user-edit-dialog.tsx` — the two
+   server ones enforce, the two client ones only drive a disabled button.
+   `ld_order_entry`'s own rule (`src/lib/order-entry/validation.ts`) was moved
+   to 6 to match, so one ERP does not show two different rules; the standalone
+   Order Entry app still says 8 on its own screens, which diverges but breaks
+   nothing — login never checks length. **The one limit nobody can remove:
+   bcrypt hashes at most 72 BYTES** and silently ignores the rest.
+   The sign-in form itself has NO `minLength` — it proves knowledge of an
+   existing password, and gating it there would lock out anyone holding one set
+   under an older rule.
+
    **Every login failure is identical** — wrong password, unknown email, no
    password set, and deactivated account all return the same `null`, the same
    sentence, and the same TIMING (the bcrypt compare runs against a dummy hash

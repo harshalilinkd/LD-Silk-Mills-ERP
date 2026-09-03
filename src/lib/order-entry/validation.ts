@@ -32,7 +32,11 @@ const designSchema = z.object({
 
 const fabricSchema = z.object({
   fabric: z.string().trim().min(1, "Fabric is required").max(100),
-  rate: z.coerce.number().nonnegative("Rate cannot be negative").nullable().optional(),
+  rate: z.coerce
+    .number()
+    .nonnegative("Rate cannot be negative")
+    .nullable()
+    .optional(),
   designs: z.array(designSchema).min(1, "Add at least one design"),
 });
 
@@ -147,9 +151,7 @@ export const followupAttemptSchema = z
   // question anyone asks about it later.
   .refine(
     (d) =>
-      d.channel !== "visit" ||
-      d.outcome === "not_available" ||
-      !!d.attended_by,
+      d.channel !== "visit" || d.outcome === "not_available" || !!d.attended_by,
     {
       message: "Record who made the visit",
       path: ["attended_by"],
@@ -200,20 +202,36 @@ export type IssueUpdateInput = z.infer<typeof issueUpdateSchema>;
 // re-keying would orphan every score already given.
 export const ratingCriterionCreateSchema = z.object({
   label: z.string().trim().min(1, "A name is required").max(80),
-  hint: z.string().trim().max(160).optional().nullable().transform((v) => (v ? v : null)),
+  hint: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
   key: z.string().trim().max(40).optional(),
 });
-export type RatingCriterionCreateInput = z.infer<typeof ratingCriterionCreateSchema>;
+export type RatingCriterionCreateInput = z.infer<
+  typeof ratingCriterionCreateSchema
+>;
 
 export const ratingCriterionUpdateSchema = z
   .object({
     label: z.string().trim().min(1).max(80).optional(),
-    hint: z.string().trim().max(160).optional().nullable().transform((v) => (v ? v : null)),
+    hint: z
+      .string()
+      .trim()
+      .max(160)
+      .optional()
+      .nullable()
+      .transform((v) => (v ? v : null)),
     sort_order: z.coerce.number().int().min(0).max(999).optional(),
     is_active: z.boolean().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" });
-export type RatingCriterionUpdateInput = z.infer<typeof ratingCriterionUpdateSchema>;
+export type RatingCriterionUpdateInput = z.infer<
+  typeof ratingCriterionUpdateSchema
+>;
 
 // PATCH /api/crm/settings — ADMIN only, like every other Settings surface.
 export const crmSettingsUpdateSchema = z
@@ -292,7 +310,7 @@ export const userCreateSchema = z.object({
   role: z.enum(USER_ROLES),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(6, "Password must be at least 6 characters")
     .max(200),
 });
 
@@ -309,7 +327,7 @@ export const userUpdateSchema = z
     is_active: z.boolean().optional(),
     password: z
       .string()
-      .min(8, "Password must be at least 8 characters")
+      .min(6, "Password must be at least 6 characters")
       .max(200)
       .optional(),
   })

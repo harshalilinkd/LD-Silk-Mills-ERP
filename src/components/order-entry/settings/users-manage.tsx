@@ -61,7 +61,10 @@ export function UsersManage() {
   // Errors are split so a failed row action never blows away the create form's
   // own message (and vice versa).
   const [listError, setListError] = useState<string | null>(null);
-  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const [rowError, setRowError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -306,7 +309,11 @@ export function UsersManage() {
             size="sm"
             disabled={busy || resetPw.length < 8}
             onClick={async () => {
-              const ok = await patch(u, { password: resetPw }, "Password reset.");
+              const ok = await patch(
+                u,
+                { password: resetPw },
+                "Password reset.",
+              );
               if (ok) {
                 setResetId(null);
                 setResetPw("");
@@ -470,9 +477,14 @@ export function UsersManage() {
                   {users.map((u) => {
                     const isSelf = u.id === selfId;
                     return (
-                      <tr key={u.id} className="align-middle hover:bg-surface-2">
+                      <tr
+                        key={u.id}
+                        className="align-middle hover:bg-surface-2"
+                      >
                         <td className={cn(TD_CLS, "min-w-[220px]")}>
-                          {editId === u.id ? nameEditor() : userIdentity(u, isSelf)}
+                          {editId === u.id
+                            ? nameEditor()
+                            : userIdentity(u, isSelf)}
                           {rowErrorFor(u)}
                         </td>
                         <td className={TD_CLS}>{roleSelect(u, isSelf)}</td>
@@ -491,8 +503,8 @@ export function UsersManage() {
 
         <p className="border-t border-border px-[18px] py-3 text-[11.5px] text-text-3">
           Role changes take effect on the user&apos;s next request. Settings and
-          user management stay ADMIN-only and can&apos;t be granted in the Access
-          tab.
+          user management stay ADMIN-only and can&apos;t be granted in the
+          Access tab.
         </p>
       </Panel>
 
@@ -560,7 +572,7 @@ export function UsersManage() {
               className={INPUT_CLS}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder="At least 6 characters"
             />
             <p className="mt-1 text-[11.5px] text-text-3">
               Share it with the user; they can change it later. Google-only
