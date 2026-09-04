@@ -46,7 +46,12 @@ export function CoverageMeter({
     <div className="px-4 pb-5 sm:px-5">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className={cn("font-mono text-[40px] leading-[0.95] font-bold tracking-[-0.02em]", toneText)}>
+          <div
+            className={cn(
+              "num text-[40px] leading-[0.95] font-bold tracking-[-0.02em]",
+              toneText,
+            )}
+          >
             {pct}%
           </div>
           <div className="mt-1 text-[12.5px] font-medium text-text-3">
@@ -54,7 +59,7 @@ export function CoverageMeter({
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-[20px] leading-none font-bold text-text-1">
+          <div className="num text-[20px] leading-none font-bold text-text-1">
             {formatCount(contacted)}
             <span className="text-[14px] font-medium text-text-3">
               /{formatCount(followups)}
@@ -66,7 +71,10 @@ export function CoverageMeter({
 
       <div className="relative mt-5 h-3.5 w-full overflow-hidden rounded-full bg-surface-2">
         <span
-          className={cn("block h-full rounded-full transition-all duration-500", tone)}
+          className={cn(
+            "block h-full rounded-full transition-all duration-500",
+            tone,
+          )}
           style={{ width: `${Math.max(clamped, 1.5)}%` }}
         />
       </div>
@@ -91,8 +99,10 @@ export function CoverageMeter({
           <>On target — keep it there.</>
         ) : (
           <>
-            <b className="font-mono text-text-1">
-              {formatCount(Math.max(0, Math.ceil((target / 100) * followups) - contacted))}
+            <b className="num text-text-1">
+              {formatCount(
+                Math.max(0, Math.ceil((target / 100) * followups) - contacted),
+              )}
             </b>{" "}
             more calls would reach the {target}% target.
           </>
@@ -118,17 +128,26 @@ export function QueueBar({
               key={p.key}
               title={`${p.label}: ${p.count}`}
               className="h-full transition-all"
-              style={{ width: `${(p.count / total) * 100}%`, background: p.color }}
+              style={{
+                width: `${(p.count / total) * 100}%`,
+                background: p.color,
+              }}
             />
           ) : null,
         )}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
         {parts.map((p) => (
-          <span key={p.key} className="inline-flex items-center gap-1.5 text-[12.5px]">
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
+          <span
+            key={p.key}
+            className="inline-flex items-center gap-1.5 text-[12.5px]"
+          >
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: p.color }}
+            />
             <span className="truncate font-medium text-text-3">{p.label}</span>
-            <span className="ml-auto font-mono font-semibold text-text-1">
+            <span className="ml-auto num font-semibold text-text-1">
               {formatCount(p.count)}
             </span>
           </span>
@@ -156,9 +175,24 @@ export function OnTimeQuadrant({
 }) {
   const cells = [
     { k: "a", v: data.bothOnTime, tone: "success" as const, note: "all good" },
-    { k: "b", v: data.weOnTimeTheyNot, tone: "danger" as const, note: "transit is invisible to us" },
-    { k: "c", v: data.weLateTheyFine, tone: "warning" as const, note: "our deadline is too tight" },
-    { k: "d", v: data.bothLate, tone: "danger" as const, note: "genuinely late" },
+    {
+      k: "b",
+      v: data.weOnTimeTheyNot,
+      tone: "danger" as const,
+      note: "transit is invisible to us",
+    },
+    {
+      k: "c",
+      v: data.weLateTheyFine,
+      tone: "warning" as const,
+      note: "our deadline is too tight",
+    },
+    {
+      k: "d",
+      v: data.bothLate,
+      tone: "danger" as const,
+      note: "genuinely late",
+    },
   ];
   const max = Math.max(...cells.map((c) => c.v), 1);
   return (
@@ -202,17 +236,25 @@ function QuadCell({
     <div
       className={cn(
         "rounded-[10px] border px-2 py-3.5 text-center transition-all",
-        c.v > 0 && c.v === max ? "border-transparent shadow-sm" : "border-border",
+        c.v > 0 && c.v === max
+          ? "border-transparent shadow-sm"
+          : "border-border",
       )}
       style={{
         background: `color-mix(in oklab, ${colour} ${strength * 100}%, var(--surface))`,
         ...(c.v > 0 && c.v === max
-          ? { boxShadow: `0 0 0 2px color-mix(in oklab, ${colour} 35%, transparent)` }
+          ? {
+              boxShadow: `0 0 0 2px color-mix(in oklab, ${colour} 35%, transparent)`,
+            }
           : {}),
       }}
     >
-      <div className="font-mono text-[24px] leading-none font-bold text-text-1">{c.v}</div>
-      <div className="mt-1.5 text-[11px] leading-tight text-text-3">{c.note}</div>
+      <div className="num text-[24px] leading-none font-bold text-text-1">
+        {c.v}
+      </div>
+      <div className="mt-1.5 text-[11px] leading-tight text-text-3">
+        {c.note}
+      </div>
     </div>
   );
 }
@@ -256,11 +298,14 @@ export function CountBars({
           </span>
           <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
             <span
-              className={cn("block h-full rounded-full transition-all duration-500", bar)}
+              className={cn(
+                "block h-full rounded-full transition-all duration-500",
+                bar,
+              )}
               style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }}
             />
           </span>
-          <span className="w-11 shrink-0 text-right font-mono text-[13px] font-semibold text-text-1">
+          <span className="w-11 shrink-0 text-right num text-[13px] font-semibold text-text-1">
             {outOf ? r.value.toFixed(1) : formatCount(r.value)}
             {suffix ?? ""}
           </span>
@@ -314,16 +359,25 @@ export function RatingTrendLine({
   const MAX = 5;
 
   const x = (i: number) =>
-    trend.length === 1 ? PAD_X + plotW / 2 : PAD_X + (i / (trend.length - 1)) * plotW;
+    trend.length === 1
+      ? PAD_X + plotW / 2
+      : PAD_X + (i / (trend.length - 1)) * plotW;
   const y = (v: number) => PAD_TOP + plotH - ((v - MIN) / (MAX - MIN)) * plotH;
 
   const points = trend.map((t, i) => ({ x: x(i), y: y(t.avg), t }));
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(" ");
   const area = `${path} L${points[points.length - 1].x.toFixed(1)},${(PAD_TOP + plotH).toFixed(1)} L${points[0].x.toFixed(1)},${(PAD_TOP + plotH).toFixed(1)} Z`;
 
   return (
     <div className="px-4 pb-5 sm:px-5">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Monthly average rating trend">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        role="img"
+        aria-label="Monthly average rating trend"
+      >
         {[1, 2, 3, 4, 5].map((v) => (
           <line
             key={v}
@@ -345,7 +399,9 @@ export function RatingTrendLine({
             key={`label-${i}`}
             x={p.x}
             y={H - 4}
-            textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+            textAnchor={
+              i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"
+            }
             fontSize={10}
             fill="var(--text-3)"
           >
@@ -356,7 +412,8 @@ export function RatingTrendLine({
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-text-3">
         {trend.map((t) => (
           <span key={t.month}>
-            {t.month}: <span className="font-mono text-text-1">{t.avg.toFixed(2)}</span> ({t.n})
+            {t.month}:{" "}
+            <span className="num text-text-1">{t.avg.toFixed(2)}</span> ({t.n})
           </span>
         ))}
       </div>

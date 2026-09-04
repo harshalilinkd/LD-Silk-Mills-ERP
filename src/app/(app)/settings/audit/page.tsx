@@ -15,19 +15,16 @@ export default async function AuditLogsPage() {
   // this screen calls each run requireErpAdmin() before reading their input.
   if (!(await isErpAdmin())) redirect("/settings");
 
-
   const logs = await getRecentAuditLogs();
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-[15px] font-semibold text-text-1">
-          Audit Logs
-                </h2>
+        <h2 className="text-[15px] font-semibold text-text-1">Audit Logs</h2>
         <p className="mt-0.5 text-[13px] text-text-3">
-          Read-only history of ERP-level events (logins, system opens,
-          access changes).
-                </p>
+          Read-only history of ERP-level events (logins, system opens, access
+          changes).
+        </p>
       </div>
 
       <div className="rounded-[10px] border border-border bg-surface">
@@ -51,7 +48,7 @@ export default async function AuditLogsPage() {
               <tbody className="[&>tr:last-child>td]:border-b-0">
                 {logs.map((log) => (
                   <tr key={log.id}>
-                    <td className={`${TD} font-mono text-text-2`}>
+                    <td className={`${TD} num text-text-2`}>
                       {log.createdAt.toLocaleString("en-US")}
                     </td>
                     <td className={`${TD} text-text-2`}>

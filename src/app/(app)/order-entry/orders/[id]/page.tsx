@@ -50,7 +50,7 @@ export default async function OrderDetailPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="font-mono text-[22px] font-bold tracking-[-0.01em] text-text-1">
+            <h1 className="num text-[22px] font-bold tracking-[-0.01em] text-text-1">
               {order.order_no}
             </h1>
             <span
@@ -88,10 +88,7 @@ export default async function OrderDetailPage({
                 orderId={order.id}
                 cancelled={detail.is_order_cancelled}
               />
-              <DeleteOrderButton
-                orderId={order.id}
-                orderNo={order.order_no}
-              />
+              <DeleteOrderButton orderId={order.id} orderNo={order.order_no} />
             </>
           )}
         </div>
@@ -123,7 +120,8 @@ export default async function OrderDetailPage({
             Fabrics &amp; designs
           </h2>
           <div className="text-[12.5px] text-text-3">
-            {formatNumber(detail.qty_total)} m · ₹{formatNumber(detail.grand_total)}
+            {formatNumber(detail.qty_total)} m · ₹
+            {formatNumber(detail.grand_total)}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -163,7 +161,7 @@ export default async function OrderDetailPage({
                       {l.quality}
                     </td>
                     <td
-                      className={`border-b border-border px-3.5 py-3 font-mono text-text-1${dim}`}
+                      className={`border-b border-border px-3.5 py-3 num text-text-1${dim}`}
                     >
                       {l.design_no}
                       {l.is_cancelled && (
@@ -173,17 +171,17 @@ export default async function OrderDetailPage({
                       )}
                     </td>
                     <td
-                      className={`border-b border-border px-3.5 py-3 font-mono text-text-2${dim}`}
+                      className={`border-b border-border px-3.5 py-3 num text-text-2${dim}`}
                     >
                       {l.qty_mtr}
                     </td>
                     <td
-                      className={`border-b border-border px-3.5 py-3 font-mono text-text-2${dim}`}
+                      className={`border-b border-border px-3.5 py-3 num text-text-2${dim}`}
                     >
                       {l.rate ?? "—"}
                     </td>
                     <td
-                      className={`border-b border-border px-3.5 py-3 font-mono text-text-1${dim}`}
+                      className={`border-b border-border px-3.5 py-3 num text-text-1${dim}`}
                     >
                       {l.line_total
                         ? `₹${formatNumber(Number(l.line_total))}`

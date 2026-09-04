@@ -9,11 +9,7 @@
 // components/trash/trash-view.tsx.
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  IconRestore,
-  IconTrash,
-  IconTrashOff,
-} from "@tabler/icons-react";
+import { IconRestore, IconTrash, IconTrashOff } from "@tabler/icons-react";
 import {
   formatDate,
   formatDateTime,
@@ -66,7 +62,11 @@ export function TrashView() {
     void load();
   }, [load]);
 
-  async function restore(orderId: string, lineId: string | null, label: string) {
+  async function restore(
+    orderId: string,
+    lineId: string | null,
+    label: string,
+  ) {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -91,7 +91,9 @@ export function TrashView() {
     setNotice(null);
     const res =
       purge.kind === "order"
-        ? await apiJson(`/api/order-entry/orders/${purge.id}`, { method: "DELETE" })
+        ? await apiJson(`/api/order-entry/orders/${purge.id}`, {
+            method: "DELETE",
+          })
         : await apiJson(
             `/api/order-entry/orders/${purge.orderId}/lines/${purge.lineId}`,
             { method: "DELETE" },
@@ -120,7 +122,12 @@ export function TrashView() {
           permanently. Cancelled (struck-through) designs are not here — those
           stay on their order.
         </p>
-        <Button variant="outline" size="lg" disabled={loading || busy} onClick={() => void load()}>
+        <Button
+          variant="outline"
+          size="lg"
+          disabled={loading || busy}
+          onClick={() => void load()}
+        >
           Refresh
         </Button>
       </div>
@@ -164,25 +171,29 @@ export function TrashView() {
                         <td className={TD_CLS}>
                           <Link
                             href={`/order-entry/orders/${o.id}`}
-                            className="font-mono font-semibold text-accent-text hover:underline"
+                            className="num font-semibold text-accent-text hover:underline"
                           >
                             {o.order_no}
                           </Link>
                         </td>
-                        <td className={cn(TD_CLS, "text-text-1")}>{o.party_name}</td>
-                        <td className={cn(TD_CLS, "font-mono whitespace-nowrap")}>
+                        <td className={cn(TD_CLS, "text-text-1")}>
+                          {o.party_name}
+                        </td>
+                        <td className={cn(TD_CLS, "num whitespace-nowrap")}>
                           {formatDate(o.order_date)}
                         </td>
-                        <td className={cn(TD_CLS, "text-right font-mono")}>
+                        <td className={cn(TD_CLS, "text-right num")}>
                           {o.design_count}
                         </td>
-                        <td className={cn(TD_CLS, "text-right font-mono")}>
+                        <td className={cn(TD_CLS, "text-right num")}>
                           {formatNumber(o.qty_total)}
                         </td>
-                        <td className={cn(TD_CLS, "text-right font-mono text-text-1")}>
+                        <td
+                          className={cn(TD_CLS, "text-right num text-text-1")}
+                        >
                           ₹{formatNumber(o.grand_total)}
                         </td>
-                        <td className={cn(TD_CLS, "font-mono whitespace-nowrap")}>
+                        <td className={cn(TD_CLS, "num whitespace-nowrap")}>
                           {formatDateTime(String(o.deleted_at))}
                         </td>
                         <td className={cn(TD_CLS, "text-right")}>
@@ -229,18 +240,20 @@ export function TrashView() {
                         <td className={TD_CLS}>
                           <Link
                             href={`/order-entry/orders/${d.order_id}`}
-                            className="font-mono font-semibold text-accent-text hover:underline"
+                            className="num font-semibold text-accent-text hover:underline"
                           >
                             {d.order_no}
                           </Link>
                         </td>
-                        <td className={cn(TD_CLS, "text-text-1")}>{d.party_name}</td>
+                        <td className={cn(TD_CLS, "text-text-1")}>
+                          {d.party_name}
+                        </td>
                         <td className={TD_CLS}>{d.quality}</td>
-                        <td className={cn(TD_CLS, "font-mono")}>{d.design_no}</td>
-                        <td className={cn(TD_CLS, "text-right font-mono")}>
+                        <td className={cn(TD_CLS, "num")}>{d.design_no}</td>
+                        <td className={cn(TD_CLS, "text-right num")}>
                           {formatNumber(d.qty_mtr)}
                         </td>
-                        <td className={cn(TD_CLS, "font-mono whitespace-nowrap")}>
+                        <td className={cn(TD_CLS, "num whitespace-nowrap")}>
                           {formatDateTime(String(d.deleted_at))}
                         </td>
                         <td className={cn(TD_CLS, "text-right")}>
