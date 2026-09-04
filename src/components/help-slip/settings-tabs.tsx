@@ -36,7 +36,7 @@ const TABS: {
 }[] = [
   {
     key: "profile",
-    label: "Profile",
+    label: "Your details",
     href: "/help-slip/settings",
     icon: IconUser,
   },

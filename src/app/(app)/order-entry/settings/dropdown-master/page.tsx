@@ -1,7 +1,12 @@
-import { DropdownMaster } from "@/components/order-entry/settings/dropdown-master";
+import { redirect } from "next/navigation";
 
-// ADMIN-gating lives in ../layout.tsx (which also renders the h1 + tab bar),
-// so this page is just the shell around the client island.
-export default function DropdownMasterPage() {
-  return <DropdownMaster />;
+/**
+ * Moved — shared lists are in Masters
+ *
+ * Kept as a redirect rather than deleted: these were real addresses people
+ * bookmarked and linked to, and a 404 on a settings screen reads as "the
+ * feature was removed" rather than "it is somewhere better now".
+ */
+export default function MovedPage() {
+  redirect("/masters");
 }

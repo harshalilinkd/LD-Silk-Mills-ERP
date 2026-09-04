@@ -158,6 +158,31 @@ against a white light-mode background until replaced with the new
 `bg-chip`/`bg-chip-strong` tokens). See `docs/DESIGN.md`'s Color tokens
 section for the full light/dark table and the reasoning per token.
 
+## Settings live in ONE place (Sep 2026 consolidation)
+The app had FOUR settings areas and three separate user screens. Measured
+before the change: 14 staff records for one team, and exactly one person
+present in all three lists. The shape now:
+
+| Where | Holds |
+|---|---|
+| **Settings** (`/settings`) | Your profile · **People** (all three systems) · Access · Systems · Audit |
+| **Masters** (`/masters`) | All nine shared lists — party, fabric, agent, transport, haste, sales person, departments, complaint categories, delay reasons |
+| **Order Entry rules** | Design Database · Time tracking · Role permissions · Trash |
+| **CRM rules** (`/crm/settings`) | Follow-up timings, rating criteria — it had NO menu before, only a tab inside Order Entry |
+| **Help Slip rules** | Your details · Access requests · General |
+
+Rules that keep it that way:
+- **One People screen.** `src/lib/people.ts` unions the three user tables on
+  the lower-cased email. Do not add a per-module user screen back; the old
+  addresses redirect here on purpose.
+- **"Access" in Order Entry is now "Role permissions"** — it is a role x
+  capability grid, not a list of people. The old name is why it read as a
+  duplicate user screen.
+- **Every moved address redirects**, it is not deleted. A 404 on a settings
+  screen reads as "the feature was removed".
+- Module menus are called **rules**, not Settings, so only one thing in the
+  sidebar is called Settings.
+
 ## Sidebar
 **One navigation tree, drawer on mobile.** The sidebar was `hidden md:flex`
 with NOTHING replacing it below 768px — a phone reached the dashboard and then

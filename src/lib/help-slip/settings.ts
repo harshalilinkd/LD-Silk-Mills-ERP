@@ -197,7 +197,9 @@ export async function updateUser(
   // mismatch there is not a permission refusal — it would be a bug, and it is
   // deliberately not swallowed into `refused`.
 
-  return refused.length ? { ok: false, refused, user: stored } : { ok: true, user: stored };
+  return refused.length
+    ? { ok: false, refused, user: stored }
+    : { ok: true, user: stored };
 }
 
 async function loadUsersById(db: HelpSlipDb, id: string) {
@@ -239,7 +241,8 @@ export async function updateOwnProfile(
   const set: Record<string, unknown> = {};
   if (patch.fullName !== undefined) set.fullName = patch.fullName.trim();
   if (patch.phone !== undefined) set.phone = patch.phone?.trim() || null;
-  if (patch.avatarUrl !== undefined) set.avatarUrl = patch.avatarUrl?.trim() || null;
+  if (patch.avatarUrl !== undefined)
+    set.avatarUrl = patch.avatarUrl?.trim() || null;
 
   if (Object.keys(set).length > 0) {
     const updated = await db
@@ -282,7 +285,12 @@ export async function loadAdminDepartments(
     })
     .from(departments)
     .leftJoin(concerns, eq(concerns.departmentId, departments.id))
-    .groupBy(departments.id, departments.code, departments.name, departments.status)
+    .groupBy(
+      departments.id,
+      departments.code,
+      departments.name,
+      departments.status,
+    )
     .orderBy(asc(departments.status), asc(departments.name));
 
   return rows.map((r) => ({ ...r, concernCount: Number(r.concernCount) }));
@@ -301,7 +309,10 @@ export async function createDepartment(
   db: HelpSlipDb,
   input: { code: string; name: string },
 ): Promise<AdminDepartmentRow> {
-  const code = input.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  const code = input.code
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "_");
   const name = input.name.trim();
   if (!code) throw new Error("A department needs a code.");
   if (!name) throw new Error("A department needs a name.");
@@ -315,7 +326,12 @@ export async function createDepartment(
       name,
       status: sql`'active'`,
     } as never)
-    .returning({ id: departments.id, code: departments.code, name: departments.name, status: departments.status });
+    .returning({
+      id: departments.id,
+      code: departments.code,
+      name: departments.name,
+      status: departments.status,
+    });
 
   if (!row) throw new Error("Couldn't add that department.");
   return { ...row, concernCount: 0 };
@@ -476,7 +492,8 @@ const clampDays = (v: unknown, fallback: number) => {
 function merge(raw: HelpSlipSettings | null | undefined): GeneralSettings {
   const blob = raw ?? {};
   const sla = blob.sla_days ?? ({} as Partial<GeneralSettings["sla_days"]>);
-  const quiet = blob.quiet_hours ?? ({} as Partial<GeneralSettings["quiet_hours"]>);
+  const quiet =
+    blob.quiet_hours ?? ({} as Partial<GeneralSettings["quiet_hours"]>);
   return {
     org_name: blob.org_name?.trim() || DEFAULT_SETTINGS.org_name,
     logo_url: blob.logo_url?.trim() || "",
@@ -490,7 +507,8 @@ function merge(raw: HelpSlipSettings | null | undefined): GeneralSettings {
       normal: clampDays(sla.normal, DEFAULT_SETTINGS.sla_days.normal),
       low: clampDays(sla.low, DEFAULT_SETTINGS.sla_days.low),
     },
-    whatsapp_enabled: blob.whatsapp_enabled ?? DEFAULT_SETTINGS.whatsapp_enabled,
+    whatsapp_enabled:
+      blob.whatsapp_enabled ?? DEFAULT_SETTINGS.whatsapp_enabled,
     quiet_hours: {
       from: clampHour(quiet.from, DEFAULT_SETTINGS.quiet_hours.from),
       to: clampHour(quiet.to, DEFAULT_SETTINGS.quiet_hours.to),
@@ -525,7 +543,9 @@ export async function saveSettings(
   const clean = merge(next);
   const updated = await db
     .update(appSettings)
-    .set({ settings: sql`${appSettings.settings} || ${JSON.stringify(clean)}::jsonb` })
+    .set({
+      settings: sql`${appSettings.settings} || ${JSON.stringify(clean)}::jsonb`,
+    })
     .where(eq(appSettings.id, 1))
     .returning({ settings: appSettings.settings });
 
@@ -543,6 +563,20 @@ export async function saveSettings(
  * the two screens they can actually use rather than five, three of which would
  * refuse them.
  */
+/**
+ * THREE TABS, down from five.
+ *
+ * `users` and `departments` are gone from this module, not disabled:
+ *   · people are managed once, for all three systems, at /settings/users
+ *   · departments are a company list and live in /masters
+ * Both old addresses redirect there, and `updateUser`/`loadUsers` below are
+ * still exported because the Help Slip API routes that back them are the
+ * mechanism the People screen uses for this module's half.
+ *
+ * `profile` stays. It is not admin configuration — it is a person's own Help
+ * Slip name and the phone number their WhatsApp updates go to, and there is
+ * nowhere else in the ERP that holds a phone number yet.
+ */
 export function settingsTabsFor(role: UserRole): {
   profile: boolean;
   users: boolean;
@@ -551,13 +585,10 @@ export function settingsTabsFor(role: UserRole): {
   general: boolean;
 } {
   const admin = role === "admin";
-  const staff = admin || role === "pc";
   return {
     profile: true,
-    // A pc may edit department and status but never role or hr_access. They
-    // still get the screen; the refused fields come back from `updateUser`.
-    users: staff,
-    departments: admin,
+    users: false,
+    departments: false,
     accessRequests: admin,
     general: admin,
   };

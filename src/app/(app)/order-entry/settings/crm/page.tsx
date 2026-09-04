@@ -1,8 +1,12 @@
-import { CrmSettingsPanel } from "@/components/order-entry/settings/crm-settings";
+import { redirect } from "next/navigation";
 
-// ADMIN-gating lives in ../layout.tsx. The knobs here are read live by
-// loadCrmConfig() on every follow-up read path, so a change lands without a
-// deploy — which is the whole reason this tab exists (SCREENS.md §6.4).
-export default function CrmSettingsPage() {
-  return <CrmSettingsPanel />;
+/**
+ * Moved — CRM has its own menu now
+ *
+ * Kept as a redirect rather than deleted: these were real addresses people
+ * bookmarked and linked to, and a 404 on a settings screen reads as "the
+ * feature was removed" rather than "it is somewhere better now".
+ */
+export default function MovedPage() {
+  redirect("/crm/settings");
 }

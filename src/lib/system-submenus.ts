@@ -16,7 +16,7 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "All Orders", href: "/order-entry/orders" },
     { label: "Order status", href: "/order-entry/order-status" },
     { label: "Operations", href: "/order-entry/tracking" },
-    { label: "Settings", href: "/order-entry/settings" },
+    { label: "Order Entry rules", href: "/order-entry/settings" },
   ],
   // Help Slip's own nav differs by role — an employee has no queue and a
   // coordinator has no "my concerns" CTA. The sidebar is DB-driven and knows
@@ -34,7 +34,7 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     // role inside the screen (see settingsTabsFor), which is why this entry is
     // unconditional while CRM's equivalent above points straight at an
     // admin-only route.
-    { label: "Settings", href: "/help-slip/settings" },
+    { label: "Help Slip rules", href: "/help-slip/settings" },
   ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },
@@ -42,6 +42,6 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "Call log", href: "/crm/calls" },
     { label: "Customers", href: "/crm/customers" },
     { label: "CRM analytics", href: "/crm/analytics" },
-    { label: "Settings", href: "/order-entry/settings/crm" },
+    { label: "CRM rules", href: "/crm/settings" },
   ],
 };

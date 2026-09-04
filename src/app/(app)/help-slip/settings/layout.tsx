@@ -6,7 +6,7 @@ import { resolveHelpSlipSession } from "@/lib/help-slip/authz";
 import { settingsTabsFor } from "@/lib/help-slip/settings";
 
 /**
- * Help Slip Settings.
+ * Help Slip rules.
  *
  * Everyone with a profile reaches this — Profile is theirs. The other four tabs
  * appear by role (`settingsTabsFor`), which is presentation only: each route
@@ -30,7 +30,7 @@ export default async function HelpSlipSettingsLayout({
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-          Help Slip Settings
+          Help Slip rules
         </h1>
         <p className="mt-1 text-[13px] text-text-3">
           Your profile, and — for admins — the people, departments and rules

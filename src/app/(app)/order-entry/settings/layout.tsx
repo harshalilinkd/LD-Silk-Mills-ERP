@@ -26,10 +26,11 @@ export default async function OrderEntrySettingsLayout({
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-          Order Entry Settings
+          Order Entry rules
         </h1>
         <p className="mt-1 text-[13px] text-text-3">
-          Admin configuration for Order Entry and CRM.
+          Settings that belong to Order Entry alone. People are in Settings →
+          Users, shared lists in Masters, and CRM has its own.
         </p>
       </div>
       {/* §6: the strip is Reveal index 0, the panel index 1 — the tabs land
