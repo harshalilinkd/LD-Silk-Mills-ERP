@@ -72,6 +72,8 @@ export default async function AccessControlPage() {
                       <AccessCheckbox
                         userId={user.id}
                         systemId={system.id}
+                        systemName={system.systemName}
+                        userName={user.name}
                         initialValue={
                           accessByPair.get(`${user.id}:${system.id}`) ?? false
                         }
