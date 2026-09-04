@@ -81,15 +81,15 @@ const stickyHead = `${stickyBase} z-[5] bg-surface`;
 //
 // Status is NEVER carried here — see §4B.1. The background only says
 // "hovered" / "selected" / "flashed"; the STATUS is the text colour.
-const SELECTED_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_12%)]";
-const FLASH_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_28%)]";
+const SELECTED_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_24%)]";
+const FLASH_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_38%)]";
 const SELECTED_ROW = cn(
   SELECTED_BG,
-  "hover:bg-[color-mix(in_oklch,var(--surface),var(--primary)_12%)]",
+  "hover:bg-[color-mix(in_oklch,var(--surface),var(--primary)_24%)]",
 );
 const FLASH_ROW = cn(
   FLASH_BG,
-  "hover:bg-[color-mix(in_oklch,var(--surface),var(--primary)_28%)]",
+  "hover:bg-[color-mix(in_oklch,var(--surface),var(--primary)_38%)]",
 );
 
 async function fetchOrderStatus(qs: string): Promise<OrderStatusList> {

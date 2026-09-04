@@ -638,12 +638,15 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    // Below `sm` the control drops onto its own line — that's a deliberate
+    // breakpoint, not flex-wrap guessing, so it can also go full-width there
+    // instead of keeping a fixed 190px and leaving the rest of the row blank.
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="text-[13px] font-medium text-text-1">{label}</div>
         <div className="text-[11.5px] text-text-3">{hint}</div>
       </div>
-      <div className="w-[190px] shrink-0">{children}</div>
+      <div className="w-full sm:w-[200px] sm:shrink-0">{children}</div>
     </div>
   );
 }

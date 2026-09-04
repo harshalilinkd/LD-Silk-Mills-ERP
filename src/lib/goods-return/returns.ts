@@ -3,6 +3,8 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { goodsReturnDb } from "@/db/goods-return";
 import { qualities, returnItems, returns } from "@/db/goods-return/schema";
 
+import type { ReturnInput } from "./validation";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  *  The two writes of the Goods Return module. Ported from the standalone
@@ -21,35 +23,16 @@ import { qualities, returnItems, returns } from "@/db/goods-return/schema";
  */
 
 /**
- * The shape the entry form hands over, expressed structurally so this file
- * carries no dependency on the form layer or on zod. A `z.infer` of the ported
- * `returnInputSchema` is assignable to it (its `entryFor`/`returnReason`
- * literal unions narrow `string`), so a validated object passes straight in
- * without a cast.
+ * The input types come from `./validation`, and are NOT redeclared here.
+ *
+ * An earlier draft hand-wrote a structurally-identical `ReturnInput` in this
+ * file to keep it free of a zod dependency. Two definitions of one shape in one
+ * folder is a drift waiting to happen: add a field to the schema, forget the
+ * copy, and the insert silently drops it with TypeScript reporting nothing —
+ * every property it knows about still matches. The original had exactly one
+ * definition and imported it (`lib/returns.ts` -> `import type { ReturnInput }
+ * from "@/lib/validation"`), which is what this now does.
  */
-export type ReturnItemInput = {
-  qualityId: number;
-  quantity: number;
-  pieces?: number;
-};
-
-export type ReturnInput = {
-  billNo?: string;
-  entryFor: string;
-  trackingNo?: string;
-  dated: string;
-  postedOn?: string;
-  partyId: number;
-  brokerId: number;
-  transportId?: number;
-  totalValue?: number;
-  transportValue?: number;
-  otherCharges?: number;
-  returnReason: string;
-  customReason?: string;
-  items: ReturnItemInput[];
-};
-
 /**
  * Resolves the quality names for the lines about to be written.
  *
@@ -115,9 +98,14 @@ export async function insertReturn(
       sql`select nextval('goods_return.return_display_seq') as n`,
     );
     const n = Number(seq[0]?.n);
-    // Guard rather than let a bad read through: `Number(undefined)` is NaN and
-    // padStart would happily produce "LD-0NaN", which the unique index accepts
-    // — a permanently wrong id on a live row is worse than a refused entry.
+    // The guard exists because of the `?.` on the line above, not because the
+    // original was unsafe: it wrote `Number((seq[0] as {...}).n)`, which throws
+    // a TypeError on an empty result rather than producing anything. Optional
+    // chaining turns that throw into `undefined` -> `NaN`, and `padStart` would
+    // then hand a live row the id "LD-0NaN" — which the unique index accepts,
+    // because it is unique. So the safety the original got from crashing is put
+    // back explicitly. A refused entry is recoverable; a permanently wrong id
+    // on a live record is not.
     if (!Number.isInteger(n) || n <= 0) {
       throw new Error("Could not allocate a return id from the sequence.");
     }

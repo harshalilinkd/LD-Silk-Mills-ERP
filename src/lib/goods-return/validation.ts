@@ -72,3 +72,52 @@ export const returnInputSchema = z
 
 export type ReturnInput = z.infer<typeof returnInputSchema>;
 export type ReturnItemInput = z.infer<typeof returnItemSchema>;
+
+/**
+ * FormData -> a validated `ReturnInput`, or a sentence explaining why not.
+ *
+ * Ported from the standalone app's `lib/return-form.ts`, which an adversarial
+ * review found had been left behind. Without it every screen that submits the
+ * entry form would hand-roll its own mapping, and the two would drift — the
+ * quality lines especially, which travel as a JSON string in a hidden field
+ * because a repeating row group has no native FormData representation.
+ *
+ * `?? undefined` on every optional field is load-bearing: `formData.get()`
+ * returns `null` for an absent field, and the schema's preprocessing turns ""
+ * and null into undefined so an untouched box stays empty rather than becoming
+ * 0. Reading a missing field as `null` and passing it through would make
+ * `optionalNumber` coerce it to 0, and a transport charge nobody entered would
+ * be recorded as "charged nothing".
+ */
+export function parseReturnFormData(
+  formData: FormData,
+): { data: ReturnInput; error?: undefined } | { data?: undefined; error: string } {
+  let itemsRaw: unknown = [];
+  try {
+    itemsRaw = JSON.parse(String(formData.get("items") ?? "[]"));
+  } catch {
+    return { error: "Could not read quality lines." };
+  }
+
+  const parsed = returnInputSchema.safeParse({
+    billNo: formData.get("billNo") ?? undefined,
+    entryFor: formData.get("entryFor"),
+    trackingNo: formData.get("trackingNo") ?? undefined,
+    dated: formData.get("dated"),
+    postedOn: formData.get("postedOn") ?? undefined,
+    partyId: formData.get("partyId"),
+    brokerId: formData.get("brokerId"),
+    transportId: formData.get("transportId") ?? undefined,
+    totalValue: formData.get("totalValue") ?? undefined,
+    transportValue: formData.get("transportValue") ?? undefined,
+    otherCharges: formData.get("otherCharges") ?? undefined,
+    returnReason: formData.get("returnReason"),
+    customReason: formData.get("customReason") ?? undefined,
+    items: itemsRaw,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  return { data: parsed.data };
+}

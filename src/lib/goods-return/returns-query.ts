@@ -299,3 +299,54 @@ export async function getReturnsForExport(f: ReturnsFilter) {
 export type ReturnExportRow = Awaited<
   ReturnType<typeof getReturnsForExport>
 >[number];
+
+// ─── the dashboard's four tiles, and the filter dropdown ──────────────────
+
+/**
+ * The Dashboard's headline figures, in ONE query.
+ *
+ * Ported from the original's `getReturnStats`. Four `count(*) filter (…)`
+ * clauses over a single scan rather than four round trips — which matters here
+ * for the reason written across this module: the pool is five connections and
+ * four concurrent queries is the ceiling for one page. A dashboard that asked
+ * these separately would spend most of that budget before rendering anything.
+ *
+ * `thisMonth` counts on `dated`, the day the return was raised — not
+ * `created_at`. That is what the standalone app does and it is the honest
+ * reading: a return entered late for last month belongs to last month.
+ *
+ * `totalValue` comes back as a STRING from postgres.js (numeric always does).
+ * It is left as one deliberately — formatting it is the screen's job, and
+ * turning it into a float here is how rupee totals quietly lose paise.
+ */
+export async function getReturnStats() {
+  const [row] = await db
+    .select({
+      total: count(),
+      posted: sql<number>`count(*) filter (where ${returns.status} = 'posted')::int`,
+      received: sql<number>`count(*) filter (where ${returns.status} = 'received')::int`,
+      thisMonth: sql<number>`count(*) filter (where date_trunc('month', ${returns.dated}) = date_trunc('month', current_date))::int`,
+      totalValue: sql<string>`coalesce(sum(${returns.totalValue}), 0)`,
+    })
+    .from(returns);
+
+  return row;
+}
+
+export type ReturnStats = Awaited<ReturnType<typeof getReturnStats>>;
+
+/**
+ * Parties for the list screen's filter dropdown.
+ *
+ * An INNER join FROM `returns`, so it offers only the parties that actually
+ * appear on one — 5,562 parties exist and a few hundred have ever had a return.
+ * Listing the whole master table here would be a dropdown nobody can use, and
+ * every extra entry is a filter that yields nothing.
+ */
+export async function getReturnFilterParties() {
+  return db
+    .selectDistinct({ id: parties.id, name: parties.name })
+    .from(returns)
+    .innerJoin(parties, eq(returns.partyId, parties.id))
+    .orderBy(asc(parties.name));
+}
