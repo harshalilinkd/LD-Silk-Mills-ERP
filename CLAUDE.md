@@ -388,9 +388,37 @@ included, with no error and no warning.
   SECURITY DEFINER warnings on Help Slip) — pre-existing, not introduced by
   this repo, out of scope to fix here without an explicit decision.
 
+## The dev server runs on port 3001, and that is deliberate
+`npm run dev` is pinned with `-p 3001`. Two reasons, and the second is the one
+that bites:
+
+1. **Port 3000 belongs to the standalone LD Order Entry app**, which is often
+   running on this machine. Unpinned, `next dev` silently walks to the next
+   free port, so this app landed on 3000 some days and 3001 on others.
+2. **Google OAuth breaks the moment the port moves.** Auth.js derives the
+   redirect URI from the request host, so the callback becomes
+   `http://localhost:<whatever>/api/auth/callback/google`, and Google rejects
+   any URI not registered exactly — `Error 400: redirect_uri_mismatch`. A
+   drifting port means an unpredictably broken sign-in.
+
+**Authorised redirect URIs that must exist in Google Cloud Console** (APIs &
+Services → Credentials → the OAuth 2.0 Client, client id `953470917441-…`):
+```
+http://localhost:3001/api/auth/callback/google
+https://ld-silk-mills-erp.vercel.app/api/auth/callback/google
+```
+Production was already registered and works. If you change the dev port, add
+the matching URI first — nothing in this repo can register it for you.
+
+Diagnosing it: Google's error page carries a base64 `authError` query
+parameter, and decoding it names the exact URI Google was handed. That is
+faster and more reliable than guessing. Note that reaching
+`accounts.google.com` is NOT proof sign-in works — the error page lives there
+too, so a check must also assert the path is not `/signin/oauth/error`.
+
 ## Commands
 ```
-npm run dev / build / lint
+npm run dev / build / lint      # dev serves on http://localhost:3001
 npm run db:generate   # schema.ts -> new migration (ld_erp_core only)
 npm run db:migrate    # apply pending migrations (ld_erp_core only)
 npm run db:seed       # re-seed systems/users (idempotent upsert)
