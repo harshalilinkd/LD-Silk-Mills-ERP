@@ -7,6 +7,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { systemAccess, systems, users } from "@/db/schema";
 
+import { parseOffice, type GoodsReturnOffice } from "./offices";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  *  Goods Return: two questions, and they are NOT the same question
@@ -58,13 +60,6 @@ import { systemAccess, systems, users } from "@/db/schema";
  * Access finally means something on both sides.
  */
 
-export type GoodsReturnOffice = "head_office" | "bhiwandi";
-
-export const OFFICE_LABEL: Record<GoodsReturnOffice, string> = {
-  head_office: "Head Office",
-  bhiwandi: "Bhiwandi Office",
-};
-
 /** The system_code in `ld_erp_core.systems`, already seeded as "coming soon". */
 export const GOODS_RETURN_SYSTEM_CODE = "goods-return-lr";
 
@@ -90,10 +85,6 @@ export const GOODS_RETURN_SYSTEM_CODE = "goods-return-lr";
  */
 const OFFICE_COOKIE = "ld-gr-office";
 const OFFICE_MAX_AGE = 60 * 60 * 24 * 60; // 60 days — long enough to stop nagging
-
-function parseOffice(raw: string | undefined): GoodsReturnOffice | null {
-  return raw === "head_office" || raw === "bhiwandi" ? raw : null;
-}
 
 /** The office this browser last chose, or null if it has not chosen yet. */
 export async function getChosenOffice(): Promise<GoodsReturnOffice | null> {
@@ -166,37 +157,21 @@ export async function canOpenGoodsReturn(): Promise<GoodsReturnAccess | null> {
   return row ?? null;
 }
 
-// ─── question 2: what does each office DO ──────────────────────────────────
-
-/**
- * The capability matrix, read out of the standalone app's `allowedRolesFor()`
- * and preserved exactly:
- *
- *   dashboard · all returns · detail · reports   both offices
- *   create a return, edit a return               Head Office only
- *   receiving (mark received)                    both offices
- *   master data                                  Head Office only
- *
- * The standalone app had a THIRD role, `kalbadevi`, which also labelled as
- * "Head Office" but could not reach master data. It is not reproduced: nothing
- * ever granted it through the office chooser, and two offices is what the
- * business actually has. The enum value still exists in the live database and
- * `src/db/goods-return/schema.ts` still models it, so an old row reads fine.
- */
-export const canCreateReturns = (o: GoodsReturnOffice) => o === "head_office";
-export const canEditReturns = (o: GoodsReturnOffice) => o === "head_office";
-export const canManageMasters = (o: GoodsReturnOffice) => o === "head_office";
-/**
- * Both offices, deliberately — Head Office receives too, and the standalone
- * app allowed it. Written as a function taking no office rather than one that
- * ignores its argument, so nobody reads the unused parameter as an oversight
- * and "fixes" it into a restriction.
- */
-export const canReceive = () => true;
-
-/** Where each office lands, straight after choosing. */
-export function homePathForOffice(office: GoodsReturnOffice): string {
-  return office === "bhiwandi"
-    ? "/goods-return/receiving"
-    : "/goods-return";
-}
+// ─── question 2 lives in ./offices ────────────────────────────────────────
+//
+// The office vocabulary and the capability helpers are in `./offices`, which
+// has no imports at all. They are re-exported here so a server component can
+// keep importing one module, but a CLIENT component must import them from
+// `./offices` directly — importing them through this file drags `server-only`
+// and `next/headers` into the browser bundle, which does not just fail to
+// compile this module, it takes unrelated pages down with it.
+export {
+  OFFICES,
+  OFFICE_LABEL,
+  canCreateReturns,
+  canEditReturns,
+  canManageMasters,
+  canReceive,
+  homePathForOffice,
+  type GoodsReturnOffice,
+} from "./offices";

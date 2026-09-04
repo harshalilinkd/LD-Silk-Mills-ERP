@@ -37,6 +37,18 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     // dashboard by the page itself, which is what CRM rules already does.
     { label: "Help Slip rules", href: "/help-slip/settings" },
   ],
+  // Goods Return LR. Every entry is visible to BOTH offices — the office
+  // decides what a screen offers, not whether the screen exists, and a menu
+  // that changes shape under you is harder to learn than one that does not.
+  // "New return" is the exception the page itself handles: Bhiwandi reaching it
+  // gets turned back, the same way CRM rules turns back a non-admin.
+  "goods-return-lr": [
+    { label: "Dashboard", href: "/goods-return", exact: true },
+    { label: "New return", href: "/goods-return/returns/new" },
+    { label: "All returns", href: "/goods-return/returns" },
+    { label: "Receiving", href: "/goods-return/receiving" },
+    { label: "Reports", href: "/goods-return/reports" },
+  ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },
     { label: "Issues", href: "/crm/issues" },
