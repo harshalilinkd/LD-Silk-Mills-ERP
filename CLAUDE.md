@@ -7,6 +7,31 @@ Mills' internal tools. Each module keeps its own database/schema; this repo
 is the "building," not the "rooms" — except Orders, which was later ported
 in as native pages (see Phase 3a below), not just linked to.
 
+## Where this stands (Sep 2026)
+
+All three modules are built and verified: every one of the 46 screens loads
+against live data with no errors, and every moved address lands in one hop.
+What is NOT built is future work rather than gaps — NBD, SCOT, Goods Return LR
+and Petty Cash are `coming_soon` placeholders in `ld_erp_core.systems`, and
+`/reports` and `/ai-assistant` render `<ComingSoon>`.
+
+Four things are outstanding, and none of them is code:
+
+1. **`ld_help_slip.departments` is wrong and must be fixed before Help Slip
+   goes live.** Two rows, and their names do not match their codes
+   ("Analytics"/`IT_SYSTEMS`, "Sales"/`PURCHASE`), against six correct ones in
+   Masters. A concern already renders "Department: Analytics". The owner's
+   decision is one unified list, so `profiles.department_id` gets pointed at
+   the Masters list — deferred only because that is a foreign-key migration
+   for a module with no live users yet.
+2. **`naushi500@gmail.com`** is a second Order Entry ADMIN for a person who
+   also holds `naushi.linkdprints@gmail.com`. Only the second can sign in to
+   the ERP. Owner's call whether the first is still needed.
+3. **Two "test admin" Help Slip profiles** (`harshali08033@`,
+   `harshalibhopale08033@`) own no concerns and cannot sign in. Owner's call.
+4. **`http://localhost:3001/api/auth/callback/google`** is still not registered
+   in Google Console, so Google sign-in works in production but not locally.
+
 ## Stack
 Next.js 15 (App Router, TS strict) · Drizzle ORM + `postgres.js` · Auth.js v5
 · Tailwind v4 + shadcn/ui on Base UI (`@base-ui/react`) · Supabase Postgres
@@ -240,9 +265,11 @@ you're inside that section). Toggling a system's `status`/`route`/
 `open_mode` in `/admin/system-registry` takes effect live, no redeploy.
 
 ## What's actually built vs. placeholder
-- **Shell**: login, dynamic sidebar, topbar, dashboard, all 4 admin pages
-  (`/admin/users`, `/admin/system-registry`, `/admin/access-control`,
-  `/admin/audit-logs`) — real, functional.
+- **Shell**: login, dynamic sidebar (drawer on mobile), topbar, dashboard,
+  Masters (`/masters`), and the six Settings tabs — Your profile · Users ·
+  Access · Access requests · Systems · Audit log. All real and functional.
+  The four `/admin/*` addresses these grew out of NO LONGER EXIST; see the
+  Settings section above.
 - **Orders** (`/order-entry/*`, sidebar label "Orders" — system_code stays
   `order-entry`): Dashboard, Orders list/detail/create/edit, Order Status
   board — real, reads/writes live `ld_order_entry` data. Ported from Order
@@ -264,11 +291,14 @@ you're inside that section). Toggling a system's `status`/`route`/
   `src/components/order-entry/crm/*` (shared `Pill`/`StatusPill`/
   `SeverityPill`/`PriorityBar`, and CSS/SVG-only chart primitives — no
   `recharts` dependency; the source app's Recharts-based rating-trend chart
-  was rebuilt as a small hand-rolled inline SVG, `RatingTrendLine`). The
-  CRM admin config screen (rating-criteria CRUD, `crm_settings` editor) is
-  NOT built — that's deferred to the Settings hub below; the API routes for
-  it exist (`/api/crm/rating-criteria`, `/api/crm/settings`) but have no UI
-  yet.
+  was rebuilt as a small hand-rolled inline SVG, `RatingTrendLine`).
+  **CRM rules** (`/crm/settings`) IS built, as two tabs on the same strip
+  every other settings area uses: CRM follow-ups (`crm_settings` — transit
+  days, call-within, attempts, escalation, the auto-create switch) and Rating
+  criteria (`crm_rating_criteria` CRUD, at `/crm/settings/rating-criteria`).
+  Two tabs rather than one page because they are two tables doing two jobs,
+  and stacked they put Rating criteria below the fold. The ADMIN gate lives in
+  `(app)/crm/settings/layout.tsx` so it covers both.
 - **Operations tracking** (`/order-entry/tracking`): the index plus the
   per-order 7-stage board (`/tracking/[id]`), backed by
   `POST /api/order-entry/tracking/stage` and
@@ -278,14 +308,22 @@ you're inside that section). Toggling a system's `status`/`route`/
   `src/lib/order-entry/workflow.ts` and mirrored in the board's UI. Untick
   and stock-downgrade never cascade-undo later work — both warn and leave
   it done.
-- **Settings** (`/order-entry/settings/*`): Dropdown Master, Design
-  Database, Time tracking, Users, Access, Trash — all real, ADMIN-only,
+- **Order Entry rules** (`/order-entry/settings/*`): Design Database · Time
+  tracking · Role permissions · Trash — four tabs, down from seven, ADMIN-only,
   backed by routes under `src/app/api/order-entry/` (lookups `[id]`/`bulk`,
   `design-database/*`, `stages/*`, `users/*`, `access`, `trash`,
-  `orders/[id]/lines/[lineId]`). Note `design-database/` (admin CRUD) is a
-  different endpoint from `designs/` (order-form autocomplete) — don't
-  conflate them. User passwords use `bcryptjs` at cost 10, matching the
-  Order Entry app they're shared with.
+  `orders/[id]/lines/[lineId]`). Dropdown Master moved to `/masters`, Users to
+  `/settings/users` and the CRM tab to `/crm/settings`; all three addresses
+  still resolve as redirects. "Access" is now labelled **Role permissions** —
+  it is a role x capability grid, not a list of people, and the old name is
+  exactly why it read as a duplicate user screen. Note `design-database/`
+  (admin CRUD) is a different endpoint from `designs/` (order-form
+  autocomplete) — don't conflate them. User passwords use `bcryptjs` at cost
+  10, matching the Order Entry app they're shared with.
+- **Help Slip rules** (`/help-slip/settings`): the General panel and nothing
+  else, so there is no tab strip. Your details moved to `/settings` and Access
+  requests to `/settings/access-requests`; Users and Departments had already
+  gone to `/settings/users` and `/masters`. All four redirect.
 - **Everything in `docs/SCREENS.md` is now built**, including the CRM
   settings tab, the Tracking view (§4B — the default view of Orders, behind
   a `ViewSwitch`), and the five-stage draggable call panel (§7.2).

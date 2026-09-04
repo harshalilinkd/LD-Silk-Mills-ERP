@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="LD Silk Mills">
+  <!--
+    A SPOOL OF SILK THREAD.
+
+    Three marks were tried before this one, and the two that failed are the
+    reason this is the shape:
+
+      · A 3x3 weave in one colour. Where warp crosses weft the shapes merge, so
+        it stopped being a weave and became a grid — which reads as a window.
+      · The same weave in two colours. The interlace was visible at 64px and
+        gone by 16, where each thread is barely two pixels and the whole mark
+        collapsed into a letter "I".
+
+    A tab icon is 16px. It gets ONE silhouette, and detail is not available at
+    that size — so the mark has to be a shape, not a pattern. A spool has an
+    outline nothing else in a tab strip shares: wide flange, narrow waist, wide
+    flange. It is unmistakably textile, and it survives being tiny.
+
+    BRIGHT TEAL GROUND, which is why the old icon failed: this browser's tab
+    strip is near-black and a dark mark vanished into it. Teal holds on a dark
+    strip and on a light one, so the tab is findable in either theme.
+
+    The windings are cut in the GROUND colour rather than drawn as lines — at
+    16px a 1px line disappears, but a gap the ground shows through still reads.
+  -->
+  <rect width="32" height="32" rx="7.5" fill="#14b8a6"/>
+
+  <g fill="#04302c">
+    <!-- flanges: the widest part, and what gives the silhouette its shape -->
+    <rect x="5.5" y="5.5" width="21" height="4.6" rx="1.8"/>
+    <rect x="5.5" y="21.9" width="21" height="4.6" rx="1.8"/>
+    <!-- the wound thread between them -->
+    <rect x="9.8" y="9.4" width="12.4" height="13.2" rx="1.2"/>
+  </g>
+
+  <!-- windings, cut through as ground-coloured gaps so they hold at 16px -->
+  <g fill="#14b8a6">
+    <rect x="9.8" y="13.1" width="12.4" height="1.5"/>
+    <rect x="9.8" y="17.4" width="12.4" height="1.5"/>
+  </g>
+</svg>

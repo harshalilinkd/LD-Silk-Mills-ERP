@@ -423,6 +423,39 @@ and keep the same default size (`18px` / Tailwind `size-[18px]`, or
 in-context icon rendering) and stroke width. Never mix in a second icon
 library.
 
+## App icon (browser tab, bookmark, phone home screen)
+
+`src/app/icon.svg` — a **spool of silk thread**: a dark spool on the brand
+teal, in a `rx="7.5"` rounded square. Next.js picks it up from that filename,
+no `metadata.icons` entry needed. `src/app/apple-icon.png` is the same mark at
+180×180 for iOS. The stock Next.js `favicon.ico` was **deleted**; leaving it
+there is why the tab showed a generic mark for weeks.
+
+Two rules came out of getting this wrong three times, and they apply to any
+future mark:
+
+- **A tab icon is 16px, so it gets a SILHOUETTE, not a pattern.** A 3×3 weave
+  was tried first and failed twice: in one colour the threads merge where they
+  cross and it reads as a window; in two colours the interlace is visible at
+  64px and gone by 16, where each thread is two pixels and the mark collapses
+  into a letter "I". A spool works because wide-flange / narrow-waist /
+  wide-flange is an outline nothing else in a tab strip shares.
+- **Bright ground, dark mark — never the reverse.** The browser tab strip is
+  near-black in this app's usual setting, so a dark-grounded icon disappears
+  into it. Teal (`#14b8a6`) holds on a dark strip and a light one.
+
+Detail inside the mark is cut as GROUND-COLOURED GAPS rather than drawn as
+lines: a 1px line vanishes at 16px, a gap the ground shows through does not.
+
+Judge any replacement at real size before shipping it — render it at 16 / 20 /
+32 / 64 and magnify with **nearest-neighbour**, so you are looking at the
+actual pixels rather than a smoothed guess. Every failure above looked fine at
+128px.
+
+The **sidebar** keeps its "LD" monogram tile. That is deliberate: at 28px, with
+the words "LD Silk Mills ERP" beside it, letters are legible and identify the
+company; in a tab strip they are two grey smudges.
+
 ## What "100% same" means in practice
 
 The mockup is static HTML/CSS/vanilla-JS; the real app is Next.js +

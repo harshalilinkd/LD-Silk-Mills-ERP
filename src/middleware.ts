@@ -36,5 +36,19 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  /**
+   * The app-icon files are excluded ALONGSIDE favicon.ico, and leaving them out
+   * was a real bug rather than tidiness: `icon.svg` and `apple-icon.png` are
+   * ordinary routes as far as this matcher is concerned, so a signed-OUT
+   * browser asking for the tab icon got a 307 to /login and a page of HTML
+   * where it expected an image. The result was no icon on the login screen —
+   * the one screen everybody sees before they have a session.
+   *
+   * Add any future Next metadata file here too (`opengraph-image`,
+   * `twitter-image`, `manifest.webmanifest`); they are all generated as routes
+   * and all fetched without a session.
+   */
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png).*)",
+  ],
 };
