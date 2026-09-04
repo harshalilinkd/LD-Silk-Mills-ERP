@@ -526,7 +526,27 @@ function RatingCriteria() {
 
 // ---------------------------------------------------------------------------
 
-export function CrmSettingsPanel() {
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Tab 1 — CRM follow-ups
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * This screen used to be one long scroll: the follow-up knobs, then rating
+ * criteria, then two notes, on a page with no tab strip while Order Entry
+ * rules and Help Slip rules both had one. So the one settings area you had to
+ * SCROLL to read was the one that looked least like the others.
+ *
+ * Split across two tabs on the same pattern as Order Entry rules. The split is
+ * not cosmetic — these are two different jobs against two different tables:
+ * `crm_settings` (when a follow-up appears and when it escalates) and
+ * `crm_rating_criteria` (what a delivered order is scored on).
+ *
+ * The two notes stay HERE rather than getting a tab of their own. Both are
+ * about the follow-up machinery — where its shared lists are edited, and why
+ * severity and outcomes are not editable at all — and a tab holding nothing
+ * but prose reads as a screen somebody forgot to build.
+ */
+export function CrmFollowUpsPanel() {
   return (
     <div className="flex flex-col gap-5">
       <CrmKnobs />
@@ -536,13 +556,7 @@ export function CrmSettingsPanel() {
           places at once. They are `lookup_values` rows exactly like party and
           fabric, shared with the rest of the ERP, and they now live in Masters
           with the other six. Two screens editing one table is how the same
-          list ends up different depending on where you opened it.
-
-          Rating criteria STAYS: it is `crm_rating_criteria`, a table of its
-          own that only the call panel scores against, and it is genuinely CRM
-          configuration rather than a shared vocabulary. */}
-      <RatingCriteria />
-
+          list ends up different depending on where you opened it. */}
       <Panel title="Departments, complaint categories and delay reasons">
         <p className="text-[13px] leading-relaxed text-text-2">
           These three are shared with the rest of the ERP, so they are edited
@@ -575,4 +589,16 @@ export function CrmSettingsPanel() {
       </Panel>
     </div>
   );
+}
+
+/**
+ * Tab 2 — Rating criteria.
+ *
+ * `crm_rating_criteria` is a table of its own that only the call panel scores
+ * against, so unlike the three lists above it is genuinely CRM configuration
+ * rather than a shared vocabulary. That is why it stayed when they moved to
+ * Masters, and why it earns a tab rather than a section.
+ */
+export function CrmRatingCriteriaPanel() {
+  return <RatingCriteria />;
 }

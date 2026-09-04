@@ -168,7 +168,7 @@ present in all three lists. The shape now:
 | **Settings** (`/settings`) | Your profile (name, **phone**, password) · **People** (all three systems) · Access · **Access requests** · Systems · Audit |
 | **Masters** (`/masters`) | All nine shared lists — party, fabric, agent, transport, haste, sales person, departments, complaint categories, delay reasons |
 | **Order Entry rules** | Design Database · Time tracking · Role permissions · Trash |
-| **CRM rules** (`/crm/settings`) | Follow-up timings, rating criteria — it had NO menu before, only a tab inside Order Entry |
+| **CRM rules** (`/crm/settings`) | Two tabs: CRM follow-ups · Rating criteria — it had NO menu before, only a tab inside Order Entry |
 | **Help Slip rules** | General, and nothing else — one screen, no tab strip |
 
 Rules that keep it that way:
@@ -180,6 +180,10 @@ Rules that keep it that way:
   duplicate user screen.
 - **Every moved address redirects**, it is not deleted. A 404 on a settings
   screen reads as "the feature was removed".
+- **All four settings areas use the same pill strip** (`bg-surface-2`, lifted
+  active tab, 16px icons, real routes rather than `useState`). CRM rules was
+  the odd one out — one long scrolling page with no strip, so Rating criteria
+  sat below the fold — and it now has its own two tabs.
 - Module menus are called **rules**, not Settings, so only one thing in the
   sidebar is called Settings. A "rule" is how the MODULE behaves. A person's
   own details and a queue of joiners are not rules and do not belong in one —
