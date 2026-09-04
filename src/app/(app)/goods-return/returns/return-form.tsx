@@ -211,7 +211,11 @@ export function ReturnForm({
         setBanner(res.error);
         return;
       }
+      // Both modes land on the detail page — after a create it is the record
+      // just made, after an edit the one just changed. Somebody who has just
+      // typed a return wants to SEE it, not be dropped back on a list.
       router.push(`/goods-return/returns/${res.id}`);
+      router.refresh();
     });
   };
 
