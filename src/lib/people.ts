@@ -272,3 +272,172 @@ export async function setHelpSlipAccess(
             ${args.role}::ld_help_slip.user_role, ${args.hrAccess},
             ${dept}::uuid, 'active')`;
 }
+
+// ─── removing somebody, for real ───────────────────────────────────────────
+
+export type Footprint = {
+  /**
+   * Empty means nothing anywhere references them, so a delete is safe.
+   *
+   * `one` and `many` rather than a single noun: the screen prints these into a
+   * sentence, and with one form it read "There is 1 recorded actions".
+   */
+  blockers: { one: string; many: string; count: number }[];
+  exists: { erp: boolean; orderEntry: boolean; helpSlip: boolean };
+};
+
+/**
+ * Everything in the three schemas that would be orphaned by deleting somebody.
+ *
+ * This is what makes a real delete possible at all. The rule used to be a flat
+ * "nothing is ever deleted", which is right for a person who has DONE things —
+ * a concern carries its author, an order carries who raised it — and wrong for
+ * the rows every system accumulates: a duplicate account on an old email, a
+ * profile called "test admin". There was no way to remove those, so they stayed
+ * in the People list looking like staff.
+ *
+ * So the question is asked per person rather than answered once in the
+ * abstract: count the references, and offer a delete only when there are none.
+ *
+ * `customer_orders.created_by` is deliberately in here and is NOT a foreign
+ * key — it stores the EMAIL as text. Postgres would happily delete the user and
+ * leave every order they raised pointing at an address that no longer resolves
+ * to anybody, with no error at any layer.
+ */
+export async function personFootprint(email: string): Promise<Footprint> {
+  const e = email.toLowerCase();
+
+  const [erpRow] = await raw<Array<{ id: string }>>`
+    select id::text from ld_erp_core.users where lower(email) = ${e} limit 1`;
+  const [oeRow] = await raw<Array<{ id: string }>>`
+    select id::text from ld_order_entry.users where lower(email) = ${e} limit 1`;
+  const [hsRow] = await raw<Array<{ id: string }>>`
+    select id::text from ld_help_slip.profiles where lower(login_id) = ${e} limit 1`;
+
+  const blockers: { one: string; many: string; count: number }[] = [];
+  const add = async (
+    one: string,
+    many: string,
+    rows: Promise<Array<{ n: number }>>,
+  ) => {
+    const n = (await rows)[0]?.n ?? 0;
+    if (n > 0) blockers.push({ one, many, count: n });
+  };
+
+  // Order Entry — by email for orders, by id for the CRM queue.
+  await add(
+    "order they raised",
+      "orders they raised",
+    raw`select count(*)::int as n from ld_order_entry.customer_orders where lower(created_by) = ${e}`,
+  );
+  if (oeRow) {
+    await add(
+      "follow-up assigned to them",
+      "follow-ups assigned to them",
+      raw`select count(*)::int as n from ld_order_entry.crm_followups where assigned_to = ${oeRow.id}::uuid`,
+    );
+  }
+
+  // Help Slip — a concern carries its author, so any of these is a hard stop.
+  if (hsRow) {
+    const id = hsRow.id;
+    await add(
+      "concern",
+      "concerns",
+      raw`select count(*)::int as n from ld_help_slip.concerns
+           where employee_id = ${id}::uuid or assigned_to = ${id}::uuid or resolved_by = ${id}::uuid`,
+    );
+    await add(
+      "reply on a concern",
+      "replies on concerns",
+      raw`select count(*)::int as n from ld_help_slip.concern_updates where actor_id = ${id}::uuid`,
+    );
+    await add(
+      "solution they proposed",
+      "solutions they proposed",
+      raw`select count(*)::int as n from ld_help_slip.concern_solutions where proposed_by = ${id}::uuid`,
+    );
+    await add(
+      "photo they uploaded",
+      "photos they uploaded",
+      raw`select count(*)::int as n from ld_help_slip.concern_attachments where uploaded_by = ${id}::uuid`,
+    );
+    await add(
+      "access request they decided",
+      "access requests they decided",
+      raw`select count(*)::int as n from ld_help_slip.access_requests where reviewed_by = ${id}::uuid`,
+    );
+  }
+
+  // The shell's own trail.
+  if (erpRow) {
+    await add(
+      "recorded action in the audit log",
+      "recorded actions in the audit log",
+      raw`select count(*)::int as n from ld_erp_core.audit_logs where user_id = ${erpRow.id}::uuid`,
+    );
+  }
+
+  return {
+    blockers,
+    exists: { erp: !!erpRow, orderEntry: !!oeRow, helpSlip: !!hsRow },
+  };
+}
+
+/**
+ * Delete somebody from all three systems, permanently.
+ *
+ * REFUSES unless `personFootprint` comes back empty, and it re-checks here
+ * rather than trusting the screen — a server action is a POST endpoint, and the
+ * caller could send any email.
+ *
+ * Order matters and follows the foreign keys inward: the rows that only exist
+ * to describe access go first (`system_access`, `notifications`), then each
+ * system's record, and the Supabase Auth user LAST because
+ * `profiles.id → auth.users(id) ON DELETE CASCADE` means removing it takes the
+ * profile with it — fine once the profile is already gone, destructive if the
+ * order were reversed and the profile still had rows hanging off it.
+ */
+export async function deletePerson(email: string): Promise<void> {
+  const e = email.toLowerCase();
+
+  const fp = await personFootprint(e);
+  if (fp.blockers.length > 0) {
+    const list = fp.blockers
+      .map((b) => `${b.count} ${b.count === 1 ? b.one : b.many}`)
+      .join(", ");
+    throw new Error(
+      `This person has ${list}. Remove their access instead — deleting them would leave that work with no name on it.`,
+    );
+  }
+
+  const [hsRow] = await raw<Array<{ id: string }>>`
+    select id::text from ld_help_slip.profiles where lower(login_id) = ${e} limit 1`;
+  if (hsRow) {
+    await raw`delete from ld_help_slip.notifications where user_id = ${hsRow.id}::uuid`;
+    await raw`delete from ld_help_slip.profiles where id = ${hsRow.id}::uuid`;
+  }
+
+  await raw`delete from ld_order_entry.users where lower(email) = ${e}`;
+
+  const [erpRow] = await raw<Array<{ id: string }>>`
+    select id::text from ld_erp_core.users where lower(email) = ${e} limit 1`;
+  if (erpRow) {
+    await raw`delete from ld_erp_core.system_access where user_id = ${erpRow.id}::uuid`;
+    await raw`delete from ld_erp_core.users where id = ${erpRow.id}::uuid`;
+  }
+
+  // The sign-in record last. Best-effort: the person is already gone from every
+  // screen at this point, and a stale auth row locks nothing — whereas throwing
+  // here would report a failure about a delete that has already happened.
+  if (hsRow) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      await fetch(`${url}/auth/v1/admin/users/${hsRow.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${key}`, apikey: key },
+      }).catch(() => {});
+    }
+  }
+}

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { IconPencil, IconPlus, IconShieldLock } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconPencil,
+  IconPlus,
+  IconShieldLock,
+  IconUserOff,
+} from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +26,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Department, Person } from "@/lib/people";
-import { savePersonAccess } from "./actions";
+import type { Department, Footprint, Person } from "@/lib/people";
+import {
+  deletePersonAction,
+  getPersonFootprint,
+  removeAllAccess,
+  savePersonAccess,
+} from "./actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -142,8 +153,14 @@ export function PeopleTable({
                       </div>
                     </td>
                     <td className="border-b border-border px-3.5 py-3">
-                      {p.erpRole ? (
+                      {/* An INACTIVE account still carries its old role, so
+                          reading `erpRole` alone printed "Member" for somebody
+                          who had just been switched off — the change looked
+                          like it had not saved. Status decides first. */}
+                      {p.erpRole && !inactive ? (
                         <Chip text={labelOf(ERP_ROLES, p.erpRole)} />
+                      ) : inactive ? (
+                        <Chip text="Switched off" muted />
                       ) : (
                         <Chip text="No access" muted />
                       )}
@@ -222,8 +239,15 @@ function PersonDialog({
 
   const [name, setName] = useState(person?.name ?? "");
   const [email, setEmail] = useState(person?.email ?? "");
+  // Status first, for the same reason as the table: a switched-off account
+  // keeps its old role, so reading `erpRole` alone reopened the dialog showing
+  // "Member" for somebody who had already been removed.
   const [erp, setErp] = useState(
-    person?.erpRole ?? (isNew ? "member" : "none"),
+    isNew
+      ? "member"
+      : person.erpRole && person.erpStatus === "active"
+        ? person.erpRole
+        : "none",
   );
   const [oe, setOe] = useState(
     person?.orderEntryRole && person.orderEntryActive
@@ -239,6 +263,39 @@ function PersonDialog({
   const [hr, setHr] = useState(person?.helpSlipHrAccess ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  // `null` until asked for, so the count queries only run if somebody opens the
+  // remove section — most edits are a role change and never need them.
+  const [footprint, setFootprint] = useState<Footprint | null>(null);
+  const [showRemove, setShowRemove] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const openRemove = () => {
+    setShowRemove(true);
+    setError(null);
+    if (!isNew && !footprint) {
+      start(async () => {
+        try {
+          setFootprint(await getPersonFootprint(person.email));
+        } catch {
+          // Leaving it null keeps Delete unavailable, which is the safe way to
+          // fail — Remove access does not depend on it.
+        }
+      });
+    }
+  };
+
+  const run = (fn: () => Promise<void>) => {
+    setError(null);
+    start(async () => {
+      try {
+        await fn();
+        onClose();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "That didn't work.");
+      }
+    });
+  };
 
   const save = () => {
     setError(null);
@@ -351,6 +408,123 @@ function PersonDialog({
             </p>
           )}
 
+          {/* ── taking somebody out ─────────────────────────────────────
+              Behind a link rather than on the surface: this is the rare
+              action, and two red buttons under every routine role change is
+              how somebody clicks one by accident. But it IS here, with a
+              name, which it was not before — the only way to remove access
+              used to be setting three dropdowns to "No access" one at a
+              time, and nobody would guess that. */}
+          {!isNew && !isSelf && (
+            <div className="rounded-field border border-border bg-surface-2 p-3">
+              {!showRemove ? (
+                <button
+                  type="button"
+                  onClick={openRemove}
+                  className="cursor-pointer text-[12.5px] font-medium text-text-3 underline underline-offset-2 hover:text-status-red"
+                >
+                  Remove {name.trim() || "this person"} from the system…
+                </button>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <IconUserOff className="mt-0.5 size-4 shrink-0 text-text-3" />
+                    <div className="text-[12.5px] text-text-2">
+                      <div className="font-semibold text-text-1">
+                        Switch off their access
+                      </div>
+                      They keep their record and everything they have ever done
+                      keeps their name on it. Give the roles back and they are
+                      in again.
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 self-start"
+                    disabled={pending}
+                    onClick={() => run(() => removeAllAccess(person.email))}
+                  >
+                    Switch off all access
+                  </Button>
+
+                  <div className="border-t border-border pt-3">
+                    {footprint === null ? (
+                      <p className="text-[12.5px] text-text-3">
+                        Checking what else refers to them…
+                      </p>
+                    ) : footprint.blockers.length > 0 ? (
+                      <div className="flex items-start gap-2.5">
+                        <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-text-3" />
+                        <p className="text-[12.5px] text-text-2">
+                          <span className="font-semibold text-text-1">
+                            They cannot be deleted.
+                          </span>{" "}
+                          There {footprint.blockers.length === 1 ? "is" : "are"}{" "}
+                          {footprint.blockers
+                            .map(
+                              (b) =>
+                                `${b.count} ${b.count === 1 ? b.one : b.many}`,
+                            )
+                            .join(", ")}{" "}
+                          on this account. Deleting it would leave that work
+                          with no name on it — switch off their access instead.
+                        </p>
+                      </div>
+                    ) : !confirmDelete ? (
+                      <div className="flex flex-col gap-2.5">
+                        <p className="text-[12.5px] text-text-2">
+                          <span className="font-semibold text-text-1">
+                            Nothing refers to this account.
+                          </span>{" "}
+                          No orders, no concerns, no recorded actions — so it
+                          can be deleted outright. Use this for duplicates and
+                          leftover test accounts, not for people who have left.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(true)}
+                          className="cursor-pointer self-start text-[12.5px] font-semibold text-status-red underline underline-offset-2"
+                        >
+                          Delete permanently
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        <p className="text-[12.5px] font-semibold text-status-red">
+                          Delete {person.email} from all three systems? This
+                          cannot be undone.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-9"
+                            disabled={pending}
+                            onClick={() =>
+                              run(() => deletePersonAction(person.email))
+                            }
+                          >
+                            {pending ? "Deleting…" : "Yes, delete"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-9"
+                            disabled={pending}
+                            onClick={() => setConfirmDelete(false)}
+                          >
+                            Keep it
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <p
               role="alert"
@@ -411,7 +585,14 @@ function Picker({
   return (
     // Base UI hands back `string | null` (null when a selection is cleared),
     // so it is normalised here rather than widening every caller's setter.
+    //
+    // `items` is NOT optional decoration. Without it Base UI's <Select.Value>
+    // renders the raw VALUE, so these three dropdowns read "member", "SALES"
+    // and "none" instead of "Member", "Sales" and "No access" — which is why
+    // removing somebody's access looked impossible: the one option that does it
+    // was labelled `none` and did not read as a choice at all.
     <Select
+      items={Object.fromEntries(options.map((o) => [o.v, o.label]))}
       value={value}
       onValueChange={(v) => onChange(v ?? "none")}
       disabled={disabled}

@@ -200,6 +200,25 @@ Rules that keep it that way:
 - **One People screen.** `src/lib/people.ts` unions the three user tables on
   the lower-cased email. Do not add a per-module user screen back; the old
   addresses redirect here on purpose.
+- **Removing somebody is TWO actions, and the distinction is the point.**
+  *Switch off all access* (`removeAllAccess`) deactivates in all three systems
+  and is the everyday one — the record stays, and everything they ever did
+  keeps their name on it. *Delete permanently* (`deletePersonAction`) removes
+  the row outright and is REFUSED unless `personFootprint()` comes back empty;
+  it exists for duplicates and leftover test accounts, which the old
+  never-delete rule left stranded in the list looking like staff. The footprint
+  is re-checked server-side — the screen hiding the button proves nothing.
+  `customer_orders.created_by` is counted there and is NOT a foreign key: it
+  holds the EMAIL as text, so Postgres would delete the user and silently leave
+  every order they raised pointing at nobody.
+- **Base UI `<Select.Value>` renders the RAW VALUE unless `items` is passed to
+  `<Select>`.** This is not cosmetic. The People dialog's three role dropdowns
+  read `member`, `SALES` and `none` instead of "Member", "Sales" and "No
+  access" — so the one option that removes access was labelled `none` and did
+  not read as a choice, which is why removing a person looked impossible. Pass
+  `items={{ value: label }}` on every Select, and note a switched-off account
+  still carries its old role: read STATUS first, or the screen prints "Member"
+  for somebody who was just removed and the change looks like it never saved.
 - **"Access" in Order Entry is now "Role permissions"** — it is a role x
   capability grid, not a list of people. The old name is why it read as a
   duplicate user screen.

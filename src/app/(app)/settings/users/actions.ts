@@ -8,8 +8,11 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { requireErpAdmin } from "@/lib/admin";
 import {
+  deletePerson,
+  personFootprint,
   setHelpSlipAccess,
   setOrderEntryRole,
+  type Footprint,
   type HelpSlipRole,
   type OrderEntryRole,
 } from "@/lib/people";
@@ -235,5 +238,91 @@ export async function savePersonAccess(args: {
     name,
   });
 
+  revalidatePath("/settings/users");
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Taking somebody OUT — the two different things that means
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * There was no way to do either from this screen, and that was the gap. The
+ * only route was to open the dialog and set three separate dropdowns to "No
+ * access" one at a time — which does work, but nobody would guess it, and the
+ * dropdowns were showing raw codes like `member` and `none` instead of their
+ * labels, so it did not even read as a choice.
+ *
+ * They are deliberately two actions, because they are not the same decision:
+ *
+ *   · REMOVE ACCESS is the everyday one — somebody leaves, or changes job.
+ *     They keep their record and everything they ever did keeps their name on
+ *     it. Reversible: give the roles back and they are in again.
+ *   · DELETE is for rows that were never a person doing work — a duplicate
+ *     account on an old email, a profile called "test admin". Permanent, and
+ *     refused outright the moment anything anywhere references them.
+ */
+
+/** What would be orphaned by deleting this person — drives the dialog. */
+export async function getPersonFootprint(email: string): Promise<Footprint> {
+  await requireErpAdmin();
+  return personFootprint(email);
+}
+
+/**
+ * Remove every system's access in one action.
+ *
+ * The same writes `savePersonAccess` performs with all three roles null, given
+ * a name of its own so it is a button rather than a sequence somebody has to
+ * work out. Nothing is deleted: Order Entry goes `is_active = false`, Help Slip
+ * goes `status = 'inactive'`, the ERP account goes `status = 'inactive'`.
+ */
+export async function removeAllAccess(email: string) {
+  const admin = await requireErpAdmin();
+  const e = email.trim().toLowerCase();
+
+  const [target] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.email, e))
+    .limit(1);
+
+  // With no active admin nobody can promote one back from inside the app.
+  if (target && target.id === admin.id) {
+    throw new Error("You cannot remove your own access.");
+  }
+
+  if (target) {
+    await db
+      .update(users)
+      .set({ status: "inactive", updatedAt: new Date() })
+      .where(eq(users.id, target.id));
+  }
+  await setOrderEntryRole(e, null, target?.name ?? e);
+  await setHelpSlipAccess(e, {
+    role: null,
+    departmentId: null,
+    hrAccess: false,
+    name: target?.name ?? e,
+  });
+
+  revalidatePath("/settings/users");
+}
+
+/**
+ * Delete permanently, from all three systems.
+ *
+ * `deletePerson` re-runs the footprint check itself and throws if anything
+ * references them — this is a POST endpoint and the email arrives from the
+ * browser, so the screen having hidden the button proves nothing.
+ */
+export async function deletePersonAction(email: string) {
+  const admin = await requireErpAdmin();
+  const e = email.trim().toLowerCase();
+
+  if (e === (admin.email ?? "").toLowerCase()) {
+    throw new Error("You cannot delete your own account.");
+  }
+
+  await deletePerson(e);
   revalidatePath("/settings/users");
 }
