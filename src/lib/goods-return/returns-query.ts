@@ -350,3 +350,44 @@ export async function getReturnFilterParties() {
     .innerJoin(parties, eq(returns.partyId, parties.id))
     .orderBy(asc(parties.name));
 }
+
+
+/**
+ * Resolve either form of a return's address to its database id.
+ *
+ * The list links with the internal id, which is what the standalone app used
+ * and what every existing bookmark carries. But the number a person KNOWS is
+ * the one printed on the screen and read out on the phone — "LD-0351" — and the
+ * two are not the same: LD-0351 is row 341. Typing the familiar one into the
+ * address bar gave a 404, which reads as "that return does not exist" about a
+ * return that plainly does.
+ *
+ * So both work. `LD-0351`, `ld-351` and `351` all resolve; a bare number is
+ * tried as an id first, because that is what every link in the app uses.
+ */
+export async function resolveReturnId(raw: string): Promise<number | null> {
+  const text = raw.trim();
+
+  const asId = Number(text);
+  if (Number.isInteger(asId) && asId > 0) {
+    const [hit] = await db
+      .select({ id: returns.id })
+      .from(returns)
+      .where(eq(returns.id, asId))
+      .limit(1);
+    if (hit) return hit.id;
+  }
+
+  // Anything with letters, or a number that matched no row, is tried as a
+  // display id — normalised so "ld-351" and "LD-0351" both land.
+  const digits = text.replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  const displayId = `LD-${digits.padStart(4, "0")}`;
+
+  const [row] = await db
+    .select({ id: returns.id })
+    .from(returns)
+    .where(eq(returns.displayId, displayId))
+    .limit(1);
+  return row?.id ?? null;
+}
