@@ -643,3 +643,27 @@
     font-size: 15px;
   }
 }
+
+/* The email disclosure on the sign-in card.
+ *
+ * Plain CSS rather than a `group-open:` utility: this page has already been
+ * bitten once by Tailwind emitting a variant in an order that let another rule
+ * win (see the note on the fluid card width), and a chevron that silently
+ * stops rotating is exactly the kind of thing nobody notices in review. */
+.ld-auth details.auth-disclosure > summary .auth-chev {
+  transform: rotate(0deg);
+}
+.ld-auth details.auth-disclosure[open] > summary .auth-chev {
+  transform: rotate(180deg);
+}
+/* Open state reads as one panel rather than a button with a form loose
+   underneath it. */
+.ld-auth details.auth-disclosure[open] > summary {
+  border-color: color-mix(in srgb, var(--auth-teal) 32%, transparent);
+  background: rgba(255, 255, 255, 0.8);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-auth details.auth-disclosure > summary .auth-chev {
+    transition: none;
+  }
+}

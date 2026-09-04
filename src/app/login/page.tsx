@@ -33,24 +33,23 @@ import loginBackdrop from "../../../public/login-bg.jpg";
  * `login.png` at the repo root is the supplied master, 1536x1024 (3:2).
  * `public/login-bg.jpg` is generated from it and is what ships.
  *
- * Two faults were fixed there, both arithmetic rather than taste:
+ * THE BLUR WAS AN UPSCALE. A 1536px-wide file stretched across a 1904px
+ * viewport is a 1.25x enlargement — every source pixel smeared over 1.56
+ * screen pixels (2.8 on a 2560 monitor). The shipped file is resampled to
+ * 2800px with lanczos3 and an unsharp mask, so every real screen now
+ * DOWNSCALES it, which is always sharp.
  *
- *  · BLUR. A 1536px-wide file stretched across a 1904px viewport is a 1.25x
- *    upscale — every source pixel smeared over 1.56 screen pixels (2.8 on a
- *    2560 monitor). The shipped file is upscaled to 2200px with lanczos3 and
- *    an unsharp mask, so the browser now paints it at ~1.0x.
+ * THE FRAME IS CROPPED, AND THAT IS THE DECISION. A 3:2 photograph on a
+ * 1.78-2.02:1 screen loses 8-13% off the top and bottom under `object-cover`,
+ * which costs the loom in the top right. An earlier attempt avoided that by
+ * padding ~400px of blurred carry-out onto each side so the picture could fill
+ * a 2:1 screen uncropped — and the padding was the thing that got rejected:
+ * visible soft bands down both edges. The owner's own reference crops the loom
+ * away and keeps the leaves and the cotton, which settles it. Sharp and
+ * edge-to-edge beats complete.
  *
- *  · CROP. Screens are 1.78-2.10:1. `object-cover` on a 3:2 source slices
- *    8-14% off the TOP and BOTTOM — exactly where the loom sits (top right)
- *    and the cotton bolls sit (bottom left). No `object-position` saves both;
- *    they are at opposite extremes. So the whole photograph is centred
- *    UNCROPPED inside a 3008x1467 (2.05:1) frame, with ~404px each side built
- *    from the subject's own edge colour blended with a blurred zoomed copy —
- *    colour continuity kills the seam, organic structure kills the banding.
- *    The page then dissolves both far edges into warm light.
- *
- * Never point this page straight at a 3:2 file again; that is what caused
- * both complaints.
+ * So: no invented pixels, no side panels, no edge dissolve. If a future change
+ * brings back a padded frame, this is the note saying it was tried.
  *
  * ── MOTION ────────────────────────────────────────────────────────────────
  *
@@ -178,14 +177,6 @@ export default async function LoginPage({
           }}
         />
 
-        {/* the widened frame dissolving into warm light at both far edges */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(247,241,229,0.62) 0%, rgba(247,241,229,0) 9%, rgba(247,241,229,0) 90%, rgba(247,241,229,0.55) 100%)",
-          }}
-        />
         <div
           className="absolute inset-0"
           style={{
@@ -234,7 +225,7 @@ export default async function LoginPage({
               className="ld-reveal mt-5 hidden text-[15px] text-[var(--auth-ink-3)] md:block md:text-base"
               style={{ "--ld-reveal-delay": "520ms" } as React.CSSProperties}
             >
-              One workspace for your entire textile operation.
+              One workspace for orders, operations and people.
             </p>
 
             <ul
@@ -326,108 +317,152 @@ export default async function LoginPage({
               <span className="h-px flex-1 bg-[var(--auth-ink)]/12" />
             </div>
 
-            <form
-              action={async (formData: FormData) => {
-                "use server";
-                await signInWithPassword(
-                  String(formData.get("email") ?? ""),
-                  String(formData.get("password") ?? ""),
-                  callbackUrl,
-                );
-              }}
-              className="relative flex flex-col gap-4"
+            {/* ── email + password, COLLAPSED ─────────────────────────── *
+             * The card was tall because it always showed a form most people
+             * never use: ten of eleven accounts sign in with Google, and one
+             * has a password. Folding it away takes ~190px out of the card and
+             * puts the control almost everyone wants at the top.
+             *
+             * `<details>` and not a useState toggle, deliberately — this is a
+             * server component and the disclosure has to work before any
+             * JavaScript arrives. It is also the accessible primitive already:
+             * focusable, Enter/Space operated, and announced as expandable
+             * without a single aria attribute.
+             *
+             * FORCED OPEN AFTER A FAILURE. `open` is set when the URL carries
+             * the error, because collapsing the form you just failed at — and
+             * hiding the fields under a summary that says nothing went wrong —
+             * would be the worst possible answer to a wrong password.        */}
+            <details
+              className="auth-disclosure relative"
+              open={error === "invalid_credentials"}
             >
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="auth-email"
-                  className="text-[12.5px] font-semibold text-[var(--auth-ink-2)]"
+              <summary className="flex h-[var(--auth-tap)] w-full cursor-pointer list-none items-center justify-center gap-2 rounded-[var(--auth-r-field)] border border-[var(--auth-field-edge)] bg-white/55 text-[14px] font-semibold text-[var(--auth-ink-2)] transition-[background-color,border-color] duration-200 hover:bg-white/80 [&::-webkit-details-marker]:hidden">
+                <IconMail
+                  aria-hidden
+                  className="size-[17px] text-[var(--auth-teal)]/75"
+                  stroke={1.7}
+                />
+                Sign in with email
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="auth-chev size-[15px] transition-transform duration-200"
                 >
-                  Email
-                </label>
-                <div className="relative">
-                  <IconMail
-                    aria-hidden
-                    className="pointer-events-none absolute top-1/2 left-3.5 size-[17px] -translate-y-1/2 text-[var(--auth-teal)]/70"
-                    stroke={1.7}
+                  <path
+                    d="m6 9 6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                  <input
-                    id="auth-email"
-                    name="email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    placeholder="you@example.com"
-                    required
-                    className="auth-field"
-                  />
-                </div>
-              </div>
+                </svg>
+              </summary>
 
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="auth-password"
-                  className="text-[12.5px] font-semibold text-[var(--auth-ink-2)]"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <IconLock
-                    aria-hidden
-                    className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[17px] -translate-y-1/2 text-[var(--auth-teal)]/70"
-                    stroke={1.7}
-                  />
-                  {/* No `minLength`. This field proves you know an EXISTING
+              <form
+                action={async (formData: FormData) => {
+                  "use server";
+                  await signInWithPassword(
+                    String(formData.get("email") ?? ""),
+                    String(formData.get("password") ?? ""),
+                    callbackUrl,
+                  );
+                }}
+                className="flex flex-col gap-4 pt-4"
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="auth-email"
+                    className="text-[12.5px] font-semibold text-[var(--auth-ink-2)]"
+                  >
+                    Email
+                  </label>
+                  <div className="relative">
+                    <IconMail
+                      aria-hidden
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-[17px] -translate-y-1/2 text-[var(--auth-teal)]/70"
+                      stroke={1.7}
+                    />
+                    <input
+                      id="auth-email"
+                      name="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="you@example.com"
+                      required
+                      className="auth-field"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="auth-password"
+                    className="text-[12.5px] font-semibold text-[var(--auth-ink-2)]"
+                  >
+                    Password
+                  </label>
+                  <div className="relative">
+                    <IconLock
+                      aria-hidden
+                      className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[17px] -translate-y-1/2 text-[var(--auth-teal)]/70"
+                      stroke={1.7}
+                    />
+                    {/* No `minLength`. This field proves you know an EXISTING
                       password; the length rule belongs where one is CHOSEN, in
                       Settings. Gating it here would lock out anyone holding a
                       password set under an older rule. */}
-                  <PasswordInput
-                    id="auth-password"
-                    name="password"
-                    autoComplete="current-password"
-                    placeholder="•••••••••••••"
-                    required
-                    className="auth-field"
-                  />
-                </div>
-              </div>
-
-              <details className="-mt-1 self-end">
-                <summary className="cursor-pointer list-none rounded text-[12.5px] font-medium text-[var(--auth-teal)] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
-                  Forgot password?
-                </summary>
-                <p className="mt-2 max-w-[38ch] rounded-lg bg-[var(--auth-teal)]/10 px-3 py-2 text-right text-[12px] leading-relaxed text-[var(--auth-ink-3)]">
-                  There is no reset email. Ask an ERP administrator — they can
-                  set a new one for you from Settings in a few seconds.
-                </p>
-              </details>
-
-              <button
-                type="submit"
-                className="group relative flex h-[52px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[var(--auth-r-field)] bg-gradient-to-r from-[var(--auth-teal-deep)] via-[#0d554e] to-[var(--auth-teal-lift)] text-[15px] font-semibold text-white shadow-[var(--auth-shadow-cta)] transition-[box-shadow,transform] duration-200 hover:-translate-y-px hover:shadow-[var(--auth-shadow-cta-hover)] active:translate-y-0 motion-reduce:hover:translate-y-0"
-              >
-                <span className="relative">Sign in</span>
-                <span
-                  aria-hidden
-                  className="absolute inset-y-0 right-0 grid w-[52px] place-items-center border-l border-white/15 bg-white/10"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="size-[18px] transition-transform duration-200 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0"
-                  >
-                    <path
-                      d="M4 12h15m0 0-6-6m6 6-6 6"
-                      stroke="currentColor"
-                      strokeWidth="1.9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                    <PasswordInput
+                      id="auth-password"
+                      name="password"
+                      autoComplete="current-password"
+                      placeholder="•••••••••••••"
+                      required
+                      className="auth-field"
                     />
-                  </svg>
-                </span>
-              </button>
-            </form>
+                  </div>
+                </div>
+
+                <details className="-mt-1 self-end">
+                  <summary className="cursor-pointer list-none rounded text-[12.5px] font-medium text-[var(--auth-teal)] underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+                    Forgot password?
+                  </summary>
+                  <p className="mt-2 max-w-[38ch] rounded-lg bg-[var(--auth-teal)]/10 px-3 py-2 text-right text-[12px] leading-relaxed text-[var(--auth-ink-3)]">
+                    There is no reset email. Ask an ERP administrator — they can
+                    set a new one for you from Settings in a few seconds.
+                  </p>
+                </details>
+
+                <button
+                  type="submit"
+                  className="group relative flex h-[52px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[var(--auth-r-field)] bg-gradient-to-r from-[var(--auth-teal-deep)] via-[#0d554e] to-[var(--auth-teal-lift)] text-[15px] font-semibold text-white shadow-[var(--auth-shadow-cta)] transition-[box-shadow,transform] duration-200 hover:-translate-y-px hover:shadow-[var(--auth-shadow-cta-hover)] active:translate-y-0 motion-reduce:hover:translate-y-0"
+                >
+                  <span className="relative">Sign in</span>
+                  <span
+                    aria-hidden
+                    className="absolute inset-y-0 right-0 grid w-[52px] place-items-center border-l border-white/15 bg-white/10"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="size-[18px] transition-transform duration-200 group-hover:translate-x-1 motion-reduce:group-hover:translate-x-0"
+                    >
+                      <path
+                        d="M4 12h15m0 0-6-6m6 6-6 6"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+              </form>
+            </details>
 
             <div className="relative mt-5 flex items-start gap-2.5 border-t border-[var(--auth-ink)]/10 pt-4">
               <IconShieldCheck
