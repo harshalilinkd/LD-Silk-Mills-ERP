@@ -7,6 +7,7 @@ import { getReturnsList } from "@/lib/goods-return/returns-query";
 import { cn } from "@/lib/utils";
 import { MoneyCell } from "../money-cell";
 import { OfficeBar } from "../office-bar";
+import { ReceiveButton } from "./receive-button";
 
 export const metadata: Metadata = {
   title: "Receiving — LD Silk Mills ERP",
@@ -41,9 +42,13 @@ const TD = "border-b border-border px-3.5 py-3";
  * id and the amount) are the largest text on each, and the action is
  * full-width.
  *
- * The Mark received ACTION lands in phase 4. This reads only, deliberately: the
- * design gets judged before anything in this module can write to 341 live
- * records.
+ * MARK RECEIVED ASKS FOR THE TWO AMOUNTS, which is the one workflow change in
+ * this port. The standalone app receives in one click and leaves the Bhiwandi
+ * figures to be added later from the edit screen — and that is very likely why
+ * they go unfilled: the moment somebody KNOWS the transport cost is the moment
+ * the lorry arrives with the bill, and a second trip into an edit screen is a
+ * step that quietly does not happen. Both fields stay optional, because an
+ * unreceived return is worse than a blank charge.
  *
  * Two queries, sequential. The pending list is fetched whole rather than paged
  * — 64 rows today, and a receiving queue that hides its tail behind pagination
@@ -157,6 +162,7 @@ export default async function ReceivingPage({
                         <th className={`${TH} text-left`}>Broker</th>
                         <th className={`${TH} text-right`}>Lines</th>
                         <th className={`${TH} text-right`}>Total</th>
+                        <th className={`${TH} text-right`}>Action</th>
                       </tr>
                     ) : (
                       <tr>
@@ -203,6 +209,14 @@ export default async function ReceivingPage({
                               <MoneyCell
                                 value={r.totalValue}
                                 className="font-medium text-text-1"
+                              />
+                            </td>
+                            <td className={`${TD} text-right`}>
+                              <ReceiveButton
+                                returnId={r.id}
+                                displayId={r.displayId}
+                                party={r.partyName}
+                                expectedTransport={r.transportValue ?? null}
                               />
                             </td>
                           </>
@@ -276,6 +290,15 @@ export default async function ReceivingPage({
                         )}
                       </div>
                     </Link>
+                    {tab === "pending" && (
+                      <ReceiveButton
+                        full
+                        returnId={r.id}
+                        displayId={r.displayId}
+                        party={r.partyName}
+                        expectedTransport={r.transportValue ?? null}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

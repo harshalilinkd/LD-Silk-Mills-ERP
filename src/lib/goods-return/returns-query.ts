@@ -104,6 +104,11 @@ export async function getReturnsList(f: ReturnsFilter) {
       status: returns.status,
       returnReason: returns.returnReason,
       totalValue: returns.totalValue,
+      // What Head Office EXPECTED to pay. Carried on the list so Receiving can
+      // show it beside the box where Bhiwandi types what was actually paid —
+      // the two figures being identical on all 160 comparable returns is the
+      // reason that comparison is worth putting in front of somebody.
+      transportValue: returns.transportValue,
       partyName: parties.name,
       brokerName: brokers.name,
       createdAt: returns.createdAt,
