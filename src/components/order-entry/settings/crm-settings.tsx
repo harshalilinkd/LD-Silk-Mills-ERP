@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // Settings → CRM — docs/SCREENS.md §6.4.
 //
 // Two bands. Band 1 is the four tuning knobs plus the auto-create switch, with
@@ -20,7 +22,6 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconRotateClockwise,
-  IconX,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
@@ -247,7 +248,11 @@ function CrmKnobs() {
             </div>
 
             <div className="flex justify-end pt-1">
-              <Button size="lg" disabled={busy || dirty === 0} onClick={() => void save()}>
+              <Button
+                size="lg"
+                disabled={busy || dirty === 0}
+                onClick={() => void save()}
+              >
                 {busy ? (
                   <>
                     <Spinner /> Saving…
@@ -279,7 +284,9 @@ function CrmKnobs() {
         </p>
         <p className="text-[13px] leading-relaxed text-text-2">
           After{" "}
-          <b className="num font-semibold text-text-1">{shown("max_attempts")}</b>{" "}
+          <b className="num font-semibold text-text-1">
+            {shown("max_attempts")}
+          </b>{" "}
           failed attempts it becomes{" "}
           <b className="font-semibold text-text-1">Unreachable</b>; an overall
           rating of{" "}
@@ -512,169 +519,11 @@ function RatingCriteria() {
   );
 }
 
-type LookupRow = { id: string; value: string; is_active: boolean };
-
-/**
- * One vocabulary stored in `lookup_values`. Written once and used three times
- * (complaint categories, departments, delay reasons) — three near-identical
- * copies is how the wording of one drifts from the other two.
- */
-function ManagedList({
-  category,
-  title,
-  blurb,
-  placeholder,
-}: {
-  category: string;
-  title: string;
-  blurb: string;
-  placeholder: string;
-}) {
-  const [rows, setRows] = useState<LookupRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [value, setValue] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await apiJson<unknown>(
-      `/api/order-entry/lookups?category=${encodeURIComponent(category)}&all=1`,
-    );
-    setLoading(false);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    setError(null);
-    // Defensive: without `all=1` this endpoint answers `string[]`, and a
-    // dropped query param would otherwise render `[undefined]` rows.
-    const list = Array.isArray(res.data) ? res.data : [];
-    setRows(
-      list.filter(
-        (r): r is LookupRow =>
-          typeof r === "object" &&
-          r !== null &&
-          typeof (r as LookupRow).id === "string" &&
-          typeof (r as LookupRow).value === "string",
-      ),
-    );
-  }, [category]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function add() {
-    const v = value.trim();
-    if (!v) return;
-    setBusy(true);
-    setError(null);
-    const res = await apiJson("/api/order-entry/lookups", {
-      method: "POST",
-      body: { category, value: v },
-    });
-    if (!res.ok) {
-      setBusy(false);
-      setError(res.error);
-      return;
-    }
-    await load();
-    setBusy(false);
-    setValue("");
-  }
-
-  async function setActive(r: LookupRow, active: boolean) {
-    setBusy(true);
-    setError(null);
-    const res = await apiJson(`/api/order-entry/lookups/${r.id}`, {
-      method: "PATCH",
-      body: { is_active: active },
-    });
-    if (!res.ok) {
-      setBusy(false);
-      setError(res.error);
-      return;
-    }
-    await load();
-    setBusy(false);
-  }
-
-  return (
-    <Panel
-      title={title}
-      action={
-        <span className="text-[11.5px] text-text-3">
-          {rows.filter((r) => r.is_active).length} in use
-        </span>
-      }
-      bodyClassName="flex flex-col gap-3"
-    >
-      <p className="text-xs leading-relaxed text-text-2">{blurb}</p>
-
-      <ErrorBanner message={error} />
-
-      {loading ? (
-        <LoadingRow />
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-1.5">
-            {rows.map((r) => (
-              <span
-                key={r.id}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface-2 py-1 pr-1 pl-2.5 text-[12.5px] text-text-1",
-                  !r.is_active && "opacity-50",
-                )}
-              >
-                {r.value}
-                <button
-                  type="button"
-                  title={r.is_active ? "Retire" : "Restore"}
-                  aria-label={`${r.is_active ? "Retire" : "Restore"} ${r.value}`}
-                  disabled={busy}
-                  onClick={() => void setActive(r, !r.is_active)}
-                  className="cursor-pointer rounded-full p-0.5 text-text-2 hover:bg-chip hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {r.is_active ? (
-                    <IconX className="size-3" />
-                  ) : (
-                    <IconRotateClockwise className="size-3" />
-                  )}
-                </button>
-              </span>
-            ))}
-            {rows.length === 0 && (
-              <span className="text-xs text-text-3">Nothing here yet.</span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <input
-              className={cn(INPUT_CLS, "min-w-[220px] flex-1")}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && value.trim()) {
-                  e.preventDefault();
-                  void add();
-                }
-              }}
-              placeholder={placeholder}
-            />
-            <Button
-              size="lg"
-              disabled={busy || !value.trim()}
-              onClick={() => void add()}
-            >
-              {busy ? <Spinner /> : null} Add
-            </Button>
-          </div>
-        </>
-      )}
-    </Panel>
-  );
-}
+// `ManagedList` and its `LookupRow` type lived here and are deleted, not
+// commented out. They rendered the three shared vocabularies that now live
+// in Masters; leaving a second editor in the tree is how the two screens
+// drift apart later. The Masters screen uses `DropdownMaster`, which does
+// the same job for all nine lists.
 
 // ---------------------------------------------------------------------------
 
@@ -683,29 +532,32 @@ export function CrmSettingsPanel() {
     <div className="flex flex-col gap-5">
       <CrmKnobs />
 
-      {/* No `items-start` here on purpose: the two panels in each row stretch
-          to the same height, so the four vocabularies read as a 2×2 block. */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <RatingCriteria />
-        <ManagedList
-          category="CRM_ISSUE"
-          title="Complaint categories"
-          placeholder="e.g. Roll length short"
-          blurb="What a complaint can be filed under. A coordinator can also type a new one mid-call — it is saved here automatically and offered to everyone from the next call onward."
-        />
-        <ManagedList
-          category="CRM_DEPT"
-          title="Departments"
-          placeholder="e.g. Quality control"
-          blurb="Who a complaint is assigned to fix. Shown as “Whose to fix” on the call panel and on the issues board."
-        />
-        <ManagedList
-          category="CRM_DELAY_REASON"
-          title="Delay reasons"
-          placeholder="e.g. Festival holiday"
-          blurb="Offered when a customer says the order did not arrive on time."
-        />
-      </div>
+      {/* THREE LISTS USED TO SIT HERE — complaint categories, departments and
+          delay reasons — and they are gone because they were editable in two
+          places at once. They are `lookup_values` rows exactly like party and
+          fabric, shared with the rest of the ERP, and they now live in Masters
+          with the other six. Two screens editing one table is how the same
+          list ends up different depending on where you opened it.
+
+          Rating criteria STAYS: it is `crm_rating_criteria`, a table of its
+          own that only the call panel scores against, and it is genuinely CRM
+          configuration rather than a shared vocabulary. */}
+      <RatingCriteria />
+
+      <Panel title="Departments, complaint categories and delay reasons">
+        <p className="text-[13px] leading-relaxed text-text-2">
+          These three are shared with the rest of the ERP, so they are edited
+          once in{" "}
+          <Link
+            href="/masters"
+            className="font-semibold text-accent-text underline underline-offset-2"
+          >
+            Masters
+          </Link>{" "}
+          rather than here. Nothing about how CRM uses them has changed — the
+          call panel and the issues board read the same lists they always did.
+        </p>
+      </Panel>
 
       {/* §6.4 — the closing note. Worth keeping on the screen itself: the
           absence of these three settings looks like an oversight otherwise,
@@ -714,10 +566,9 @@ export function CrmSettingsPanel() {
         <p className="text-[13px] leading-relaxed text-text-2">
           Severity, attempt outcomes and reorder intent stay fixed in code.{" "}
           <b className="font-semibold text-text-1">HIGH</b> drives escalation in
-          three places, <b className="font-semibold text-text-1">
-            isReachedOutcome()
-          </b>{" "}
-          drives the follow-up state machine and the{" "}
+          three places,{" "}
+          <b className="font-semibold text-text-1">isReachedOutcome()</b> drives
+          the follow-up state machine and the{" "}
           <b className="font-semibold text-text-1">contacted_at</b> stamp, and
           the analytics count specific reorder values. Making any of them data
           would let a rename here silently switch off escalation somewhere else.
