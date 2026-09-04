@@ -7,7 +7,13 @@ import { authConfig } from "@/auth.config";
 // APIs middleware's Edge runtime doesn't have.
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ["/login", "/not-registered"];
+// `/privacy` and `/terms` MUST stay reachable without a session. Google will
+// not move an OAuth app out of "Testing" without a public privacy policy URL,
+// and it fetches that URL itself — behind this gate it would receive a 307 to
+// /login and reject the app. The same goes for a person deciding whether to
+// sign in at all: a policy you can only read after agreeing to it is not a
+// policy.
+const PUBLIC_PATHS = ["/login", "/not-registered", "/privacy", "/terms"];
 
 export default auth((req) => {
   const { nextUrl } = req;
