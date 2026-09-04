@@ -159,6 +159,19 @@ against a white light-mode background until replaced with the new
 section for the full light/dark table and the reasoning per token.
 
 ## Sidebar
+**One navigation tree, drawer on mobile.** The sidebar was `hidden md:flex`
+with NOTHING replacing it below 768px — a phone reached the dashboard and then
+had no way to open Orders, CRM, Help Slip or Settings at all. It is now
+rendered ONCE and passed as `children` into `<MobileNavPanel>`
+(`src/components/shell/mobile-nav.tsx`), which positions it: off-canvas and
+fixed below `md`, an ordinary flex child above. Do not add a second mobile
+menu — two trees drift, and a system added to one goes missing from the other.
+Passing it as children is also what keeps `<Sidebar>` a server component
+(children arrive pre-rendered, so nothing uncrossable goes over the boundary).
+The drawer closes on route change, on Escape, on the scrim, and locks body
+scroll while open; `md:translate-x-0` is forced so drawer state can never leak
+into the desktop layout when the window is widened.
+
 Dynamic, driven entirely by `ld_erp_core.systems` + `system_access` — never
 hardcoded. A system with `status != active` renders greyed/unclickable
 regardless of any other setting. `src/lib/system-submenus.ts` is a small

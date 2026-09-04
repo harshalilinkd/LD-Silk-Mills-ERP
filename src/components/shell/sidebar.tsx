@@ -35,7 +35,11 @@ export function Sidebar({
   })).filter((group) => group.systems.length > 0);
 
   return (
-    <aside className="hidden w-[264px] shrink-0 flex-col bg-sidebar border-r border-sidebar-border md:flex">
+    <aside className="flex w-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
+      {/* NO `hidden md:flex` here any more. Whether this is on screen is
+          decided by <MobileNavPanel>, which is the only thing that knows
+          about the drawer. Width comes from the wrapper too, so the drawer
+          can be wider than the desktop rail without a second value here. */}
       <div className="flex items-center gap-2.5 border-b border-sidebar-border px-[18px] py-[18px]">
         <div
           className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-semibold text-[#04211d]"
