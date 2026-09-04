@@ -286,6 +286,14 @@ export function OrdersDashboard({
 
   // The export re-fetches with the same params rather than writing the twenty
   // rows in hand — the file must carry the whole filtered set.
+  //
+  // ONE ROW PER DESIGN LINE, not per order. DSGN-MATCHING and MTR-YARD only
+  // exist at the line level — a 34-design order has 34 of each — so an
+  // order-level row can't carry them without either picking one line
+  // arbitrarily or gluing all 34 into one cell. Every order-level column
+  // (party, haste, agent, challan…) repeats on each of that order's rows,
+  // which is the flat shape the old AppSheet export used and the shape a
+  // spreadsheet can actually pivot or filter on.
   async function exportCsv() {
     setExporting(true);
     setNotice(null);
@@ -295,41 +303,47 @@ export function OrdersDashboard({
         [
           "Order no",
           "Date",
+          "Timestamp",
           "Party",
           "Haste",
           "Agent",
-          "Fabrics",
-          "Designs",
+          "Sales person",
+          "Quality",
+          "DSGN-MATCHING",
+          "MTR-YARD",
+          "Rate",
+          "Line total",
           "Cancelled",
-          "Qty",
-          "Total Amount",
           "Challan",
           "Lot",
-          "Status",
+          "Order status",
         ],
-        ...all.orders.map((o) => [
-          o.order_no,
-          o.order_date,
-          o.party_name,
-          o.haste ?? "",
-          o.agent ?? "",
-          // ` | `, not a comma — the file is comma-separated.
-          o.fabrics.join(" | "),
-          o.operations_status === "CANCELLED"
-            ? o.total_line_count
-            : o.line_count,
-          o.cancelled_line_count,
-          o.qty_total,
-          o.grand_total,
-          o.challan_no ?? "",
-          o.lot_no ?? "",
-          o.operations_status,
-        ]),
+        ...all.orders.flatMap((o) =>
+          o.lines.map((l) => [
+            o.order_no,
+            o.order_date,
+            l.created_at,
+            o.party_name,
+            o.haste ?? "",
+            o.agent ?? "",
+            o.sales_person ?? "",
+            l.quality,
+            l.design_no,
+            l.qty_mtr,
+            l.rate ?? "",
+            l.line_total ?? "",
+            l.is_cancelled ? "Yes" : "No",
+            o.challan_no ?? "",
+            o.lot_no ?? "",
+            o.operations_status,
+          ]),
+        ),
       ]);
       download(csv, csvFilename("orders"));
+      const lineCount = all.orders.reduce((s, o) => s + o.lines.length, 0);
       setNotice({
         tone: "success",
-        text: `Exported ${all.orders.length} order${all.orders.length === 1 ? "" : "s"}.`,
+        text: `Exported ${lineCount} design line${lineCount === 1 ? "" : "s"} across ${all.orders.length} order${all.orders.length === 1 ? "" : "s"}.`,
       });
     } catch (e) {
       setNotice({

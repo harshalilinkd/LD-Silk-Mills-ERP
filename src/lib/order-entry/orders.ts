@@ -8,6 +8,20 @@ export type OperationsStatus =
   | "PENDING"
   | "CANCELLED";
 
+// One design line, for the export's flattened DSGN-MATCHING / MTR-YARD rows.
+// `created_at` is the LINE's own timestamp, not the order's — the old
+// AppSheet TIMESTAMP column was written per row entered, and two designs
+// added to the same order minutes apart should not both read the order date.
+export type OrderLineDetail = {
+  quality: string;
+  design_no: string;
+  qty_mtr: number;
+  rate: number | null;
+  line_total: number | null;
+  is_cancelled: boolean;
+  created_at: string;
+};
+
 export type OrderRow = {
   id: string;
   order_no: string;
@@ -27,6 +41,8 @@ export type OrderRow = {
   grand_total: number;
   operations_status: OperationsStatus;
   created_at: string;
+  /** Same set the aggregates above are computed from (§ shown in the API). */
+  lines: OrderLineDetail[];
 };
 
 export type OrdersCancelSummary = {

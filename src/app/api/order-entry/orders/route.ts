@@ -133,9 +133,12 @@ export async function GET(req: Request) {
           id: orderLineItems.id,
           orderId: orderLineItems.orderId,
           quality: orderLineItems.quality,
+          designNo: orderLineItems.designNo,
           qtyMtr: orderLineItems.qtyMtr,
+          rate: orderLineItems.rate,
           lineTotal: orderLineItems.lineTotal,
           isCancelled: orderLineItems.isCancelled,
+          createdAt: orderLineItems.createdAt,
         })
         .from(orderLineItems)
         .where(
@@ -208,6 +211,19 @@ export async function GET(req: Request) {
         ? ("CANCELLED" as const)
         : computeOrderStatus(lineStatuses),
       created_at: o.createdAt,
+      // The same `shown` set the aggregates above are computed from, so the
+      // flattened export can never disagree with the order-level totals next
+      // to it — a cancelled order's rows here are ALL its lines, same as
+      // qty_total/grand_total above.
+      lines: shown.map((l) => ({
+        quality: l.quality,
+        design_no: l.designNo,
+        qty_mtr: Number(l.qtyMtr),
+        rate: l.rate === null ? null : Number(l.rate),
+        line_total: l.lineTotal === null ? null : Number(l.lineTotal),
+        is_cancelled: l.isCancelled,
+        created_at: l.createdAt,
+      })),
     };
   });
 
