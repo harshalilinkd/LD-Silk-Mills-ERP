@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getErpAdmin } from "@/lib/admin";
 import { DropdownMaster } from "@/components/order-entry/settings/dropdown-master";
+import { GoodsReturnLists } from "./goods-return-lists";
 
 export const metadata: Metadata = { title: "Masters — LD Silk Mills ERP" };
 
@@ -37,6 +38,14 @@ export const metadata: Metadata = { title: "Masters — LD Silk Mills ERP" };
  * not live, has four placeholder records, and gets pointed at this list when it
  * is. Doing it now would mean migrating a foreign key for no live benefit.
  *
+ * ── AND THE FOUR THAT ARE NOT IN THIS TABLE AT ALL ────────────────────────
+ *
+ * Goods Return keeps parties, brokers, qualities and transports in its OWN
+ * tables in the `goods_return` schema, because all 341 of its returns point at
+ * those rows by integer id. They appear at the bottom of this page as their own
+ * section rather than as four more tabs, since they cannot be served by the
+ * same API — see `./goods-return-lists.tsx`.
+ *
  * ── PERMISSIONS ───────────────────────────────────────────────────────────
  *
  * ERP admin to see the page, and the lookup API keeps its own Order Entry
@@ -59,7 +68,17 @@ const SHARED_LISTS = [
   { key: "CRM_DELAY_REASON", label: "Delay reasons" },
 ];
 
-export default async function MastersPage() {
+export default async function MastersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const one = (k: string) => {
+    const v = sp[k];
+    return Array.isArray(v) ? v[0] : v;
+  };
+
   // Non-throwing: a member gets a redirect, not a 500. Same shape as the
   // /settings tabs — see the note in src/lib/admin.ts.
   const admin = await getErpAdmin();
@@ -78,6 +97,14 @@ export default async function MastersPage() {
       </div>
 
       <DropdownMaster categories={SHARED_LISTS} />
+
+      {/* Goods Return keeps its own four tables — see the component header for
+          why they are not folded into the nine above. */}
+      <GoodsReturnLists
+        type={one("gr")}
+        q={one("grq")}
+        page={one("grpage")}
+      />
     </div>
   );
 }
