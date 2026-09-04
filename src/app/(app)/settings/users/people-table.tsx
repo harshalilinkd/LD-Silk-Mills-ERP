@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   IconAlertTriangle,
   IconPencil,
   IconPlus,
   IconShieldLock,
+  IconTrash,
   IconUserOff,
 } from "@tabler/icons-react";
 
@@ -110,6 +111,10 @@ export function PeopleTable({
 }) {
   const [editing, setEditing] = useState<Person | null>(null);
   const [adding, setAdding] = useState(false);
+  // A separate trigger from `editing`, purely so the dialog knows to open
+  // straight into the danger-zone section instead of the role pickers — the
+  // safety checks (footprint lookup, confirm step) still live in one place.
+  const [removeTarget, setRemoveTarget] = useState<Person | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -190,15 +195,30 @@ export function PeopleTable({
                         <Chip text="No access" muted />
                       )}
                     </td>
-                    <td className="border-b border-border px-3.5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(p)}
-                        aria-label={`Edit ${p.name}`}
-                        className="grid size-8 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
-                      >
-                        <IconPencil className="size-4" />
-                      </button>
+                    <td className="border-b border-border px-3.5 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(p)}
+                          aria-label={`Edit ${p.name}`}
+                          className="grid size-8 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
+                        >
+                          <IconPencil className="size-4" />
+                        </button>
+                        {/* Hidden, not disabled, on your own row — you can't
+                            remove yourself, and a dead trash icon just invites
+                            a click to find out why. */}
+                        {p.email !== adminEmail ? (
+                          <button
+                            type="button"
+                            onClick={() => setRemoveTarget(p)}
+                            aria-label={`Remove ${p.name}`}
+                            className="grid size-8 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-status-red-dim hover:text-status-red"
+                          >
+                            <IconTrash className="size-4" />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -208,14 +228,16 @@ export function PeopleTable({
         </div>
       </div>
 
-      {(editing || adding) && (
+      {(editing || adding || removeTarget) && (
         <PersonDialog
-          person={editing}
+          person={editing ?? removeTarget}
+          startAtRemove={!!removeTarget}
           departments={departments}
           adminEmail={adminEmail}
           onClose={() => {
             setEditing(null);
             setAdding(false);
+            setRemoveTarget(null);
           }}
         />
       )}
@@ -225,11 +247,14 @@ export function PeopleTable({
 
 function PersonDialog({
   person,
+  startAtRemove = false,
   departments,
   adminEmail,
   onClose,
 }: {
   person: Person | null;
+  /** Opened via the row's trash icon — skip straight to the danger zone. */
+  startAtRemove?: boolean;
   departments: Department[];
   adminEmail: string;
   onClose: () => void;
@@ -267,7 +292,7 @@ function PersonDialog({
   // `null` until asked for, so the count queries only run if somebody opens the
   // remove section — most edits are a role change and never need them.
   const [footprint, setFootprint] = useState<Footprint | null>(null);
-  const [showRemove, setShowRemove] = useState(false);
+  const [showRemove, setShowRemove] = useState(startAtRemove);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const openRemove = () => {
@@ -284,6 +309,13 @@ function PersonDialog({
       });
     }
   };
+
+  // The row's trash icon skips the "Remove…" link entirely, so it has to
+  // trigger the same footprint lookup itself, once, on open.
+  useEffect(() => {
+    if (startAtRemove) openRemove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const run = (fn: () => Promise<void>) => {
     setError(null);
@@ -319,94 +351,111 @@ function PersonDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[520px]">
+      <DialogContent className="max-w-[640px]">
         <DialogHeader>
           <DialogTitle>{isNew ? "Add a person" : name}</DialogTitle>
+          {!isNew ? (
+            <p className="num text-[12.5px] text-text-3">{person.email}</p>
+          ) : null}
         </DialogHeader>
 
-        <div className="flex flex-col gap-3.5 px-1">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12.5px] font-medium text-text-2">
-                Name
-              </span>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-9"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12.5px] font-medium text-text-2">
-                Email
-              </span>
-              {/* Locked once it exists: the email is the key all three systems
-                  are matched on, so changing it here would silently orphan
-                  their Order Entry and Help Slip records rather than rename
-                  them. */}
-              <Input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={!isNew}
-                className="h-9"
-              />
-            </label>
-          </div>
-
-          <Field label="ERP" hint="Signing in at all, and admin rights.">
-            <Picker
-              value={erp}
-              onChange={setErp}
-              options={ERP_ROLES}
-              disabled={isSelf}
-            />
-          </Field>
-
-          <Field label="Orders & CRM" hint="Their role in Order Entry.">
-            <Picker value={oe} onChange={setOe} options={OE_ROLES} />
-          </Field>
-
-          <Field label="Help Slip" hint="Raising and handling concerns.">
-            <Picker value={hs} onChange={setHs} options={HS_ROLES} />
-          </Field>
-
-          {hs !== "none" && (
-            <div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
-              <Field label="Department" hint="Used to route their concerns.">
-                <Picker
-                  value={dept}
-                  onChange={setDept}
-                  options={[
-                    { v: "none", label: "Not set" },
-                    ...departments.map((d) => ({ v: d.id, label: d.name })),
-                  ]}
-                />
-              </Field>
-              <label className="flex cursor-pointer items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={hr}
-                  onChange={(e) => setHr(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />
-                <span className="text-[12.5px] text-text-2">
-                  <span className="font-medium text-text-1">
-                    Can open confidential concerns
-                  </span>
-                  <br />
-                  Complaints raised in confidence are hidden from everyone else,
-                  including other coordinators.
+        <div className="flex flex-col gap-5 px-1">
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Account</SectionLabel>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12.5px] font-medium text-text-2">
+                  Name
                 </span>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-9"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12.5px] font-medium text-text-2">
+                  Email
+                </span>
+                {/* Locked once it exists: the email is the key all three
+                    systems are matched on, so changing it here would
+                    silently orphan their Order Entry and Help Slip records
+                    rather than rename them. */}
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={!isNew}
+                  className="h-9"
+                />
               </label>
             </div>
-          )}
+          </section>
 
-          {isSelf && (
-            <p className="text-[12px] text-text-3">
-              This is your own account, so your ERP role is locked — with no
-              active administrator, nobody could promote one back.
-            </p>
-          )}
+          <div className="h-px bg-border" />
+
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Access</SectionLabel>
+            <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
+              <Field label="ERP" hint="Signing in at all, and admin rights.">
+                <Picker
+                  value={erp}
+                  onChange={setErp}
+                  options={ERP_ROLES}
+                  disabled={isSelf}
+                />
+              </Field>
+
+              <div className="h-px bg-border" />
+
+              <Field label="Orders & CRM" hint="Their role in Order Entry.">
+                <Picker value={oe} onChange={setOe} options={OE_ROLES} />
+              </Field>
+
+              <div className="h-px bg-border" />
+
+              <Field label="Help Slip" hint="Raising and handling concerns.">
+                <Picker value={hs} onChange={setHs} options={HS_ROLES} />
+              </Field>
+            </div>
+
+            {hs !== "none" && (
+              <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
+                <Field label="Department" hint="Used to route their concerns.">
+                  <Picker
+                    value={dept}
+                    onChange={setDept}
+                    options={[
+                      { v: "none", label: "Not set" },
+                      ...departments.map((d) => ({ v: d.id, label: d.name })),
+                    ]}
+                  />
+                </Field>
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={hr}
+                    onChange={(e) => setHr(e.target.checked)}
+                    className="mt-0.5 size-4"
+                  />
+                  <span className="text-[12.5px] text-text-2">
+                    <span className="font-medium text-text-1">
+                      Can open confidential concerns
+                    </span>
+                    <br />
+                    Complaints raised in confidence are hidden from everyone
+                    else, including other coordinators.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {isSelf && (
+              <p className="text-[12px] text-text-3">
+                This is your own account, so your ERP role is locked — with no
+                active administrator, nobody could promote one back.
+              </p>
+            )}
+          </section>
 
           {/* ── taking somebody out ─────────────────────────────────────
               Behind a link rather than on the surface: this is the rare
@@ -416,113 +465,122 @@ function PersonDialog({
               used to be setting three dropdowns to "No access" one at a
               time, and nobody would guess that. */}
           {!isNew && !isSelf && (
-            <div className="rounded-field border border-border bg-surface-2 p-3">
-              {!showRemove ? (
-                <button
-                  type="button"
-                  onClick={openRemove}
-                  className="cursor-pointer text-[12.5px] font-medium text-text-3 underline underline-offset-2 hover:text-status-red"
-                >
-                  Remove {name.trim() || "this person"} from the system…
-                </button>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-start gap-2.5">
-                    <IconUserOff className="mt-0.5 size-4 shrink-0 text-text-3" />
-                    <div className="text-[12.5px] text-text-2">
-                      <div className="font-semibold text-text-1">
-                        Switch off their access
-                      </div>
-                      They keep their record and everything they have ever done
-                      keeps their name on it. Give the roles back and they are
-                      in again.
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 self-start"
-                    disabled={pending}
-                    onClick={() => run(() => removeAllAccess(person.email))}
-                  >
-                    Switch off all access
-                  </Button>
-
-                  <div className="border-t border-border pt-3">
-                    {footprint === null ? (
-                      <p className="text-[12.5px] text-text-3">
-                        Checking what else refers to them…
-                      </p>
-                    ) : footprint.blockers.length > 0 ? (
+            <>
+              <div className="h-px bg-border" />
+              <section className="flex flex-col gap-3">
+                <SectionLabel tone="danger">Danger zone</SectionLabel>
+                <div className="rounded-field border border-status-red/25 bg-surface p-3.5 shadow-sm">
+                  {!showRemove ? (
+                    <button
+                      type="button"
+                      onClick={openRemove}
+                      className="cursor-pointer text-[12.5px] font-medium text-text-3 underline underline-offset-2 hover:text-status-red"
+                    >
+                      Remove {name.trim() || "this person"} from the system…
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-3">
                       <div className="flex items-start gap-2.5">
-                        <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-text-3" />
-                        <p className="text-[12.5px] text-text-2">
-                          <span className="font-semibold text-text-1">
-                            They cannot be deleted.
-                          </span>{" "}
-                          There {footprint.blockers.length === 1 ? "is" : "are"}{" "}
-                          {footprint.blockers
-                            .map(
-                              (b) =>
-                                `${b.count} ${b.count === 1 ? b.one : b.many}`,
-                            )
-                            .join(", ")}{" "}
-                          on this account. Deleting it would leave that work
-                          with no name on it — switch off their access instead.
-                        </p>
-                      </div>
-                    ) : !confirmDelete ? (
-                      <div className="flex flex-col gap-2.5">
-                        <p className="text-[12.5px] text-text-2">
-                          <span className="font-semibold text-text-1">
-                            Nothing refers to this account.
-                          </span>{" "}
-                          No orders, no concerns, no recorded actions — so it
-                          can be deleted outright. Use this for duplicates and
-                          leftover test accounts, not for people who have left.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(true)}
-                          className="cursor-pointer self-start text-[12.5px] font-semibold text-status-red underline underline-offset-2"
-                        >
-                          Delete permanently
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2.5">
-                        <p className="text-[12.5px] font-semibold text-status-red">
-                          Delete {person.email} from all three systems? This
-                          cannot be undone.
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-9"
-                            disabled={pending}
-                            onClick={() =>
-                              run(() => deletePersonAction(person.email))
-                            }
-                          >
-                            {pending ? "Deleting…" : "Yes, delete"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-9"
-                            disabled={pending}
-                            onClick={() => setConfirmDelete(false)}
-                          >
-                            Keep it
-                          </Button>
+                        <IconUserOff className="mt-0.5 size-4 shrink-0 text-text-3" />
+                        <div className="text-[12.5px] text-text-2">
+                          <div className="font-semibold text-text-1">
+                            Switch off their access
+                          </div>
+                          They keep their record and everything they have ever
+                          done keeps their name on it. Give the roles back and
+                          they are in again.
                         </div>
                       </div>
-                    )}
-                  </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 self-start"
+                        disabled={pending}
+                        onClick={() => run(() => removeAllAccess(person.email))}
+                      >
+                        Switch off all access
+                      </Button>
+
+                      <div className="border-t border-border pt-3">
+                        {footprint === null ? (
+                          <p className="text-[12.5px] text-text-3">
+                            Checking what else refers to them…
+                          </p>
+                        ) : footprint.blockers.length > 0 ? (
+                          <div className="flex items-start gap-2.5">
+                            <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-text-3" />
+                            <p className="text-[12.5px] text-text-2">
+                              <span className="font-semibold text-text-1">
+                                They cannot be deleted.
+                              </span>{" "}
+                              There{" "}
+                              {footprint.blockers.length === 1 ? "is" : "are"}{" "}
+                              {footprint.blockers
+                                .map(
+                                  (b) =>
+                                    `${b.count} ${b.count === 1 ? b.one : b.many}`,
+                                )
+                                .join(", ")}{" "}
+                              on this account. Deleting it would leave that work
+                              with no name on it — switch off their access
+                              instead.
+                            </p>
+                          </div>
+                        ) : !confirmDelete ? (
+                          <div className="flex flex-col gap-2.5">
+                            <p className="text-[12.5px] text-text-2">
+                              <span className="font-semibold text-text-1">
+                                Nothing refers to this account.
+                              </span>{" "}
+                              No orders, no concerns, no recorded actions — so
+                              it can be deleted outright. Use this for
+                              duplicates and leftover test accounts, not for
+                              people who have left.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDelete(true)}
+                              className="cursor-pointer self-start text-[12.5px] font-semibold text-status-red underline underline-offset-2"
+                            >
+                              Delete permanently
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2.5">
+                            <p className="text-[12.5px] font-semibold text-status-red">
+                              Delete {person.email} from all three systems? This
+                              cannot be undone.
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-9"
+                                disabled={pending}
+                                onClick={() =>
+                                  run(() => deletePersonAction(person.email))
+                                }
+                              >
+                                {pending ? "Deleting…" : "Yes, delete"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-9"
+                                disabled={pending}
+                                onClick={() => setConfirmDelete(false)}
+                              >
+                                Keep it
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </section>
+            </>
           )}
 
           {error && (
@@ -548,6 +606,25 @@ function PersonDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SectionLabel({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone?: "danger";
+}) {
+  return (
+    <div
+      className={cn(
+        "text-[11px] font-bold tracking-[0.06em] uppercase",
+        tone === "danger" ? "text-status-red/80" : "text-text-3",
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
