@@ -26,6 +26,7 @@ import {
   IconAlertTriangle,
   IconClock,
   IconCurrencyRupee,
+  IconFilter,
   IconRefresh,
   IconSearch,
 } from "@tabler/icons-react";
@@ -134,7 +135,18 @@ function useLookupList(
   }, [q.data]);
 }
 
-export function IssuesBoard({ canEdit }: { canEdit: boolean }) {
+export function IssuesBoard({
+  canEdit,
+  from,
+  to,
+}: {
+  canEdit: boolean;
+  // The raised-date window. Owned by the page (its trigger sits top-right,
+  // beside the title) so the board's own rows stay pure status/category/
+  // severity/owner/search — the window is a rarer refinement, not a row.
+  from: string;
+  to: string;
+}) {
   // Deep links land here from the call log, where an issue COUNT is a link.
   // Read ONCE, as the initial state — after that the controls own them, so
   // changing a filter does not fight the URL.
@@ -152,11 +164,10 @@ export function IssuesBoard({ canEdit }: { canEdit: boolean }) {
   const [severity, setSeverity] = React.useState(initialSeverity);
   const [dept, setDept] = React.useState(initialDept);
   const [groupBy, setGroupBy] = React.useState<"dept" | "category">("dept");
-  const [from, setFrom] = React.useState("");
-  const [to, setTo] = React.useState("");
   const [rawSearch, setRawSearch] = React.useState(initialQ);
   const [page, setPage] = React.useState(1);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const search = useDebouncedValue(rawSearch, 250);
 
@@ -207,128 +218,18 @@ export function IssuesBoard({ canEdit }: { canEdit: boolean }) {
   };
 
   const groups = groupBy === "dept" ? (data?.byDept ?? []) : (data?.byCategory ?? []);
+  const hasSecondaryFilters = !!(
+    (status && status !== "OPEN_ANY") ||
+    category ||
+    severity ||
+    dept
+  );
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Region A — the filter bar, above the tiles (uniquely on this screen). */}
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setStatus(t.value)}
-            className={cn(
-              "cursor-pointer rounded-pill px-3.5 py-1.5 text-[12.5px] font-medium transition-colors duration-150",
-              status === t.value
-                ? "bg-primary text-primary-foreground"
-                : "text-text-2 hover:bg-chip hover:text-text-1",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-
-        <select
-          className={selectCls}
-          aria-label="Category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {categoryLabel(c)}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={selectCls}
-          aria-label="Severity"
-          value={severity}
-          onChange={(e) => setSeverity(e.target.value)}
-        >
-          <option value="">All severities</option>
-          {ISSUE_SEVERITIES.map((s) => (
-            <option key={s} value={s}>
-              {SEVERITY_LABEL[s]}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={selectCls}
-          aria-label="Department"
-          value={dept}
-          onChange={(e) => setDept(e.target.value)}
-        >
-          <option value="">Anyone&rsquo;s to fix</option>
-          {depts.map((dp) => (
-            <option key={dp} value={dp}>
-              {DEPT_LABEL[dp] ?? dp}
-            </option>
-          ))}
-        </select>
-
-        {/* The window is on when the complaint was RAISED, not on the order
-            date: an old order can produce a new complaint, and filtering on
-            order date would hide it. */}
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            aria-label="Raised from"
-            className={selectCls}
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <span className="text-[12px] text-text-2">to</span>
-          <input
-            type="date"
-            aria-label="Raised to"
-            className={selectCls}
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-          />
-          {from || to ? (
-            <button
-              type="button"
-              onClick={() => {
-                setFrom("");
-                setTo("");
-              }}
-              className="cursor-pointer rounded-field px-1.5 py-1 text-[12px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-
-        <div className="relative order-last w-full min-w-0 sm:order-none sm:w-auto sm:min-w-[180px] sm:flex-1">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
-          <Input
-            value={rawSearch}
-            onChange={(e) => setRawSearch(e.target.value)}
-            placeholder="Order, party, quality or design…"
-            aria-label="Search"
-            className="h-9 pl-8"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void q.refetch()}
-          title="Refresh"
-          aria-label="Refresh"
-          className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
-        >
-          <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
-        </button>
-      </div>
-
-      {/* Region B — KPI tiles. Each `sub` switches between the imperative and
-          the present tense, so the tile says whether it is currently in force. */}
+      {/* Region A — KPI tiles, first thing on the screen. Each `sub` switches
+          between the imperative and the present tense, so the tile says
+          whether it is currently in force. */}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           className="py-2.5 sm:py-3"
@@ -380,12 +281,139 @@ export function IssuesBoard({ canEdit }: { canEdit: boolean }) {
         />
       </div>
 
+      {/* Region B — search stays visible; everything else (status, category,
+          severity, owner) collapses behind Filters, the same toggle-and-
+          expand pattern the Orders screen uses. The raised-date window lives
+          in the page header, so it never needs a row here at all. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
+            <Input
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              placeholder="Order, party, quality or design…"
+              aria-label="Search"
+              className="h-9 pl-8"
+            />
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters((s) => !s)}
+            aria-pressed={showFilters}
+          >
+            <IconFilter className="size-4" /> Filters
+            {hasSecondaryFilters ? (
+              <span className="ml-1 size-1.5 rounded-full bg-primary" />
+            ) : null}
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => void q.refetch()}
+            title="Refresh"
+            aria-label="Refresh"
+            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+          >
+            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
+          </button>
+        </div>
+
+        {showFilters ? (
+          <div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-4">
+              <label className="flex flex-col gap-1 text-[11px] font-medium text-text-2">
+                Status
+                <select
+                  className={cn(selectCls, "w-full")}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  {STATUS_TABS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] font-medium text-text-2">
+                Category
+                <select
+                  className={cn(selectCls, "w-full")}
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="">All categories</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {categoryLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] font-medium text-text-2">
+                Severity
+                <select
+                  className={cn(selectCls, "w-full")}
+                  value={severity}
+                  onChange={(e) => setSeverity(e.target.value)}
+                >
+                  <option value="">All severities</option>
+                  {ISSUE_SEVERITIES.map((s) => (
+                    <option key={s} value={s}>
+                      {SEVERITY_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-[11px] font-medium text-text-2">
+                Owner
+                <select
+                  className={cn(selectCls, "w-full")}
+                  value={dept}
+                  onChange={(e) => setDept(e.target.value)}
+                >
+                  <option value="">Anyone&rsquo;s to fix</option>
+                  {depts.map((dp) => (
+                    <option key={dp} value={dp}>
+                      {DEPT_LABEL[dp] ?? dp}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {hasSecondaryFilters ? (
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatus("OPEN_ANY");
+                    setCategory("");
+                    setSeverity("");
+                    setDept("");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
       {/* Region C — the board. */}
-      <div className="grid gap-3 lg:grid-cols-[196px_1fr]">
+      <div className="grid gap-3 lg:grid-cols-[232px_1fr]">
         {/* The group-by rail doubles as a filter, and its two modes answer
             different questions: BY DEPARTMENT is who has to act, BY CATEGORY is
-            what keeps happening. */}
-        <div className="h-fit rounded-card border border-border bg-surface">
+            what keeps happening. Desktop-only — on a phone this is a whole
+            extra card just for a toggle and (usually) "nothing to break down
+            yet"; department and category are still reachable from Filters. */}
+        <div className="hidden h-fit rounded-card border border-border bg-surface lg:block">
           <div className="px-3 pt-3 pb-2">
             <Segmented
               size="sm"

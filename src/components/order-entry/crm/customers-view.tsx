@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   IconArrowDownRight,
   IconArrowUpRight,
+  IconFilter,
   IconLink,
   IconMinus,
   IconRefresh,
@@ -41,6 +42,7 @@ import {
 } from "@/lib/order-entry/orders";
 import { useDebouncedValue } from "@/components/order-entry/shared/use-debounced-value";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { HScroll } from "@/components/ui/hscroll";
 import { Input } from "@/components/ui/input";
 import { Pager } from "@/components/ui/pager";
@@ -109,15 +111,14 @@ function Trend({ v }: { v: number | null }) {
   );
 }
 
-export function CustomersView() {
+export function CustomersView({ from, to }: { from: string; to: string }) {
   const [rawSearch, setRawSearch] = React.useState("");
   const [sort, setSort] = React.useState<CustomerSort>("value");
   const [rated, setRated] = React.useState("");
   const [linked, setLinked] = React.useState("");
   const [signal, setSignal] = React.useState("");
-  const [from, setFrom] = React.useState("");
-  const [to, setTo] = React.useState("");
   const [page, setPage] = React.useState(1);
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const search = useDebouncedValue(rawSearch, 250);
 
@@ -223,85 +224,75 @@ export function CustomersView() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm">
-        <div className="relative min-w-[220px] flex-1">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
-          <Input
-            value={rawSearch}
-            onChange={(e) => setRawSearch(e.target.value)}
-            placeholder="Party name or CRR customer id…"
-            aria-label="Search"
-            className="h-9 pl-8"
-          />
-        </div>
-        <select
-          className={selectCls}
-          aria-label="Ratings"
-          value={rated}
-          onChange={(e) => setRated(e.target.value)}
-        >
-          <option value="">All ratings</option>
-          <option value="any">Rated (any score)</option>
-          <option value="low">Rated 3 or below</option>
-          <option value="high">Rated 4–5</option>
-        </select>
-        <select
-          className={selectCls}
-          aria-label="Sort"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as CustomerSort)}
-        >
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
+            <Input
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              placeholder="Party name or CRR customer id…"
+              aria-label="Search"
+              className="h-9 pl-8"
+            />
+          </div>
+          <select
+            className={selectCls}
+            aria-label="Sort"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as CustomerSort)}
+          >
+            {SORTS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
 
-        {/* Order-date window. A customer with no order inside it DROPS OUT
-            rather than showing a row of dashes — "who bought in August" is not
-            answered by listing everyone with blanks. */}
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            aria-label="Orders from"
-            className={selectCls}
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <span className="text-[12px] font-medium text-text-2">to</span>
-          <input
-            type="date"
-            aria-label="Orders to"
-            className={selectCls}
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-          />
-          {from || to ? (
-            <button
-              type="button"
-              onClick={() => {
-                setFrom("");
-                setTo("");
-              }}
-              className="cursor-pointer rounded-field px-1.5 py-1 text-[12px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-            >
-              Clear
-            </button>
-          ) : null}
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters((s) => !s)}
+            aria-pressed={showFilters}
+          >
+            <IconFilter className="size-4" /> Filters
+            {rated ? <span className="ml-1 size-1.5 rounded-full bg-primary" /> : null}
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => void q.refetch()}
+            title="Refresh"
+            aria-label="Refresh"
+            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+          >
+            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void q.refetch()}
-          title="Refresh"
-          aria-label="Refresh"
-          className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
-        >
-          <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
-        </button>
+        {showFilters ? (
+          <div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
+            <label className="flex max-w-[280px] flex-col gap-1 text-[11px] font-medium text-text-2">
+              Rating
+              <select
+                className={cn(selectCls, "w-full")}
+                value={rated}
+                onChange={(e) => setRated(e.target.value)}
+              >
+                <option value="">All ratings</option>
+                <option value="any">Rated (any score)</option>
+                <option value="low">Rated 3 or below</option>
+                <option value="high">Rated 4–5</option>
+              </select>
+            </label>
+            {rated ? (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setRated("")}>
+                  Clear filters
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-card border border-border bg-surface">

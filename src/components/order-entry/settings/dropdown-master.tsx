@@ -7,8 +7,12 @@
 // rebuilt on plain fetch + component state (no TanStack Query / sonner in this
 // shell) and restyled against docs/DESIGN.md.
 //
-// The CRM_* categories in LOOKUP_CATEGORIES are deliberately NOT listed here —
-// they belong to the separately-scoped CRM settings tab.
+// CATEGORIES below is only the DEFAULT set. The screen takes a `categories`
+// prop so the same component can serve two places without a second copy:
+//   · Masters (/masters/lists) passes all nine, including the CRM ones
+//   · anywhere else that wants a subset passes its own
+// One component, one behaviour — add/edit/deactivate/bulk-paste/CRR-linking —
+// and no chance of the two drifting apart.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   IconCheck,
@@ -41,21 +45,30 @@ type LookupRow = {
   crr_customer_id: number | null;
 };
 
-const CATEGORIES = [
+export type MasterCategory = { key: string; label: string };
+
+const DEFAULT_CATEGORIES: MasterCategory[] = [
   { key: "PARTY", label: "Party" },
   { key: "FABRIC", label: "Fabric" },
   { key: "AGENT", label: "Agent" },
   { key: "TRANSPORT", label: "Transport" },
   { key: "HASTE", label: "Haste" },
   { key: "SALES_PERSON", label: "Sales person" },
-] as const;
+];
 
 // Party and Haste are both company names, so both are matched against the CRR
 // customer master. The other categories are not customers and never link.
 const CRR_LINKED = new Set<string>(["PARTY", "HASTE"]);
 
-export function DropdownMaster() {
-  const [category, setCategory] = useState<string>("PARTY");
+export function DropdownMaster({
+  categories = DEFAULT_CATEGORIES,
+}: {
+  /** Which lists this instance manages. Defaults to the six order-form ones. */
+  categories?: MasterCategory[];
+} = {}) {
+  const [category, setCategory] = useState<string>(
+    () => categories[0]?.key ?? "PARTY",
+  );
   const [rows, setRows] = useState<LookupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,7 +91,7 @@ export function DropdownMaster() {
   const [bulkText, setBulkText] = useState("");
 
   const categoryLabel =
-    CATEGORIES.find((c) => c.key === category)?.label ?? category;
+    categories.find((c) => c.key === category)?.label ?? category;
 
   const load = useCallback(async (cat: string) => {
     setLoading(true);
@@ -113,7 +126,9 @@ export function DropdownMaster() {
   // Runs a write, then reloads. `message` is shown as a transient notice.
   const run = useCallback(
     async (
-      fn: () => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
+      fn: () => Promise<
+        { ok: true; data: unknown } | { ok: false; error: string }
+      >,
       message?: string,
     ) => {
       setBusy(true);
@@ -140,9 +155,12 @@ export function DropdownMaster() {
 
   // Selection is scoped to the rows the filter is actually showing, so the
   // action bar's count never refers to something hidden.
-  const visibleSelectedIds = visible.filter((r) => selected.has(r.id)).map((r) => r.id);
+  const visibleSelectedIds = visible
+    .filter((r) => selected.has(r.id))
+    .map((r) => r.id);
   const selectedCount = visibleSelectedIds.length;
-  const allVisibleSelected = visible.length > 0 && selectedCount === visible.length;
+  const allVisibleSelected =
+    visible.length > 0 && selectedCount === visible.length;
 
   function toggleOne(id: string) {
     // Any change to the selection retracts the bulk confirm — otherwise the
@@ -203,7 +221,9 @@ export function DropdownMaster() {
               body: { is_active: true },
             })
           : apiJson(`/api/order-entry/lookups/${id}`, { method: "DELETE" }),
-      active ? "Value reactivated." : "Value deactivated — hidden from dropdowns.",
+      active
+        ? "Value reactivated."
+        : "Value deactivated — hidden from dropdowns.",
     );
   }
 
@@ -226,7 +246,9 @@ export function DropdownMaster() {
   async function hardDelete(r: LookupRow) {
     const ok = await run(
       () =>
-        apiJson(`/api/order-entry/lookups/${r.id}?hard=1`, { method: "DELETE" }),
+        apiJson(`/api/order-entry/lookups/${r.id}?hard=1`, {
+          method: "DELETE",
+        }),
       `Deleted “${r.value}” permanently.`,
     );
     if (ok) setConfirmId(null);
@@ -288,7 +310,7 @@ export function DropdownMaster() {
         bodyClassName="flex flex-col gap-3.5"
       >
         <div className="flex flex-wrap gap-1.5">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c.key}
               type="button"

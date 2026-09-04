@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   IconAlertTriangle,
+  IconFilter,
   IconMessage2,
   IconPhoneCall,
   IconRefresh,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/order-entry/orders";
 import { useDebouncedValue } from "@/components/order-entry/shared/use-debounced-value";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { HScroll } from "@/components/ui/hscroll";
 import { Input } from "@/components/ui/input";
 import { Pager } from "@/components/ui/pager";
@@ -70,13 +72,12 @@ function money(n: number): string {
   return `₹${formatNumber(n)}`;
 }
 
-export function CallsLog() {
+export function CallsLog({ from, to }: { from: string; to: string }) {
   const [rawSearch, setRawSearch] = React.useState("");
   const [has, setHas] = React.useState("");
-  const [from, setFrom] = React.useState("");
-  const [to, setTo] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const search = useDebouncedValue(rawSearch, 250);
 
@@ -149,74 +150,66 @@ export function CallsLog() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm">
-        <select
-          className={selectCls}
-          value={has}
-          onChange={(e) => setHas(e.target.value)}
-          aria-label="Show"
-        >
-          <option value="">Every worked call</option>
-          <option value="feedback">Only with feedback</option>
-          <option value="reorder">Only with a reorder signal</option>
-          <option value="rating">Only rated</option>
-        </select>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {/* Search reaches INSIDE the feedback text and the reorder note —
+              "who mentioned packing?" is the question this screen exists to
+              answer, so it stays visible rather than hiding behind Filters. */}
+          <div className="relative min-w-0 flex-1">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
+            <Input
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              placeholder="Search order, party, or anything they said…"
+              aria-label="Search"
+              className="h-9 pl-8"
+            />
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            aria-label="From"
-            className={selectCls}
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <span className="text-[11.5px] text-text-2">to</span>
-          <input
-            type="date"
-            aria-label="To"
-            className={selectCls}
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-          />
-          {from || to ? (
-            <button
-              type="button"
-              onClick={() => {
-                setFrom("");
-                setTo("");
-              }}
-              className="cursor-pointer rounded-field px-1.5 py-1 text-[11.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-            >
-              Clear
-            </button>
-          ) : null}
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters((s) => !s)}
+            aria-pressed={showFilters}
+          >
+            <IconFilter className="size-4" /> Filters
+            {has ? <span className="ml-1 size-1.5 rounded-full bg-primary" /> : null}
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => void q.refetch()}
+            title="Refresh"
+            aria-label="Refresh"
+            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+          >
+            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
+          </button>
         </div>
 
-        {/* Search reaches INSIDE the feedback text and the reorder note —
-            "who mentioned packing?" is the question this screen exists to
-            answer. */}
-        <div className="relative order-last w-full min-w-0 sm:order-none sm:w-auto sm:min-w-[220px] sm:flex-1">
-          <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
-          <Input
-            value={rawSearch}
-            onChange={(e) => setRawSearch(e.target.value)}
-            placeholder="Search order, party, or anything they said…"
-            aria-label="Search"
-            className="h-9 pl-8"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => void q.refetch()}
-          title="Refresh"
-          aria-label="Refresh"
-          className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
-        >
-          <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
-        </button>
+        {showFilters ? (
+          <div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
+            <label className="flex max-w-[280px] flex-col gap-1 text-[11px] font-medium text-text-2">
+              Show
+              <select
+                className={cn(selectCls, "w-full")}
+                value={has}
+                onChange={(e) => setHas(e.target.value)}
+              >
+                <option value="">Every worked call</option>
+                <option value="feedback">Only with feedback</option>
+                <option value="reorder">Only with a reorder signal</option>
+                <option value="rating">Only rated</option>
+              </select>
+            </label>
+            {has ? (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setHas("")}>
+                  Clear filters
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-card border border-border bg-surface">

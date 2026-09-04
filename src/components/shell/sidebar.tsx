@@ -1,4 +1,5 @@
 import {
+  IconDatabase,
   IconLayoutDashboard,
   IconReportAnalytics,
   IconSparkles,
@@ -74,6 +75,15 @@ export function Sidebar({
         ))}
 
         <div className="mt-3.5 space-y-0.5">
+          {/* Masters sits OUTSIDE the module groups on purpose. Party, fabric,
+              agent, transport, haste, sales person, departments, complaint
+              categories and delay reasons are shared by every module and
+              belong to none of them — they were buried under Order Entry
+              Settings, so adding a transporter meant knowing to look inside
+              Orders. */}
+          <NavLink href="/masters" icon={<IconDatabase />}>
+            Masters
+          </NavLink>
           <NavLink href="/reports" icon={<IconReportAnalytics />}>
             Reports
           </NavLink>
