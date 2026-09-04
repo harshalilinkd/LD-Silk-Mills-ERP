@@ -14,38 +14,39 @@ export type Capability =
   | "crm.view"
   | "crm.edit";
 
-export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = [
-  {
-    key: "orders.view",
-    label: "View orders",
-    hint: "Dashboard, orders list & detail, order status",
-  },
-  {
-    key: "orders.edit",
-    label: "Create / edit orders",
-    hint: "New order, edit, delete",
-  },
-  {
-    key: "operations.view",
-    label: "View operations",
-    hint: "See the 7-stage tracking board",
-  },
-  {
-    key: "operations.edit",
-    label: "Update operations",
-    hint: "Mark stages done, set stock status",
-  },
-  {
-    key: "crm.view",
-    label: "View CRM",
-    hint: "Follow-up queue, issues, customer history",
-  },
-  {
-    key: "crm.edit",
-    label: "Work the CRM queue",
-    hint: "Log calls, rate orders, raise and resolve issues",
-  },
-];
+export const CAPABILITIES: { key: Capability; label: string; hint: string }[] =
+  [
+    {
+      key: "orders.view",
+      label: "View orders",
+      hint: "Dashboard, orders list & detail, order status",
+    },
+    {
+      key: "orders.edit",
+      label: "Create / edit orders",
+      hint: "New order, edit, delete",
+    },
+    {
+      key: "operations.view",
+      label: "View operations",
+      hint: "See the 7-stage tracking board",
+    },
+    {
+      key: "operations.edit",
+      label: "Update operations",
+      hint: "Mark stages done, set stock status",
+    },
+    {
+      key: "crm.view",
+      label: "View CRM",
+      hint: "Follow-up queue, issues, customer history",
+    },
+    {
+      key: "crm.edit",
+      label: "Work the CRM queue",
+      hint: "Log calls, rate orders, raise and resolve issues",
+    },
+  ];
 
 export const CAPABILITY_KEYS: Capability[] = CAPABILITIES.map((c) => c.key);
 
@@ -84,7 +85,11 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/order-entry" },
   { label: "New order", href: "/order-entry/orders/new", cap: "orders.edit" },
-  { label: "Orders", href: "/order-entry/orders", cap: "orders.view" },
+  // Kept in step with SYSTEM_SUBMENUS by hand. This list feeds `visibleNav`,
+  // which nothing renders today (the sidebar is DB-driven) — but if it is
+  // ever mounted, a label that disagrees with the sidebar is worse than a
+  // one-word edit now.
+  { label: "All Orders", href: "/order-entry/orders", cap: "orders.view" },
   {
     label: "Order status",
     href: "/order-entry/order-status",
