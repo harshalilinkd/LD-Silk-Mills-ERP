@@ -526,3 +526,120 @@
     transform: none;
   }
 }
+
+/* ===========================================================================
+ * THE SIGN-IN SCREEN
+ * ===========================================================================
+ *
+ * Its own token set, scoped to `.ld-auth`, and deliberately NOT the app's
+ * theme tokens. Every other screen in this ERP inverts between light and dark;
+ * this one is a photograph of cream and teal silk in warm daylight and is the
+ * same in both. Wiring it to `--surface`/`--text-1` would mean a dark-mode user
+ * gets a charcoal card floating on a sunlit photograph.
+ *
+ * Everything the page measures comes from here, so a change lands once.
+ * ------------------------------------------------------------------------ */
+.ld-auth {
+  /* ink */
+  --auth-ink: #12302e; /* headings, input text */
+  --auth-ink-2: #2b423f; /* labels */
+  --auth-ink-3: #52605d; /* helper and secondary copy */
+  --auth-teal: #0b5f57; /* the brand, and the primary action */
+  --auth-teal-deep: #0a423e;
+  --auth-teal-lift: #12695f;
+
+  /* materials */
+  --auth-card: rgba(252, 249, 243, 0.9);
+  --auth-card-edge: rgba(255, 255, 255, 0.72);
+  --auth-field: #fdfcf9; /* near-ivory, never pure white */
+  --auth-field-edge: #ded5c4;
+
+  /* geometry */
+  --auth-r-card: 22px;
+  --auth-r-field: 13px;
+  --auth-tap: 46px; /* every control clears the 44px touch minimum */
+
+  /* elevation, tinted teal — a shadow on coloured cloth takes its colour */
+  --auth-shadow-card:
+    0 30px 80px -26px rgba(12, 48, 44, 0.5), 0 2px 8px rgba(12, 48, 44, 0.08);
+  --auth-shadow-cta: 0 10px 24px -8px rgba(11, 66, 62, 0.6);
+  --auth-shadow-cta-hover: 0 16px 32px -8px rgba(11, 66, 62, 0.72);
+
+  --auth-ease: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* THE BLUE BOX. Chrome paints autofilled inputs with its own pale blue and
+ * ignores `background-color` outright — which is why the fields looked like a
+ * different component the moment a saved password dropped in. The inset shadow
+ * is the only thing that overrides it, and the absurd transition delay stops
+ * Chrome repainting the blue a frame later. */
+.ld-auth input:-webkit-autofill,
+.ld-auth input:-webkit-autofill:hover,
+.ld-auth input:-webkit-autofill:focus,
+.ld-auth input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--auth-ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--auth-field) inset;
+  box-shadow: 0 0 0 1000px var(--auth-field) inset;
+  caret-color: var(--auth-ink);
+  transition: background-color 100000s ease-in-out 0s;
+}
+
+/* ONE field treatment, used by both inputs.
+ *
+ * Written as `input.auth-field` on purpose. The password field renders through
+ * the shared <Input>, which carries a long Tailwind utility string including
+ * `dark:bg-input/30` and `focus-visible:ring-ring/50` — those are two-class
+ * selectors, so a plain `.ld-auth .auth-field` would only TIE with them and
+ * the winner would depend on stylesheet order. Adding the element name makes
+ * it 0,2,1 and settles it. Without this the field renders dark-themed on a
+ * sunlit photograph for anyone whose ERP is in dark mode. */
+.ld-auth input.auth-field {
+  height: var(--auth-tap);
+  width: 100%;
+  border-radius: var(--auth-r-field);
+  border: 1px solid var(--auth-field-edge);
+  background: var(--auth-field);
+  color: var(--auth-ink);
+  padding-left: 42px;
+  /* Right padding clears the reveal button. Applied to BOTH fields so the two
+     line up — the email field does not need the room, but a 28px difference in
+     text inset between two stacked inputs is visible. */
+  padding-right: 42px;
+  font-size: 16px; /* never smaller: under 16px iOS zooms on focus */
+  outline: none;
+  transition:
+    border-color var(--auth-ease),
+    box-shadow var(--auth-ease),
+    background-color var(--auth-ease);
+}
+.ld-auth input.auth-field::placeholder {
+  color: #9aa5a2;
+}
+.ld-auth input.auth-field:focus,
+.ld-auth input.auth-field:focus-visible {
+  border-color: var(--auth-teal);
+  box-shadow: 0 0 0 3px rgba(11, 95, 87, 0.14);
+}
+/* Keyboard users get a visible ring on every control, not just the fields. */
+.ld-auth :focus-visible {
+  outline: 2px solid var(--auth-teal);
+  outline-offset: 2px;
+}
+.ld-auth input.auth-field:focus-visible {
+  outline: none;
+}
+
+/* The reveal toggle is 32px in the shared component, which is right inside a
+   36px settings row and too small for a thumb here. Widened only within this
+   scope, so Settings is untouched. */
+.ld-auth button[aria-label="Show password"],
+.ld-auth button[aria-label="Hide password"] {
+  height: 38px;
+  width: 38px;
+}
+
+@media (min-width: 640px) {
+  .ld-auth input.auth-field {
+    font-size: 15px;
+  }
+}
