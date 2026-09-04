@@ -215,7 +215,24 @@ into the desktop layout when the window is widened.
 
 Dynamic, driven entirely by `ld_erp_core.systems` + `system_access` — never
 hardcoded. A system with `status != active` renders greyed/unclickable
-regardless of any other setting. `src/lib/system-submenus.ts` is a small
+regardless of any other setting.
+
+**Switching a system ON makes it DISAPPEAR until somebody is granted it**, and
+that trap is worth knowing before you hit it. `coming_soon` is shown to
+EVERYONE as a greyed preview; `active` is shown only to people with an explicit
+`system_access.can_view = true` row. So an admin who marks a system live and
+grants nobody watches it vanish from their own sidebar and concludes the switch
+failed (this happened with `crr`). The rule is right — a live system is a real
+destination and should be granted deliberately — so the fix was to make the gap
+visible: `/settings/systems` now prints the viewer count beside Active and an
+amber "Nobody can see it — grant access" when it is zero.
+
+**`open_mode` must match where the system actually lives.** `internal` means a
+page inside THIS app and needs a `route`; `external` opens `application_url` in
+a new tab. With `internal` and no route the sidebar guesses `/<system_code>`,
+which 404s for anything hosted elsewhere — `crr` was configured that way and
+would have been a dead link even once it was visible. The registry now flags
+both empty cases. `src/lib/system-submenus.ts` is a small
 hand-maintained map (not DB-driven) of which systems have a built sidebar
 submenu; currently only `order-entry` does (Dashboard / New order / Orders
 / Order status / Operations / Settings, collapsible, auto-expands when

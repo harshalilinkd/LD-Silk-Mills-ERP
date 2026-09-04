@@ -31,6 +31,34 @@ export async function getVisibleSystemsForUser(userId: string) {
 }
 
 /**
+ * How many people can actually SEE each system.
+ *
+ * This exists because of a trap that cost a real afternoon: a system that is
+ * `coming_soon` is shown to EVERYONE as a greyed preview, and the moment an
+ * admin switches it to `active` it becomes visible only to people with an
+ * explicit `can_view` row. So marking a system live makes it VANISH from the
+ * sidebar of everybody who has not been ticked — including the admin who just
+ * marked it live, who then reasonably concludes the switch did not work.
+ *
+ * The rule itself is right: an active system is a real destination and should
+ * be granted deliberately. What was wrong is that the registry said "Active"
+ * and said nothing about nobody being able to reach it. The count is rendered
+ * beside the status so the gap is visible at the moment it is created.
+ */
+export async function getSystemViewerCounts(): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ systemId: systemAccess.systemId, canView: systemAccess.canView })
+    .from(systemAccess)
+    .where(eq(systemAccess.canView, true));
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    counts.set(r.systemId, (counts.get(r.systemId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
  * THE COLUMNS A USER ROW IS ALLOWED TO LEAVE THE SERVER WITH.
  *
  * Every one of these three functions used `db.select().from(users)` — all
