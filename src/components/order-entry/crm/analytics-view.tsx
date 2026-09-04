@@ -59,9 +59,6 @@ const DEPT_LABEL: Record<string, string> = {
   SALES: "Sales",
 };
 
-const inputCls =
-  "h-9 rounded-field border border-border bg-surface px-2.5 text-[12.5px] text-text-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
-
 /** A panel with nothing to plot yet, saying WHAT IT NEEDS rather than drawing zero. */
 function Awaiting({ need }: { need: string }) {
   return (
@@ -117,10 +114,7 @@ function Panel({
   );
 }
 
-export function CrmAnalyticsView() {
-  const [from, setFrom] = React.useState("");
-  const [to, setTo] = React.useState("");
-
+export function CrmAnalyticsView({ from, to }: { from: string; to: string }) {
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);
@@ -226,46 +220,20 @@ export function CrmAnalyticsView() {
         />
       </div>
 
-      {/* Region B — the range bar. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5">
-        <span className="text-[12px] text-text-2">Delivered between</span>
-        <input
-          type="date"
-          aria-label="From"
-          className={inputCls}
-          value={from}
-          max={to || undefined}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-        <span className="text-[12px] text-text-2">to</span>
-        <input
-          type="date"
-          aria-label="To"
-          className={inputCls}
-          value={to}
-          min={from || undefined}
-          onChange={(e) => setTo(e.target.value)}
-        />
-        {from || to ? (
-          <button
-            type="button"
-            onClick={() => {
-              setFrom("");
-              setTo("");
-            }}
-            className="cursor-pointer rounded-field px-1.5 py-1 text-[12px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-          >
-            Clear
-          </button>
-        ) : null}
-        <span className="ml-auto text-[12px] text-text-2">
-          {d ? `${formatCount(d.coverage.followups)} follow-ups in range` : ""}
-        </span>
-      </div>
+      {/* The date range itself now lives in the page header (top-right); this
+          is just the live count for whatever range is set, so the reader
+          still sees it without a whole row spent on two date inputs. */}
+      {d ? (
+        <div className="text-[12px] text-text-2">
+          {formatCount(d.coverage.followups)} follow-ups in range
+        </div>
+      ) : null}
 
-      {/* Said ONCE, plainly, at the top — not repeated in six empty panels. */}
+      {/* Said ONCE, plainly, at the top — not repeated in six empty panels.
+          Desktop-only: on a phone this is a whole paragraph above six panels
+          that each already say "Awaiting…" for the same reason. */}
       {d && !worked ? (
-        <div className="rounded-card border-l-[3px] border-l-status-amber bg-status-amber-dim px-4 py-3 text-[12.5px] leading-relaxed text-text-2">
+        <div className="hidden rounded-card border-l-[3px] border-l-status-amber bg-status-amber-dim px-4 py-3 text-[12.5px] leading-relaxed text-text-2 sm:block">
           <b className="text-text-1">No follow-up has been completed yet.</b> The
           queue holds{" "}
           <span className="num font-semibold">

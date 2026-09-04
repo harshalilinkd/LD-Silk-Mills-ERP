@@ -7,6 +7,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { requireErpAdmin } from "@/lib/admin";
+import {
+  setHelpSlipAccess,
+  setOrderEntryRole,
+  type HelpSlipRole,
+  type OrderEntryRole,
+} from "@/lib/people";
 
 /**
  * Every action here calls `requireErpAdmin()` FIRST, before reading its
@@ -141,4 +147,93 @@ export async function clearUserPassword(id: string) {
     .where(eq(users.id, id));
 
   revalidatePath("/admin/users");
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  One person's access to all three systems, saved together
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Replaces three screens in three places. Before this, adding a joiner meant
+ * ERP Settings, then Order Entry Settings, then Help Slip Settings — so people
+ * were added to one and forgotten in the others. Fourteen records existed for
+ * what should have been one team.
+ *
+ * ORDER MATTERS, and it is deliberate: ERP first, because that is the account
+ * that lets anybody sign in at all. If Order Entry or Help Slip fails
+ * afterwards, the person can still get in and an admin can retry the rest —
+ * whereas granting module access to somebody with no way to sign in leaves a
+ * row nobody can use.
+ *
+ * Nothing is deleted anywhere. Removing access DEACTIVATES: `is_active=false`
+ * in Order Entry (the state its standalone app already understands), and
+ * `status='inactive'` in Help Slip. Deleting a Help Slip profile would cascade
+ * from `auth.users` and take the person's concerns with it.
+ */
+export async function savePersonAccess(args: {
+  email: string;
+  name: string;
+  erpRole: "member" | "admin" | null;
+  orderEntryRole: OrderEntryRole | null;
+  helpSlipRole: HelpSlipRole | null;
+  helpSlipDepartmentId: string | null;
+  helpSlipHrAccess: boolean;
+}) {
+  const admin = await requireErpAdmin();
+
+  const email = args.email.trim().toLowerCase();
+  const name = args.name.trim();
+  if (!email || !email.includes("@")) throw new Error("Enter a valid email.");
+  if (!name) throw new Error("Enter a name.");
+
+  // The same self-protection the single-system screen had. With no active
+  // admin, nobody can promote one back from inside the app.
+  const [self] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+  if (self && self.id === admin.id && args.erpRole !== "admin") {
+    throw new Error("You cannot remove your own administrator access.");
+  }
+
+  // 1. the ERP account — the thing that lets them sign in
+  if (args.erpRole === null) {
+    if (self) {
+      if (self.id === admin.id)
+        throw new Error("You cannot remove your own access.");
+      await db
+        .update(users)
+        .set({ status: "inactive", updatedAt: new Date() })
+        .where(eq(users.id, self.id));
+    }
+  } else if (self) {
+    await db
+      .update(users)
+      .set({
+        name,
+        role: args.erpRole,
+        status: "active",
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, self.id));
+  } else {
+    await db.insert(users).values({
+      name,
+      email,
+      role: args.erpRole,
+      status: "active",
+    });
+  }
+
+  // 2. Order Entry, and 3. Help Slip
+  await setOrderEntryRole(email, args.orderEntryRole, name);
+  await setHelpSlipAccess(email, {
+    role: args.helpSlipRole,
+    departmentId: args.helpSlipDepartmentId,
+    hrAccess: args.helpSlipHrAccess,
+    name,
+  });
+
+  revalidatePath("/settings/users");
 }

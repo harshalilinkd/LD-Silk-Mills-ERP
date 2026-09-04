@@ -313,7 +313,13 @@ included, with no error and no warning.
   concurrent calls wedged it. `withHelpSlipRoute` exists to make that shape
   the easy one.
 - The single bypassing read is `unsafeLookupProfileByEmail` — named to be
-  conspicuous. Do not add a second.
+  conspicuous. There is now exactly ONE other exception, `src/lib/people.ts`,
+  and it is deliberate: an ERP admin managing staff acts ON the system, not
+  inside it, and may have no Help Slip profile at all — so there is no
+  `auth.uid()` to run as and `withHelpSlip` has nothing to stand on. Every
+  function in that file is called only from a server action that has already
+  run `requireErpAdmin()`. Do not add a third, and do not make anything in
+  `people.ts` reachable from a normal request path.
 - Role is re-checked in `mutations.ts` **as well as** in RLS, because a
   zero-row UPDATE reports success and "saved" must never be said when
   nothing was.

@@ -1,117 +1,39 @@
-import { IconUsers } from "@tabler/icons-react";
-import { EmptyState } from "@/components/shell/empty-state";
 import { redirect } from "next/navigation";
 
 import { getErpAdmin } from "@/lib/admin";
-import { getAllUsersOrdered } from "@/lib/queries";
-import { UserEditDialog } from "./user-edit-dialog";
+import { loadDepartments, loadPeople } from "@/lib/people";
+import { PeopleTable } from "./people-table";
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
-export default async function UsersAdminPage() {
-  // Non-throwing, so a member gets the redirect its three sibling tabs give
-  // rather than a raw 500. The session is returned rather than a boolean
-  // because the dialog needs the admin's own id, to disable the two controls
-  // they must not use on themselves.
+/**
+ * People — the one place staff access is managed.
+ *
+ * This screen used to list `ld_erp_core.users` only, and there were two others
+ * like it: Order Entry Settings → Users, and Help Slip Settings → Users &
+ * Access. Three screens for one team, so a joiner got added to whichever one
+ * somebody happened to open. It showed: fourteen records, one person present in
+ * all three.
+ *
+ * `loadPeople()` unions the three tables on the lower-cased email — the only
+ * field they genuinely share — so somebody who exists in just one still appears
+ * here with "No access" against the others. That absence is the point; it was
+ * invisible before.
+ */
+export default async function PeoplePage() {
+  // Non-throwing, so a member gets the redirect its sibling tabs give rather
+  // than a raw 500 — see the note in src/lib/admin.ts.
   const admin = await getErpAdmin();
   if (!admin) redirect("/settings");
-  const allUsers = await getAllUsersOrdered();
+
+  const [people, departments] = await Promise.all([
+    loadPeople(),
+    loadDepartments(),
+  ]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h2 className="text-[15px] font-semibold text-text-1">
-          Users
-                </h2>
-        <p className="mt-0.5 text-[13px] text-text-3">
-          {allUsers.length} people in the LD Silk Mills workspace
-                </p>
-      </div>
-
-      <div className="rounded-[10px] border border-border bg-surface">
-        {allUsers.length === 0 ? (
-          <EmptyState icon={IconUsers} title="No users yet" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
-                    Name
-                  </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
-                    Email
-                  </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
-                    Status
-                  </th>
-                  <th className="border-b border-border px-3.5 pb-2.5 pt-3.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-text-1">
-                    Joined
-                  </th>
-                  <th className="w-10 border-b border-border px-3.5 pb-2.5 pt-3.5" />
-                </tr>
-              </thead>
-              <tbody className="[&>tr:last-child>td]:border-b-0">
-                {allUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td className="border-b border-border px-3.5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-strong bg-surface-3 text-[10px] font-bold text-accent-text">
-                          {user.avatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={user.avatar}
-                              alt={user.name}
-                              className="size-full object-cover"
-                            />
-                          ) : (
-                            initials(user.name)
-                          )}
-                        </div>
-                        <span className="font-semibold text-text-1">
-                          {user.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 font-mono text-text-2">
-                      {user.email}
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3">
-                      <span
-                        className={
-                          user.status === "active"
-                            ? "rounded-full bg-status-green-dim px-2 py-0.5 text-[10.5px] font-semibold capitalize text-status-green"
-                            : "rounded-full bg-chip px-2 py-0.5 text-[10.5px] font-semibold capitalize text-text-3"
-                        }
-                      >
-                        {user.status}
-                      </span>
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3 text-text-2">
-                      {user.createdAt.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
-                    <td className="border-b border-border px-3.5 py-3">
-                      <UserEditDialog user={user} isSelf={user.id === admin.id} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+    <PeopleTable
+      people={people}
+      departments={departments}
+      adminEmail={(admin.email ?? "").toLowerCase()}
+    />
   );
 }

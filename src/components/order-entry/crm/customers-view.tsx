@@ -213,10 +213,11 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
         />
       </div>
 
-      {/* An empty CRM is the EXPECTED state on day one. Say so, rather than
-          letting four dashes per row read as a bug. */}
+      {/* An empty CRM is the EXPECTED state on day one — say so on desktop,
+          where there's room. On a phone it's a paragraph between the KPIs and
+          the toolbar that says nothing the "—"s in the table don't already. */}
       {k && k.rated === 0 ? (
-        <div className="rounded-card border border-border bg-surface px-4 py-3 text-[12.5px] text-text-2 shadow-sm">
+        <div className="hidden rounded-card border border-border bg-surface px-4 py-3 text-[12.5px] text-text-2 shadow-sm sm:block">
           <b className="text-text-1">No follow-up has been completed yet</b>, so
           rating, trend, complaints and last-contacted are empty for everyone.
           Orders and value below are real. The rest fills in as the{" "}
@@ -225,8 +226,11 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[180px] flex-1">
+        {/* Search gets its own full-width row on a phone rather than being
+            squeezed against the sort dropdown; `sm:contents` folds the second
+            row's controls back into one line once there's room for them. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:min-w-[180px] sm:flex-1">
             <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
             <Input
               value={rawSearch}
@@ -236,37 +240,44 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
               className="h-9 pl-8"
             />
           </div>
-          <select
-            className={selectCls}
-            aria-label="Sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as CustomerSort)}
-          >
-            {SORTS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
 
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters((s) => !s)}
-            aria-pressed={showFilters}
-          >
-            <IconFilter className="size-4" /> Filters
-            {rated ? <span className="ml-1 size-1.5 rounded-full bg-primary" /> : null}
-          </Button>
+          <div className="flex items-center gap-2 sm:contents">
+            <select
+              className={cn(selectCls, "flex-1 sm:w-auto sm:flex-none")}
+              aria-label="Sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as CustomerSort)}
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
 
-          <button
-            type="button"
-            onClick={() => void q.refetch()}
-            title="Refresh"
-            aria-label="Refresh"
-            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
-          >
-            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
-          </button>
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters((s) => !s)}
+              aria-pressed={showFilters}
+            >
+              <IconFilter className="size-4" /> Filters
+              {rated ? (
+                <span className="ml-1 size-1.5 rounded-full bg-primary" />
+              ) : null}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              title="Refresh"
+              aria-label="Refresh"
+              className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+            >
+              <IconRefresh
+                className={cn("size-4", q.isFetching && "animate-spin")}
+              />
+            </button>
+          </div>
         </div>
 
         {showFilters ? (
