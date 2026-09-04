@@ -35,6 +35,7 @@ import {
   Panel,
   SectionCard,
 } from "@/components/help-slip/page-parts";
+import { AttachmentsPanel } from "./attachments-panel";
 import { Timeline } from "@/components/help-slip/timeline";
 import { T } from "@/components/help-slip/type-scale";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -357,6 +358,16 @@ export function ConcernDetail({ id }: { id: string }) {
             labelledBy="detail-solutions"
           />
         </SectionCard>
+      </Reveal>
+
+      {/* ── 2b. the photographs ───────────────────────────────────────── *
+       * Renders itself away when there is nothing to show and nothing can
+       * be added, so a closed concern with no photos gains no empty card.
+       * `canAdd` is the same rule as the comment box: not closed, and either
+       * yours or you work the queue. The server checks it again — this only
+       * decides whether the button is on screen.                          */}
+      <Reveal index={3}>
+        <AttachmentsPanel concernId={id} canAdd={canComment} />
       </Reveal>
 
       {/* ── 3. how it was resolved, when it was ───────────────────────── */}

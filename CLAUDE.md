@@ -311,8 +311,32 @@ included, with no error and no warning.
 - **Never bind a JS array** into `db.execute` (`${arr}::text[]` arrives as
   its `toString` and Postgres rejects it). Pass JSON and expand with
   `jsonb_array_elements_text`.
-- Not ported: photo attachments (needs Supabase Storage, which this shell
-  has no client for), realtime (we refetch instead), and Help Slip's own
+- **Photo attachments ARE ported** (Sep 2026 — this was the last functional
+  gap). `src/lib/help-slip/attachments.ts` + `POST|GET
+  /api/help-slip/concerns/[id]/attachments` + `GET|DELETE
+  /api/help-slip/attachments/[id]` + `<AttachmentsPanel>` on the concern page.
+  Nothing was provisioned by this repo — `concern_attachments` and the private
+  `concern-attachments` bucket already existed with RLS and live rows, and the
+  storage path stays `{concern_id}/{uuid}.{ext}` because the bucket policies
+  parse the concern id out of the first path segment. Change that shape and
+  the standalone app can no longer read our files (and vice versa — verified
+  both ways).
+  - **Storage RLS does not protect us and cannot.** Those bucket policies read
+    `auth.uid()`; the `set_config` trick in `src/db/help-slip/rls.ts` is a
+    POSTGRES session setting and the Storage API never sees that transaction.
+    So every storage call uses `SUPABASE_SERVICE_ROLE_KEY` and bypasses them.
+    That is safe **only because the database is asked first, under RLS, on
+    every path** — upload checks, download selects (zero rows → 404), delete
+    lets the policy decide and only then removes the object. Never call into
+    storage from anywhere that has not been through `withHelpSlip`.
+  - Files are **proxied, never signed-URL'd**. A signed URL is a bearer token
+    in a query string that keeps working for anyone holding it, and these
+    photos can hang off `hr_only` concerns.
+  - Needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the environment.
+    The upload route is the ONE place that opens two RLS transactions in a
+    request (check → upload → record); they are sequential, not concurrent,
+    and the reason is written in the route.
+- Not ported: realtime (we refetch instead), and Help Slip's own
   login/password/Google-linking — the ERP owns sign-in, Help Slip owns role.
   `profiles.id` is a FK to `auth.users`, so this app can edit a person but
   cannot create one.
