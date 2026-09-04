@@ -292,13 +292,18 @@ export function ReturnForm({
               />
             </Row>
 
-            <Row label="Attachment">
+            <Row label={mode === "edit" ? "Replace attachment" : "Attachment"}>
               <input
                 type="file"
                 name="attachment"
-                accept="image/*,application/pdf"
+                accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
                 className="block w-full text-[12px] text-text-2 file:mr-2 file:cursor-pointer file:rounded-field file:border file:border-border file:bg-surface-2 file:px-2.5 file:py-1.5 file:text-[12px] file:font-medium file:text-text-1"
               />
+              <span className="text-[11.5px] text-text-3">
+                {mode === "edit"
+                  ? "Choosing a file replaces the current one. Leave empty to keep it."
+                  : "Photo or PDF of the bill or LR, up to 10 MB."}
+              </span>
             </Row>
           </div>
         </Panel>

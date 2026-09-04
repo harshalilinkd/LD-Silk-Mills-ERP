@@ -195,6 +195,7 @@ present in all three lists. The shape now:
 | **Order Entry rules** | Design Database · Time tracking · Role permissions · Trash |
 | **CRM rules** (`/crm/settings`) | Two tabs: CRM follow-ups · Rating criteria — it had NO menu before, only a tab inside Order Entry |
 | **Help Slip rules** | General, and nothing else — one screen, no tab strip |
+| **Masters** also carries | Goods Return's four own tables (parties, brokers, qualities, transports) as a separate section — different tables, different API, see `(app)/masters/goods-return-lists.tsx` |
 
 Rules that keep it that way:
 - **One People screen.** `src/lib/people.ts` unions the three user tables on
@@ -397,6 +398,15 @@ and is the contract of record.
 - `GET /api/order-entry/lookups` returns **`string[]`**, not row objects,
   unless you pass `?all=1`. Typing it wrong yields `[undefined]` and crashes
   on mount.
+- **Goods Return LR** (`/goods-return/*`, system_code `goods-return-lr`):
+  returns going back to parties and what arrives at Bhiwandi — Dashboard, All
+  returns, detail, Receiving, New/Edit, Reports. Ported from
+  `github.com/mendoza0123/goods-return-system`, which is the SAME stack (Next
+  App Router + Drizzle + Auth.js), so the logic files moved across nearly
+  unchanged. Reads/writes the live `goods_return` schema. **Read
+  `src/db/goods-return/schema.ts` before touching anything here** — it records
+  the row counts, the backup location, and why `return_display_seq` is the most
+  dangerous object in the module.
 - **Help Slip** (`/help-slip/*`, system_code `help-slip`): employee concerns
   — dashboard (forks by role), Raise a concern, My concerns, All concerns,
   concern detail, the coordinator workspace, Notifications. Ported from
@@ -474,6 +484,58 @@ included, with no error and no warning.
   login/password/Google-linking — the ERP owns sign-in, Help Slip owns role.
   `profiles.id` is a FK to `auth.users`, so this app can edit a person but
   cannot create one.
+
+## Goods Return — the office is a MODE, and system_access is the door
+
+Two questions, and only the first is a permission:
+
+1. **May this person open the module?** `canOpenGoodsReturn()` reads
+   `ld_erp_core.system_access` — the tick box in Settings → Access — on the
+   SERVER. It had to be built: that table only ever fed the SIDEBAR
+   (`getVisibleSystemsForUser`, called in one place, the app layout). Every
+   other module gets away with that by re-checking against its own account
+   table; this one has none, so hiding the menu entry would have been the only
+   thing between any signed-in employee and marking stock received.
+2. **Which office are they working as?** A cookie (`ld-gr-office`), chosen on
+   entry and switchable at will. **NOT a security boundary** — the owner's
+   explicit decision, mirroring the standalone app whose two cards sit on a
+   passwordless page. `canCreateReturns()` and friends shape which screens and
+   buttons somebody is shown; they decide nothing about trust. Never write a
+   check that assumes a Bhiwandi session could not have been Head Office a
+   moment ago.
+
+Other things this module paid for:
+
+- **`return_display_seq` is never modelled in Drizzle**, only called as a raw
+  `nextval()`. Modelling it would put `CREATE SEQUENCE … START WITH 1` into any
+  diff, and a mis-aimed push then hands the next return an id that already
+  exists. Verified across two tests: 356 -> 357 -> 358, never rewinding.
+- **An edit must not touch the LD number, the status or any Bhiwandi column.**
+  Otherwise the double-receipt guard is walkable — you just use Edit instead.
+  Proven against a received return carrying 777/888.
+- **Receiving guards on `status = 'posted'` in the WHERE**, so a second receipt
+  updates zero rows rather than replacing the charges the first person entered.
+- **`received_by`/`created_by` stay NULL.** They are integer FKs into
+  `goods_return.users` (three rows, two shared passwordless office logins) in a
+  schema this repo may not migrate. Attribution goes to
+  `ld_erp_core.audit_logs` instead.
+- **Its four master lists are its own TABLES**, not `lookup_values` rows — 341
+  returns point at them by integer id, so they were never merged. Every name
+  with no ERP equivalent was ADDED to `lookup_values` instead (1,014 rows, one
+  way, once, 4 Sep 2026; ids in the backup folder). They appear as their own
+  section on `/masters`. Adding is offered; renaming and deleting are not.
+- **Attachments use a PRIVATE bucket** (`goods-return-attachments`) and are
+  proxied through `/api/goods-return/attachments/[id]`, re-authorised on every
+  view. The standalone app uses a PUBLIC bucket and stores `getPublicUrl()`;
+  that was not carried over because these files are bills carrying party names
+  and amounts, and zero files had ever been uploaded so there was nothing to
+  migrate. `isStoragePath()` tells our paths from a legacy public URL, and both
+  render.
+- **A client component must import office helpers from
+  `src/lib/goods-return/offices.ts`, never from `authz.ts`.** The latter is
+  `server-only` and reads `next/headers`; importing it from the browser bundle
+  fails the build AND takes unrelated pages down with it. `tsc` passes on that
+  import — the constraint is the bundler's and only appears on request.
 
 ## Known gotchas (hit these once already — don't re-discover them)
 - **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base

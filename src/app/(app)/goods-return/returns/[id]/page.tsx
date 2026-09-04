@@ -5,6 +5,7 @@ import { IconArrowLeft, IconPaperclip, IconPencil } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
+import { isStoragePath } from "@/lib/goods-return/attachments";
 import { canEditReturns, getChosenOffice } from "@/lib/goods-return/authz";
 import { receivedByNames } from "@/lib/goods-return/receiving";
 import {
@@ -156,7 +157,16 @@ export default async function ReturnDetailPage({
             <Field label="Attachment">
               {ret.attachmentUrl ? (
                 <a
-                  href={ret.attachmentUrl}
+                  // Files we stored go through the proxy, which re-checks access
+                  // on every view. A full https:// value is a legacy public URL
+                  // from the standalone app and is linked straight out — both
+                  // shapes exist in this column, so both are handled rather
+                  // than one rendering as a broken link.
+                  href={
+                    isStoragePath(ret.attachmentUrl)
+                      ? `/api/goods-return/attachments/${ret.id}`
+                      : ret.attachmentUrl
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 font-medium text-accent-text hover:underline"
