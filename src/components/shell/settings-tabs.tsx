@@ -7,6 +7,7 @@ import {
   IconHistory,
   IconShieldLock,
   IconUser,
+  IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -48,6 +49,16 @@ const TABS = [
     label: "Access",
     href: "/settings/access",
     icon: IconShieldLock,
+    admin: true,
+  },
+  {
+    // Moved out of Help Slip rules — deciding who joins is the same job as the
+    // People tab, not a rule of a module. See the page for why only Help Slip
+    // produces requests at all.
+    key: "accessRequests",
+    label: "Access requests",
+    href: "/settings/access-requests",
+    icon: IconUserPlus,
     admin: true,
   },
   {

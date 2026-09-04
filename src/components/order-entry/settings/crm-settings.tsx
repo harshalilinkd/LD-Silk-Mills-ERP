@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   IconChevronDown,
   IconChevronUp,
-  IconRotateClockwise,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";

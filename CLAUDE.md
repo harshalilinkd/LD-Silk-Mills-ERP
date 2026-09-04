@@ -165,11 +165,11 @@ present in all three lists. The shape now:
 
 | Where | Holds |
 |---|---|
-| **Settings** (`/settings`) | Your profile · **People** (all three systems) · Access · Systems · Audit |
+| **Settings** (`/settings`) | Your profile (name, **phone**, password) · **People** (all three systems) · Access · **Access requests** · Systems · Audit |
 | **Masters** (`/masters`) | All nine shared lists — party, fabric, agent, transport, haste, sales person, departments, complaint categories, delay reasons |
 | **Order Entry rules** | Design Database · Time tracking · Role permissions · Trash |
 | **CRM rules** (`/crm/settings`) | Follow-up timings, rating criteria — it had NO menu before, only a tab inside Order Entry |
-| **Help Slip rules** | Your details · Access requests · General |
+| **Help Slip rules** | General, and nothing else — one screen, no tab strip |
 
 Rules that keep it that way:
 - **One People screen.** `src/lib/people.ts` unions the three user tables on
@@ -181,7 +181,19 @@ Rules that keep it that way:
 - **Every moved address redirects**, it is not deleted. A 404 on a settings
   screen reads as "the feature was removed".
 - Module menus are called **rules**, not Settings, so only one thing in the
-  sidebar is called Settings.
+  sidebar is called Settings. A "rule" is how the MODULE behaves. A person's
+  own details and a queue of joiners are not rules and do not belong in one —
+  that is why Help Slip's "Your details" and "Access requests" tabs moved out.
+- **The phone number lives in `ld_erp_core.users.phone`** (added Sep 2026;
+  backfilled from `ld_help_slip.profiles.phone`). Editing it in
+  `/settings` MIRRORS it into `ld_help_slip.profiles` so Help Slip's WhatsApp
+  updates keep arriving — through `withHelpSlip` under the person's OWN
+  profile id, so it is a normal self-edit under `profiles_update_self`, not a
+  third RLS bypass. Do not add a second phone field anywhere.
+- **A redirect must land on a real page, not another redirect.** Chains are
+  how "Order Entry rules" ended up on Masters. `/help-slip/settings` renders
+  General itself rather than bouncing to `/help-slip/settings/general` —
+  the sidebar points at it, and the entry point must not be a hop.
 
 ## Sidebar
 **One navigation tree, drawer on mobile.** The sidebar was `hidden md:flex`

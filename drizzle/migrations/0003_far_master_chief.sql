@@ -1,0 +1,1 @@
+ALTER TABLE "ld_erp_core"."users" ADD COLUMN "phone" varchar(40);

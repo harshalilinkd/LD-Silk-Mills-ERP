@@ -1,21 +1,28 @@
 import { redirect } from "next/navigation";
 
-import { ProfilePanel } from "@/components/help-slip/settings/profile-panel";
+import { GeneralPanel } from "@/components/help-slip/settings/general-panel";
 import { resolveHelpSlipSession } from "@/lib/help-slip/authz";
 import { settingsTabsFor } from "@/lib/help-slip/settings";
 
 /**
- * A rendering guard, not the boundary. The API route re-checks the role and
- * the database checks again beneath that — this only decides whether somebody
- * lands on a screen they cannot use or on the tab they can.
+ * Help Slip rules — and now this page IS the rules, rather than a tab strip
+ * over five screens.
+ *
+ * It used to render "Your details", which is a person's own name and phone
+ * number: not a rule of Help Slip, and the only place in the ERP holding a
+ * phone number. That moved to /settings, as did Access requests, so the one
+ * screen left is the General panel and it renders here directly.
+ *
+ * DIRECTLY, not via a redirect to /help-slip/settings/general — the sidebar
+ * points at this address, and bouncing the entry point through another URL is
+ * exactly the chain that made "Order Entry rules" land on Masters.
+ *
+ * A rendering guard, not the boundary: the API route re-checks the role and
+ * `app_settings_update` checks again beneath that.
  */
 export default async function Page() {
   const session = await resolveHelpSlipSession();
   if (!session) return null;
-  // NOT `redirect("/help-slip/settings")` — that is this page, and a page that
-  // redirects to itself is an infinite loop. It never fired only because
-  // `profile` is hardcoded true in settingsTabsFor; that is one edit away from
-  // being a hang, so it goes somewhere real.
-  if (!settingsTabsFor(session.role).profile) redirect("/help-slip");
-  return <ProfilePanel />;
+  if (!settingsTabsFor(session.role).general) redirect("/help-slip");
+  return <GeneralPanel />;
 }

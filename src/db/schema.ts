@@ -66,6 +66,20 @@ export const users = ldErpCore.table("users", {
   name: varchar("name").notNull(),
   email: varchar("email").notNull().unique(),
   avatar: text("avatar"),
+  /**
+   * The person's own mobile number, and the ERP is where it is kept.
+   *
+   * It used to live only in `ld_help_slip.profiles.phone`, edited from a tab
+   * called "Your details" inside Help Slip rules — so the one field in the
+   * whole ERP holding a phone number was filed under a module's configuration,
+   * and somebody with no Help Slip profile had nowhere to put one at all.
+   *
+   * Nullable: most people have not entered one, and a blank string would be
+   * indistinguishable from "not given". Not validated beyond a length cap —
+   * numbers here are written with spaces, +91, and sometimes two of them, and
+   * a format rule would reject more real numbers than fake ones.
+   */
+  phone: varchar("phone", { length: 40 }),
   status: userStatusEnum("status").notNull().default("active"),
   /** Shell administration only — see userRoleEnum. Defaults to the safe value. */
   role: userRoleEnum("role").notNull().default("member"),

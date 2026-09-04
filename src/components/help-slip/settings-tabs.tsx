@@ -21,8 +21,13 @@ import { cn } from "@/lib/utils";
  *
  * WHICH TABS YOU SEE DEPENDS ON YOUR ROLE, and that is presentation only. Every
  * route re-checks, and the database checks again underneath that — a
- * coordinator who types /help-slip/settings/general gets a 403 from the API and
- * an empty screen, not a working form. Hiding a tab is a courtesy, never a
+ * coordinator who types a URL for an admin screen gets a 403 from the API and
+ * an empty screen, not a working form.
+ *
+ * ONLY `general` is visible today and the layout hides a one-pill strip, so
+ * nothing here renders. The other entries are kept, with their old labels and
+ * routes, because those routes still exist as redirects to wherever each
+ * screen moved — see `settingsTabsFor`. Hiding a tab is a courtesy, never a
  * boundary.
  */
 export type SettingsTabKey =
@@ -61,7 +66,7 @@ const TABS: {
   {
     key: "general",
     label: "General",
-    href: "/help-slip/settings/general",
+    href: "/help-slip/settings",
     icon: IconSettings,
   },
 ];

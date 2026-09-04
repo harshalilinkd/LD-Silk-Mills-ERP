@@ -6,7 +6,11 @@ import { IconKey, IconUser } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { changeOwnPassword, removeOwnPassword, updateOwnName } from "./actions";
+import {
+  changeOwnPassword,
+  removeOwnPassword,
+  updateOwnDetails,
+} from "./actions";
 
 const MIN = 6;
 
@@ -20,15 +24,21 @@ const MIN = 6;
 export function ProfileForm({
   name: initialName,
   email,
+  phone: initialPhone,
   hasPassword,
   role,
+  inHelpSlip,
 }: {
   name: string;
   email: string;
+  phone: string;
   hasPassword: boolean;
   role: "member" | "admin";
+  /** Whether the phone number also reaches Help Slip's WhatsApp updates. */
+  inHelpSlip: boolean;
 }) {
   const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState(initialPhone);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState<{ tone: "ok" | "bad"; text: string } | null>(
@@ -80,16 +90,42 @@ export function ProfileForm({
                 admin action with consequences in three schemas. */}
             <Input value={email} disabled className="h-9" />
           </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-medium text-text-2">Phone</span>
+            {/* `type="tel"` for the phone keypad on a factory-floor handset.
+                No pattern: numbers here are written with spaces and +91, and a
+                format rule rejects more real numbers than fake ones. */}
+            <Input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="Optional"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="h-9"
+            />
+            <span className="text-[12px] text-text-3">
+              {inHelpSlip
+                ? "Where your Help Slip updates are sent on WhatsApp."
+                : "Used to reach you about your work here."}
+            </span>
+          </label>
         </div>
 
         <div className="flex items-center gap-3">
           <Button
             size="sm"
             className="h-9"
-            disabled={pending || !name.trim() || name === initialName}
-            onClick={() => run(() => updateOwnName(name), "Name saved.")}
+            disabled={
+              pending ||
+              !name.trim() ||
+              (name === initialName && phone === initialPhone)
+            }
+            onClick={() =>
+              run(() => updateOwnDetails(name, phone), "Details saved.")
+            }
           >
-            Save name
+            Save details
           </Button>
           <span className="text-[12px] text-text-3">
             You are {role === "admin" ? "an ERP administrator" : "a member"}.

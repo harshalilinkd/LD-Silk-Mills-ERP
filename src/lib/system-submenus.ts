@@ -30,10 +30,11 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "My concerns", href: "/help-slip/concerns" },
     { label: "All concerns", href: "/help-slip/all" },
     { label: "Notifications", href: "/help-slip/notifications" },
-    // Everyone gets this — Profile is theirs. The other four tabs appear by
-    // role inside the screen (see settingsTabsFor), which is why this entry is
-    // unconditional while CRM's equivalent above points straight at an
-    // admin-only route.
+    // Admin-only in practice, the same as CRM rules: the four other tabs
+    // moved to ERP Settings and Masters, so what is left is the General panel
+    // and only an admin may change it. The entry stays unconditional because
+    // this map is static — a non-admin who clicks it is sent to the Help Slip
+    // dashboard by the page itself, which is what CRM rules already does.
     { label: "Help Slip rules", href: "/help-slip/settings" },
   ],
   crm: [

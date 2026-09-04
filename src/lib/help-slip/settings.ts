@@ -564,18 +564,25 @@ export async function saveSettings(
  * refuse them.
  */
 /**
- * THREE TABS, down from five.
+ * ONE TAB, down from five — so the strip is not rendered at all any more and
+ * `/help-slip/settings` simply IS General.
  *
- * `users` and `departments` are gone from this module, not disabled:
- *   · people are managed once, for all three systems, at /settings/users
- *   · departments are a company list and live in /masters
- * Both old addresses redirect there, and `updateUser`/`loadUsers` below are
- * still exported because the Help Slip API routes that back them are the
- * mechanism the People screen uses for this module's half.
+ * Nothing was deleted. Each screen moved to the place that owns that job, and
+ * every old address redirects:
  *
- * `profile` stays. It is not admin configuration — it is a person's own Help
- * Slip name and the phone number their WhatsApp updates go to, and there is
- * nowhere else in the ERP that holds a phone number yet.
+ *   · `users`          -> /settings/users   — one People screen, all systems
+ *   · `departments`    -> /masters          — a company list, not a module's
+ *   · `profile`        -> /settings         — your own name and phone
+ *   · `accessRequests` -> /settings/access-requests — who joins is not a rule
+ *
+ * The last two moved because "Help Slip rules" should hold rules of Help Slip.
+ * A person's own details and a queue of joiners are neither; they were the
+ * ERP's job filed under a module's configuration.
+ *
+ * `updateUser` / `loadUsers` below are still exported: the Help Slip API routes
+ * they back are the mechanism the People screen uses for this module's half.
+ * `updateOwnProfile` likewise — ERP Settings now calls it, through the person's
+ * own RLS context, to keep the WhatsApp number in step.
  */
 export function settingsTabsFor(role: UserRole): {
   profile: boolean;
@@ -586,10 +593,10 @@ export function settingsTabsFor(role: UserRole): {
 } {
   const admin = role === "admin";
   return {
-    profile: true,
+    profile: false,
     users: false,
     departments: false,
-    accessRequests: admin,
+    accessRequests: false,
     general: admin,
   };
 }

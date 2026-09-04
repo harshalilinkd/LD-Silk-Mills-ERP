@@ -53,6 +53,7 @@ const publicUserColumns = {
   name: users.name,
   email: users.email,
   avatar: users.avatar,
+  phone: users.phone,
   status: users.status,
   role: users.role,
   passwordSetAt: users.passwordSetAt,
