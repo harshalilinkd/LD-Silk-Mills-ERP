@@ -12,6 +12,10 @@ import { settingsTabsFor } from "@/lib/help-slip/settings";
 export default async function Page() {
   const session = await resolveHelpSlipSession();
   if (!session) return null;
-  if (!settingsTabsFor(session.role).profile) redirect("/help-slip/settings");
+  // NOT `redirect("/help-slip/settings")` — that is this page, and a page that
+  // redirects to itself is an infinite loop. It never fired only because
+  // `profile` is hardcoded true in settingsTabsFor; that is one edit away from
+  // being a hang, so it goes somewhere real.
+  if (!settingsTabsFor(session.role).profile) redirect("/help-slip");
   return <ProfilePanel />;
 }
