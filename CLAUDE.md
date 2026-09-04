@@ -401,6 +401,30 @@ included, with no error and no warning.
   SECURITY DEFINER warnings on Help Slip) — pre-existing, not introduced by
   this repo, out of scope to fix here without an explicit decision.
 
+## Run the functions in the same region as the database
+`vercel.json` pins `regions: ["bom1"]` (Mumbai). The Supabase project is
+`ap-south-1`, and with no pin Vercel defaults to `iad1` (Washington DC) — so
+every query paid a trans-continental round trip, several times per request,
+while the same query measured 3ms from a machine near the database. Nothing in
+the code can compensate for that; it is a one-line config and it must match
+wherever the database lives. If the Supabase region ever moves, move this too.
+
+## Order status: read the header of `order-status-query.ts` before touching it
+That endpoint was the app's only slow one (714ms; everything else was under
+200ms) because it fetched EVERY line and EVERY stage row — 40,000 rows — to
+render twenty groups, then filtered and paginated in JavaScript. It now runs
+one aggregate that returns a row per order, pages over that, and fetches full
+detail only for the page. 714ms -> 195ms.
+
+Its `MAX_LINES = 5000` cap was also silently losing data: twelve orders never
+appeared at all, and orders 407 and 593 were rendering a status rolled up from
+a truncated line list. Do not reintroduce a wholesale fetch with a cap.
+
+The SQL reproduces `computeStages` and the two were diffed over every order
+before shipping. If you change either, re-run that diff — the `cross join`
+onto `workflow_stages` is load-bearing (a stage with no progress row must
+count as not-done, which a plain join would hide).
+
 ## The dev server runs on port 3001, and that is deliberate
 `npm run dev` is pinned with `-p 3001`. Two reasons, and the second is the one
 that bites:
