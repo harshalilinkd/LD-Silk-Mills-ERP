@@ -246,6 +246,128 @@ all but disappear on white.
 
 - `h1`: `22px/700`, letter-spacing `-.01em`.
 - Subtitle `p`: `13px`, `var(--text-3)`, `4px` margin-top.
+- **Subtitle hides on mobile** (`hidden text-[13px] text-text-3 sm:block`): it
+  restates what the screen already shows and costs a full line above the fold
+  on a phone. Keep it on desktop, where the room is free.
+- A page whose list has a **rare, secondary date-range filter** puts a
+  calendar icon-button here, right-aligned via `flex items-start
+  justify-between gap-3` on the header row — not a row of two date inputs in
+  the toolbar below. See § List screens for the trigger + popover shape and
+  why it's lifted this high.
+
+## List screens — the filter & toolbar pattern
+
+Established on Orders and carried onto every CRM list (Issues, Call log,
+Customers) after the CRM screens shipped with an inline filter bar that ran
+above the KPI tiles and never collapsed — three rows deep before the first
+real row of data on a phone. This is the shape every future list screen
+should start from.
+
+**Order, top to bottom, always:**
+
+1. KPI tiles.
+2. One toolbar row: the primary control(s) — usually search, sometimes also
+   sort — plus a **Filters** toggle button and Refresh.
+3. The Filters panel, collapsed by default, directly below the toolbar.
+4. The list/table.
+
+**What counts as "primary" and stays in the toolbar, never behind Filters:**
+search (it's how you find one row) and sort (it reorders the same set rather
+than narrowing it). Everything that narrows the set — status, category,
+severity, owner, rating, "show only X" — collapses behind Filters.
+
+**The Filters button:**
+
+```tsx
+<Button variant="outline" onClick={() => setShowFilters(s => !s)} aria-pressed={showFilters}>
+  <IconFilter className="size-4" /> Filters
+  {hasActiveFilters ? <span className="ml-1 size-1.5 rounded-full bg-primary" /> : null}
+</Button>
+```
+
+The dot is the only "something is filtered" signal — don't also change the
+button's own color or label; a wall of active-state buttons is louder than
+one dot.
+
+**The panel**, shown only when `showFilters` is true:
+
+```tsx
+<div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
+  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-4">
+    <label className="flex flex-col gap-1 text-[11px] font-medium text-text-2">
+      Status
+      <select className="h-9 w-full rounded-field border border-border bg-surface px-2.5 text-[12.5px] text-text-1 …">
+    </label>
+    {/* one label per filter field */}
+  </div>
+  {hasActiveFilters ? (
+    <div className="flex justify-end">
+      <Button variant="ghost" size="sm" onClick={clearAll}>Clear filters</Button>
+    </div>
+  ) : null}
+</div>
+```
+
+Every field gets its own `<label>` with an `[11px]` caption above the
+control — this is a panel someone opened on purpose to look at, unlike the
+one-line toolbar, so the extra vertical cost of a label per field is worth
+the field being self-explanatory.
+
+**A date range is a header icon, not a toolbar row.** Two `<input
+type="date">` plus a separator plus a Clear button is wide enough to force
+everything else onto a second line on a phone, for a filter that's used far
+less often than search or status. Lift the `from`/`to` state to the page
+component and render the trigger in the page header (see § Page header):
+
+```tsx
+<Popover>
+  <PopoverTrigger className={cn(
+    "relative grid size-9 shrink-0 place-items-center rounded-field border border-border bg-surface text-text-2 hover:border-border-strong hover:text-text-1",
+    hasDateFilter && "border-primary/50 text-primary",
+  )}>
+    <IconCalendar className="size-4" />
+    {hasDateFilter ? <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" /> : null}
+  </PopoverTrigger>
+  <PopoverContent align="end" className="w-auto">
+    {/* From/To inputs + Clear, same as any other panel */}
+  </PopoverContent>
+</Popover>
+```
+
+The board component takes `from`/`to` as plain props — it only reads them
+into the query string, it never renders date inputs itself.
+
+**Mobile stacking — search never gets squeezed.** A toolbar row with search
+plus a sort `<select>` plus Filters plus Refresh does not fit one line on a
+phone; letting it `flex-wrap` mid-word looks broken. Instead, give search its
+own full-width row and fold the rest into a second row that **merges back
+into one line at `sm:`** using `display: contents`, so there is one class
+change instead of two parallel layouts:
+
+```tsx
+<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+  <div className="relative w-full sm:min-w-[180px] sm:flex-1">{/* search */}</div>
+  <div className="flex items-center gap-2 sm:contents">
+    <select className="… flex-1 sm:w-auto sm:flex-none" />
+    <Button variant="outline">Filters</Button>
+    <button>{/* refresh */}</button>
+  </div>
+</div>
+```
+
+**A secondary breakdown/rail panel is desktop-only.** The Issues board's
+"group by department / category" side panel earns its keep next to a wide
+table (`hidden h-fit … lg:block` in a `lg:grid-cols-[232px_1fr]` grid) but on
+a phone it's a whole extra card — border, padding, a segmented control — for
+what the Filters panel's Owner/Category fields already cover. Hide it below
+`lg` rather than trying to compress it; it is a convenience, not a filter you
+lose access to.
+
+**An explanatory banner that repeats what the empty state already says is
+desktop-only too** (`hidden … sm:block`): "no follow-up completed yet, so
+these columns are blank" is worth a card on a wide screen and is dead weight
+above a toolbar on a phone, where the blank columns are one thumb-scroll
+away.
 
 ## Cards
 
