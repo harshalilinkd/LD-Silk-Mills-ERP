@@ -793,6 +793,14 @@ cannot receive the same `PC-2026-000001`. Do not compute it in JavaScript and
 do not "fix" a gap — a gap means a transaction was rolled back, which is
 exactly what it should mean.
 
+**The ledger has one column per field on the entry form** — Date, Reference,
+Type, From, To, What for, Category, Proof, Receipt, Amount — on the owner's
+instruction. Two of those were merged before and both merges lost something:
+From and To shared a "Parties" cell, and Proof shared a cell with the
+attachment, so a row with a photo behind it printed "No proof" beside a
+paperclip. `proof_type` is what KIND of slip was kept; the receipt is a
+separate fact. The table scrolls sideways inside its own card.
+
 **The ledger shows TWO balances and they answer different questions.** "Current
 balance" is the whole box and never moves when a filter changes; a second strip
 appears only when a filter is on, saying what that selection adds up to.
@@ -804,6 +812,20 @@ down, not `created_at`. The Analysis calendar groups on it, which is why an
 entry typed at 1am appears on the day it happened. Everything shared with the
 Checklist lives in `src/lib/dates.ts` (UTC arithmetic, `todayIso()` in
 Asia/Kolkata).
+
+**Receipts go BROWSER → STORAGE, never through a function.** The first version
+sent the file inside the Server Action's FormData and the first real receipt
+died on `Body exceeded 1 MB limit`. Raising Next's cap is the obvious fix and
+the wrong one: **Vercel refuses any request body over 4.5 MB** before our code
+runs, so the 10 MB this module offers could never have worked that way. The
+server now issues a one-use SIGNED UPLOAD URL, the browser PUTs the bytes
+straight to Supabase Storage, and the form submits only the path — carrying an
+HMAC over it, which `verifySignedPath` re-checks so a client cannot point its
+entry at a path we never issued. `next.config.ts` caps Server Action bodies at
+4 MB to match the platform, and **Goods Return and Help Slip were lowered from
+10 MB and 8 MB to 4 MB** because they still upload through the server; the
+signed-URL pattern in `lib/petty-cash/attachments.ts` is where they go if that
+ever bites.
 
 **Receipts use a PRIVATE bucket** (`petty-cash-attachments`) and are proxied
 through `/api/petty-cash/entries/[id]/attachment`, re-authorised on every view.

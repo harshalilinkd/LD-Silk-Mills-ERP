@@ -33,7 +33,9 @@ import { T } from "./type-scale";
  * HEIC is the exception and is handled by NOT handling it: `createImageBitmap`
  * throws on HEIC in every browser without a decoder, and the catch sends the
  * original bytes instead. An iPhone photo therefore arrives full-size, which
- * is why the server ceiling is 8MB rather than something tighter.
+ * is why the server ceiling is 4MB rather than something tighter
+ * (and 4MB is itself Vercel's own request-body ceiling — see
+ * `lib/help-slip/attachments.ts`).
  *
  * ── WHY THE IMAGES ARE NOT <img src={storageUrl}> ─────────────────────────
  *

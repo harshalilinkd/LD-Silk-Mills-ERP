@@ -73,7 +73,21 @@ export const ACCEPTED_MIME = [
  * so those arrive at their original size and rejecting them at 1MB would refuse
  * exactly the iPhone photographs the format list exists to accept.
  */
-export const MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * FOUR megabytes, not ten.
+ *
+ * The file is POSTed to a route handler, and **Vercel refuses any request body
+ * over 4.5 MB** at the platform before our code runs — so 8 MB was a promise
+ * production could never keep, and the failure arrives as an opaque
+ * `Body exceeded …` rather than a sentence. Next's own cap is set to match in
+ * `next.config.ts`.
+ *
+ * To carry more than this, the bytes must not pass through a function at all:
+ * Petty Cash issues a one-use signed upload URL and the browser PUTs straight
+ * to storage. See `lib/petty-cash/attachments.ts`. Files already uploaded are unaffected — this only
+ * bounds the next one.
+ */
+export const MAX_BYTES = 4 * 1024 * 1024;
 
 export type AttachmentRow = {
   id: string;

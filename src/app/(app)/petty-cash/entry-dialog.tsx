@@ -41,7 +41,12 @@ import {
   Textarea,
 } from "@/components/ui/module-parts";
 import { usePettyCashViewer } from "./viewer-context";
-import { addEmployee, createEntry, updateEntry } from "./actions";
+import {
+  addEmployee,
+  createEntry,
+  startReceiptUpload,
+  updateEntry,
+} from "./actions";
 
 export type EntryDraft = {
   id: number;
@@ -133,6 +138,24 @@ export function EntryDialog({
     setBusy(true);
     setError(null);
     try {
+      // ── the receipt goes straight to storage, not through the action ────
+      //
+      // A file inside a server action's FormData is capped at 1 MB by Next and
+      // at 4.5 MB by Vercel before our code even runs — which is what the very
+      // first real receipt hit. So the bytes are PUT to a one-use signed URL
+      // the server issues, and the form carries nothing but the path.
+      let receipt: { path: string; sig: string; name: string } | null = null;
+      if (file) {
+        const up = await startReceiptUpload(date, file.name, file.type, file.size);
+        const put = await fetch(up.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!put.ok) throw new Error("The receipt could not be uploaded. Please try again.");
+        receipt = { path: up.path, sig: up.signature, name: up.name };
+      }
+
       const fd = new FormData();
       fd.set("transactionDate", date);
       fd.set("transactionType", type);
@@ -143,7 +166,11 @@ export function EntryDialog({
       fd.set("amount", amount);
       fd.set("proofType", proofType);
       fd.set("proofOther", proofType === "OTHER" ? proofOther : "");
-      if (file) fd.set("attachment", file);
+      if (receipt) {
+        fd.set("attachmentPath", receipt.path);
+        fd.set("attachmentSig", receipt.sig);
+        fd.set("attachmentName", receipt.name);
+      }
       if (removeAttachment && !file) fd.set("removeAttachment", "1");
 
       if (editing) {

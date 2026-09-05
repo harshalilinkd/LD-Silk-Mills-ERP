@@ -302,7 +302,7 @@ export function ReturnForm({
               <span className="text-[11.5px] text-text-3">
                 {mode === "edit"
                   ? "Choosing a file replaces the current one. Leave empty to keep it."
-                  : "Photo or PDF of the bill or LR, up to 10 MB."}
+                  : "Photo or PDF of the bill or LR, up to 4 MB."}
               </span>
             </Row>
           </div>

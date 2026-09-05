@@ -14,7 +14,7 @@ import "server-only";
  *
  * It cost nothing to do better — the feature has existed for the life of that
  * app and **not one file has ever been uploaded**, so there was no migration to
- * weigh against it. New bucket, `goods-return-attachments`, private, 10 MB,
+ * weigh against it. New bucket, `goods-return-attachments`, private, 4 MB,
  * images and PDF only. Files stream through an API route that re-checks access
  * on every view, which is the same call Help Slip made and for the same reason:
  * a signed URL is a bearer token in a query string that survives being pasted
@@ -40,7 +40,21 @@ const MIME_EXT: Record<string, string> = {
 };
 
 export const ACCEPTED_MIME = Object.keys(MIME_EXT);
-export const MAX_BYTES = 10 * 1024 * 1024;
+/**
+ * FOUR megabytes, not ten.
+ *
+ * The file is POSTed to a Server Action, and **Vercel refuses any request body
+ * over 4.5 MB** at the platform before our code runs — so 10 MB was a promise
+ * production could never keep, and the failure arrives as an opaque
+ * `Body exceeded …` rather than a sentence. Next's own cap is set to match in
+ * `next.config.ts`.
+ *
+ * To carry more than this, the bytes must not pass through a function at all:
+ * Petty Cash issues a one-use signed upload URL and the browser PUTs straight
+ * to storage. See `lib/petty-cash/attachments.ts`. Nothing has ever been
+ * uploaded here, so there is no history this cap breaks.
+ */
+export const MAX_BYTES = 4 * 1024 * 1024;
 
 function env(name: string): string {
   const v = process.env[name];
@@ -103,7 +117,7 @@ export async function uploadAttachment(
 ): Promise<UploadResult> {
   if (!file || file.size === 0) return { ok: false, error: "That file is empty." };
   if (file.size > MAX_BYTES) {
-    return { ok: false, error: "That file is larger than 10 MB." };
+    return { ok: false, error: "That file is larger than 4 MB." };
   }
   if (!ACCEPTED_MIME.includes(file.type)) {
     return {

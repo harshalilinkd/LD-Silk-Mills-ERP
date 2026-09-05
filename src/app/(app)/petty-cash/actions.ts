@@ -8,7 +8,12 @@ import {
   requirePettyCashEdit,
   requirePettyCashMasters,
 } from "@/lib/petty-cash/authz";
-import { uploadAttachment } from "@/lib/petty-cash/attachments";
+import {
+  attachmentExists,
+  signReceiptUpload,
+  verifySignedPath,
+  type SignedUpload,
+} from "@/lib/petty-cash/attachments";
 import {
   clearMemberRole,
   createCategory,
@@ -80,9 +85,56 @@ function readInput(fd: FormData): TransactionInput {
   };
 }
 
-function fileOf(fd: FormData): File | null {
-  const f = fd.get("attachment");
-  return f instanceof File && f.size > 0 ? f : null;
+/**
+ * The receipt the browser has ALREADY uploaded, if any.
+ *
+ * The bytes never come through here — see the header of
+ * `lib/petty-cash/attachments.ts` for why. What arrives is a path, the HMAC
+ * this server put on it, and the display name. Both are re-checked: an
+ * unsigned path is refused outright, and a signed one still has to exist in
+ * the bucket before a row is allowed to claim it.
+ */
+async function receiptOf(
+  fd: FormData,
+): Promise<{ path: string; name: string } | null> {
+  const str = (k: string) => {
+    const v = fd.get(k);
+    return typeof v === "string" ? v : "";
+  };
+  const path = str("attachmentPath");
+  if (!path) return null;
+
+  if (!verifySignedPath(path, str("attachmentSig"))) {
+    throw new Error("That receipt could not be verified. Please attach it again.");
+  }
+  if (!(await attachmentExists(path))) {
+    throw new Error("That receipt did not finish uploading. Please try again.");
+  }
+  return { path, name: str("attachmentName") || "receipt" };
+}
+
+/**
+ * Authorise ONE upload, of one file, to one path.
+ *
+ * Called from the form the moment somebody picks a file. It is a create-level
+ * permission on purpose: being able to put a file in the bucket is a write,
+ * even before any entry references it.
+ */
+export async function startReceiptUpload(
+  transactionDate: string,
+  fileName: string,
+  contentType: string,
+  size: number,
+): Promise<SignedUpload> {
+  await requirePettyCashCreate();
+  const res = await signReceiptUpload(
+    fileName,
+    contentType,
+    size,
+    monthKeyOf(transactionDate),
+  );
+  if (!res.ok) throw new Error(res.error);
+  return res.upload;
 }
 
 export type SaveResult = { uid: string };
@@ -91,16 +143,10 @@ export async function createEntry(fd: FormData): Promise<SaveResult> {
   const viewer = await requirePettyCashCreate();
   const input = readInput(fd);
 
-  // The file is stored BEFORE the row, so a failed upload never leaves an
-  // entry claiming a receipt that does not exist. The reverse — an orphaned
+  // The file reached storage BEFORE this ran, so a failed upload never leaves
+  // an entry claiming a receipt that does not exist. The reverse — an orphaned
   // object if the insert then fails — costs kilobytes and no correctness.
-  let attachment: { path: string; name: string } | null = null;
-  const file = fileOf(fd);
-  if (file) {
-    const up = await uploadAttachment(file, monthKeyOf(input.transactionDate));
-    if (!up.ok) throw new Error(up.error);
-    attachment = { path: up.path, name: up.name };
-  }
+  const attachment = await receiptOf(fd);
 
   const res = await createTransaction(viewer, input, attachment);
   paths();
@@ -112,20 +158,15 @@ export async function updateEntry(id: number, fd: FormData): Promise<void> {
   if (!Number.isInteger(id) || id <= 0) throw new Error("That entry could not be found.");
 
   const input = readInput(fd);
-  const file = fileOf(fd);
+  const uploaded = await receiptOf(fd);
   const removeExisting = fd.get("removeAttachment") === "1";
 
   // Three cases, and they are genuinely different: a new file replaces,
   // "remove" clears, and neither leaves whatever is there alone. Collapsing
   // them would make every edit that did not touch the receipt delete it.
   let attachment: { path: string; name: string } | null | "unchanged" = "unchanged";
-  if (file) {
-    const up = await uploadAttachment(file, monthKeyOf(input.transactionDate));
-    if (!up.ok) throw new Error(up.error);
-    attachment = { path: up.path, name: up.name };
-  } else if (removeExisting) {
-    attachment = null;
-  }
+  if (uploaded) attachment = uploaded;
+  else if (removeExisting) attachment = null;
 
   await updateTransaction(viewer, id, input, attachment);
   paths();

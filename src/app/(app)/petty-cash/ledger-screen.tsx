@@ -399,7 +399,9 @@ export function LedgerScreen({
                     </button>
                   </th>
                   <th className={th}>Reference</th>
-                  <th className={th}>Parties</th>
+                  <th className={th}>Type</th>
+                  <th className={th}>From</th>
+                  <th className={th}>To</th>
                   <th className={cn(th, "w-full")}>What for</th>
                   <th className={th}>
                     <button
@@ -411,6 +413,7 @@ export function LedgerScreen({
                     </button>
                   </th>
                   <th className={th}>Proof</th>
+                  <th className={th}>Receipt</th>
                   <th className={cn(th, "text-right")}>
                     <button
                       type="button"
@@ -532,37 +535,71 @@ function Row({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
       <td className={cn(td, "num whitespace-nowrap")}>{formatDate(row.transactionDate)}</td>
       <td className={cn(td, "num whitespace-nowrap text-text-3")}>{row.uid}</td>
       <td className={cn(td, "whitespace-nowrap")}>
-        <div className="flex flex-col">
-          <span className="font-semibold text-text-1">{row.toName}</span>
-          {row.fromName && (
-            <span className="text-[11.5px] text-text-3">From: {row.fromName}</span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11.5px] font-semibold",
+            meta.chip,
           )}
-        </div>
+        >
+          {row.transactionType === "DEBIT" ? (
+            <IconArrowUp className="size-3" />
+          ) : (
+            <IconArrowDown className="size-3" />
+          )}
+          {meta.short}
+        </span>
       </td>
+      <td className={cn(td, "whitespace-nowrap")}>
+        {row.fromName ? (
+          <span className="text-text-2">{row.fromName}</span>
+        ) : (
+          <span className="text-text-3">—</span>
+        )}
+      </td>
+      <td className={cn(td, "font-semibold whitespace-nowrap text-text-1")}>{row.toName}</td>
       <td className={cn(td, "max-w-[320px] truncate")} title={row.reason}>
         {row.reason}
       </td>
       <td className={cn(td, "whitespace-nowrap")}>
-        <span className={cn("rounded-pill px-2 py-0.5 text-[11.5px] font-semibold", meta.chip)}>
+        {/* The chip is neutral now that Type has its own column. Two coloured
+            pills on one row, both taking their colour from the direction, made
+            the category look like a status it is not. */}
+        <span className="rounded-pill bg-chip px-2 py-0.5 text-[11.5px] font-semibold text-text-2">
           {row.categoryName}
         </span>
       </td>
+      {/* What KIND of slip was kept. `NONE` is a real answer to that question
+          and is different from "no file attached", which is the next column
+          along — the two used to share one cell and a row with a photo behind
+          it printed "No proof" beside a paperclip. */}
       <td className={cn(td, "whitespace-nowrap")}>
-        {row.hasAttachment ? (
-          // A row with a photo behind it must not print "No proof" beside a
-          // paperclip. `proof_type` is what KIND of slip was kept and NONE is a
-          // real answer to that; the attachment is a separate fact, and when it
-          // is the only one, "Receipt" is what it is.
-          <span className="inline-flex items-center gap-1 text-[12px] text-text-2">
-            <IconPaperclip className="size-3.5 text-text-3" />
-            {row.proofType === "NONE" ? "Receipt" : proofLabel(row.proofType, row.proofOther)}
-          </span>
-        ) : row.proofType === "NONE" ? (
+        {row.proofType === "NONE" ? (
           <span className="text-[12px] text-text-3">—</span>
         ) : (
           <span className="text-[12px] text-text-2">
             {proofLabel(row.proofType, row.proofOther)}
           </span>
+        )}
+      </td>
+
+      <td className={cn(td, "whitespace-nowrap")}>
+        {row.hasAttachment ? (
+          // Opens the file itself. `stopPropagation` because the whole row is
+          // also a button — without it, clicking the receipt would open the
+          // entry behind the new tab.
+          <a
+            href={`/api/petty-cash/entries/${row.id}/attachment`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={row.attachmentName ?? "View receipt"}
+            className="inline-flex max-w-[150px] items-center gap-1 text-[12px] text-text-2 hover:text-text-1 hover:underline"
+          >
+            <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
+            <span className="truncate">{row.attachmentName ?? "Receipt"}</span>
+          </a>
+        ) : (
+          <span className="text-[12px] text-text-3">—</span>
         )}
       </td>
       <td className={cn(td, "num text-right font-bold whitespace-nowrap", meta.text)}>
