@@ -364,7 +364,7 @@ function PersonDialog({
             <SectionLabel>Account</SectionLabel>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="flex flex-col gap-1.5">
-                <span className="text-[12.5px] font-medium text-text-2">
+                <span className="text-[13px] font-medium text-text-2">
                   Name
                 </span>
                 <Input
@@ -374,7 +374,7 @@ function PersonDialog({
                 />
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="text-[12.5px] font-medium text-text-2">
+                <span className="text-[13px] font-medium text-text-2">
                   Email
                 </span>
                 {/* Locked once it exists: the email is the key all three
@@ -619,7 +619,7 @@ function SectionLabel({
   return (
     <div
       className={cn(
-        "text-[11px] font-bold tracking-[0.06em] uppercase",
+        "text-[11px] font-semibold tracking-[0.06em] uppercase",
         tone === "danger" ? "text-status-red/80" : "text-text-3",
       )}
     >

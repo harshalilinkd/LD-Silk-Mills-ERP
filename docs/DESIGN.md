@@ -295,10 +295,13 @@ key, the scroll lock, the focus handling and the close button top-right.
 - **Title**: `<DialogTitle>` and nothing else — 16px medium from the heading
   face. Never restyle it. A one-line explanation goes under it as a
   `text-[12.5px] text-text-3` paragraph inside the header.
-- **Field captions**: `text-xs font-medium text-text-2`, sentence case, above
-  the control, `gap-1.5`. **Not** the `[10.5px]` uppercase tracked caption —
-  that one belongs to filter panels (see § List screens), and having both on
-  one screen is what made the Checklist read as borrowed.
+- **Field captions**: **`text-[13px] font-medium text-text-2`**, sentence case,
+  above the control, `gap-1.5`. This is `order-form.tsx`'s `Field` label, which
+  Help Slip's type scale already cites by name as the ERP form label — so it
+  is the value with the most claim to being the standard, and the audit below
+  found four dialogs quietly using 12px or 12.5px instead. **Not** an uppercase
+  tracked caption — that one belongs to filter panels (see § List screens),
+  and having both on one screen is what made the Checklist read as borrowed.
 - **Body**: `flex flex-col gap-4 py-2`. Two short fields share a row with
   `grid grid-cols-2 gap-3`; anything longer gets its own.
 - **Footer**: `<DialogFooter>`. It is a tinted bar with a top border and it
@@ -319,6 +322,27 @@ cost a whole parallel dialog implementation.
 **A date field that means "from now" defaults to today**, not to the start of
 a period. A task created in September that defaults to 1 April silently
 generates five months of already-overdue rows.
+
+### The four caption styles, and which is which
+
+Counted across the whole app after the owner asked for uniformity. There were
+**thirteen** variants of the small uppercase caption alone, eight of them
+introduced by one module. There are four legitimate roles; anything else is
+drift.
+
+| Role | Class | Where |
+|---|---|---|
+| **Form field label** | `text-[13px] font-medium text-text-2` | above any input, in a dialog or a form card |
+| **Section heading** inside a dialog or card | `text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase` | "Account", "Access", "By department" |
+| **Filter panel caption** | `text-[11px] font-medium text-text-2` | inside a collapsed Filters panel only — see § List screens |
+| **Table header** (`th`) | `text-[11px] font-bold tracking-[0.04em] uppercase` | `text-text-1` on a data table, `text-text-3` on a quieter one |
+
+A small chart axis caption may drop to `text-[10px] font-semibold
+tracking-[0.06em] text-text-3 uppercase`. `<Eyebrow>` is a different thing
+again — a pill on the accent wash that marks a MODE ("Editing"), not a caption.
+
+**Before adding a fifth, check this table.** Every one of the thirteen was
+somebody reaching for a size that felt right in the moment.
 
 ## List screens — the filter & toolbar pattern
 

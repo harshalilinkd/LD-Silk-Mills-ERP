@@ -99,7 +99,7 @@ export function UserEditDialog({
 
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-text-2" htmlFor="u-name">
+            <label className="text-[13px] font-medium text-text-2" htmlFor="u-name">
               Name
             </label>
             <Input
@@ -111,7 +111,7 @@ export function UserEditDialog({
 
           <div className="flex flex-col gap-1.5">
             <label
-              className="text-xs font-medium text-text-2"
+              className="text-[13px] font-medium text-text-2"
               htmlFor="u-email"
             >
               Email
@@ -121,7 +121,7 @@ export function UserEditDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-text-2">Status</label>
+              <label className="text-[13px] font-medium text-text-2">Status</label>
               <Select
                 value={status}
                 onValueChange={(v) => setStatus(v as "active" | "inactive")}
@@ -138,7 +138,7 @@ export function UserEditDialog({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-text-2">
+              <label className="text-[13px] font-medium text-text-2">
                 ERP administrator
               </label>
               <Select

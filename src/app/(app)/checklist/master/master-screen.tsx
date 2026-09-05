@@ -218,7 +218,7 @@ export function MasterScreen({
               )}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+                <span className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                   {c.key}
                 </span>
                 <span className="text-[10.5px] font-semibold text-text-3">

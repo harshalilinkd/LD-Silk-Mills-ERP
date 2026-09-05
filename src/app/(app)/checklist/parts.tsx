@@ -77,7 +77,7 @@ export function Field({
 }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <label className="text-xs font-medium text-text-2">{label}</label>
+      <label className="text-[13px] font-medium text-text-2">{label}</label>
       {children}
       {hint && <p className="text-[11.5px] leading-snug text-text-3">{hint}</p>}
     </div>
@@ -121,7 +121,7 @@ export function PageHead({
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="mb-1 text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+          <div className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
             {eyebrow}
           </div>
         )}
@@ -318,7 +318,7 @@ export function TableCard({
 }
 
 export const th =
-  "sticky top-0 z-10 border-b border-border bg-surface px-3.5 py-2.5 text-left text-[10.5px] font-bold tracking-[0.06em] whitespace-nowrap text-text-1 uppercase";
+  "sticky top-0 z-10 border-b border-border bg-surface px-3.5 py-2.5 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase";
 export const td = "border-b border-border px-3.5 py-3 text-[13px] text-text-2";
 
 export function EmptyState({

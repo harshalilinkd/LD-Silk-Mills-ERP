@@ -69,7 +69,7 @@ export function SystemEditDialog({ system }: { system: System }) {
         </DialogHeader>
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className="text-[13px] font-medium text-text-2">
               Status
             </label>
             <Select
@@ -87,7 +87,7 @@ export function SystemEditDialog({ system }: { system: System }) {
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className="text-[13px] font-medium text-text-2">
               Application URL
             </label>
             <Input
@@ -97,7 +97,7 @@ export function SystemEditDialog({ system }: { system: System }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className="text-[13px] font-medium text-text-2">
               Sort order
             </label>
             <Input

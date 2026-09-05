@@ -307,7 +307,7 @@ export function DashboardScreen({
               >
                 {c.value}
               </div>
-              <div className="mt-1.5 text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+              <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 {c.label}
               </div>
               <div className="mt-0.5 text-[11.5px] leading-snug text-text-3">
@@ -339,7 +339,7 @@ export function DashboardScreen({
         <section className="rounded-card border border-border bg-surface">
           <div className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-3">
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 By department
               </div>
               <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -406,7 +406,7 @@ export function DashboardScreen({
         {/* ── the split ─────────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               Status breakdown
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -443,7 +443,7 @@ export function DashboardScreen({
 
           <div className="grid grid-cols-2 gap-3 border-t border-border px-4 py-3">
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Completed
               </div>
               <div className="num mt-0.5 text-[19px] font-bold text-status-green">
@@ -451,7 +451,7 @@ export function DashboardScreen({
               </div>
             </div>
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Open work
               </div>
               <div className="num mt-0.5 text-[19px] font-bold text-status-red">
@@ -467,7 +467,7 @@ export function DashboardScreen({
         <section className="rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Needs attention
               </div>
               <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -515,7 +515,7 @@ export function DashboardScreen({
                   <div className="num text-[17px] leading-none font-bold text-status-red">
                     {d.delayed}
                   </div>
-                  <div className="text-[10px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+                  <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                     delayed
                   </div>
                 </div>

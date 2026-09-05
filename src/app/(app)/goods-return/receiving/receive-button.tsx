@@ -94,7 +94,7 @@ export function ReceiveButton({
           <div className="flex flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5">
-                <span className="text-[12.5px] font-medium text-text-2">
+                <span className="text-[13px] font-medium text-text-2">
                   Transport paid (Balasaheb)
                 </span>
                 <Input
@@ -116,7 +116,7 @@ export function ReceiveButton({
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-[12.5px] font-medium text-text-2">
+                <span className="text-[13px] font-medium text-text-2">
                   Bhiwandi charges
                 </span>
                 <Input
@@ -130,7 +130,7 @@ export function ReceiveButton({
             </div>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12.5px] font-medium text-text-2">
+              <span className="text-[13px] font-medium text-text-2">
                 Notes
               </span>
               <Input

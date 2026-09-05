@@ -297,7 +297,7 @@ function Tally({
 }) {
   return (
     <div className="rounded-field border border-border bg-surface-2 px-3 py-2">
-      <div className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+      <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
         {label}
       </div>
       <div

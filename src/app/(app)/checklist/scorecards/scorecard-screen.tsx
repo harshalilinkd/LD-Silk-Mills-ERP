@@ -260,7 +260,7 @@ export function ScorecardScreen({
             arbitrary and stops trusting the screen. */}
         <div className="flex items-center gap-4 rounded-card border border-border bg-surface-2 px-4 py-3">
           <div className="text-center">
-            <div className="text-[10px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               Reliability
             </div>
             <div className="flex items-baseline justify-center gap-0.5">
@@ -277,7 +277,7 @@ export function ScorecardScreen({
             <span
               title={GRADE_SCALE_TOOLTIP}
               className={cn(
-                "mt-1 inline-block cursor-help rounded-pill px-2 py-0.5 text-[10px] font-bold tracking-[0.06em] uppercase",
+                "mt-1 inline-block cursor-help rounded-pill px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.06em] uppercase",
                 grade.chip,
                 grade.text,
               )}
@@ -375,7 +375,7 @@ export function ScorecardScreen({
         <section className="rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border px-4 py-3">
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Trend
               </div>
               <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -451,7 +451,7 @@ export function ScorecardScreen({
         {/* ── weekday pattern ───────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               By weekday
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -503,7 +503,7 @@ export function ScorecardScreen({
         <section className="rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
             <div>
-              <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Daily
               </div>
               <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -569,7 +569,7 @@ export function ScorecardScreen({
             >
               <IconChevronRight className="size-4" />
             </button>
-            <span className="w-full text-center text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <span className="w-full text-center text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               {data.period.days} days · click any cell to open that day
             </span>
           </div>
@@ -612,7 +612,7 @@ export function ScorecardScreen({
             with late, because work still to come is not a failure. */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               Composition
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -652,7 +652,7 @@ export function ScorecardScreen({
         {/* ── by frequency ──────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               By how often
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -711,7 +711,7 @@ export function ScorecardScreen({
         {/* ── the busiest duties ────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
               Volume
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -773,7 +773,7 @@ function Figure({
               {icon}
             </span>
           )}
-          <span className="text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+          <span className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
             {label}
           </span>
         </span>
@@ -861,7 +861,7 @@ function Heatmap({
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div
             key={d}
-            className="text-center text-[10px] font-semibold tracking-[0.04em] text-text-3 uppercase"
+            className="text-center text-[10px] font-semibold tracking-[0.06em] text-text-3 uppercase"
           >
             {d}
           </div>
@@ -952,7 +952,7 @@ function TaskList({
       <div className="border-b border-border px-4 py-3">
         <div
           className={cn(
-            "text-[10.5px] font-semibold tracking-[0.08em] uppercase",
+            "text-[11px] font-semibold tracking-[0.06em] uppercase",
             tone === "green" ? "text-status-green" : "text-status-red",
           )}
         >
