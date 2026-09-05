@@ -1,0 +1,465 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import {
+  IconCircleCheck,
+  IconCircleMinus,
+  IconPencil,
+  IconSearch,
+  IconTableImport,
+  IconTrash,
+  IconUserPlus,
+  IconUsers,
+} from "@tabler/icons-react";
+
+import { parseDoers, DOER_COLUMNS } from "@/lib/checklist/import-parsers";
+import { cn } from "@/lib/utils";
+import { ImportDialog } from "../import-dialog";
+import {
+  EmptyState,
+  ErrorNote,
+  Field,
+  Input,
+  Modal,
+  PageHead,
+  Pill,
+  PrimaryButton,
+  QuietButton,
+  Select,
+  TableCard,
+  td,
+  th,
+} from "../parts";
+import {
+  createDoer,
+  deleteDoer,
+  importDoers,
+  setDoerActive,
+  updateDoer,
+  type DoerInput,
+} from "./actions";
+
+export type DoerRow = {
+  id: number;
+  name: string;
+  email: string;
+  department: string | null;
+  isAdmin: boolean;
+  active: boolean;
+  hasLogin: boolean;
+  taskCount: number;
+};
+
+/**
+ * Doers.
+ *
+ * ── WHAT CHANGED FROM THE ORIGINAL, AND WHY ──────────────────────────────
+ *
+ * Their "New doer" dialog asks for an INITIAL PASSWORD and creates a Supabase
+ * Auth account, because in that system every doer must be able to sign in.
+ * This one does not, and the reason is written at length in the schema: most
+ * people with a duty on a checklist have no cause to hold a login into a
+ * system that holds order values, and forcing one on them would mean creating
+ * dozens of passwords nobody would ever use.
+ *
+ * So there is no password field. A doer is a name, an address and a
+ * department. If that address also belongs to an ERP account, the two find
+ * each other by email the first time that person signs in — which the table
+ * shows as "Signs in", so an administrator can see at a glance who will tick
+ * their own work off and who is being ticked off by somebody else.
+ *
+ * ── THE SEARCH IS LOCAL, DELIBERATELY ────────────────────────────────────
+ *
+ * The whole list is fetched — thirty-odd rows, a hundred at the outside — and
+ * filtered in the browser. A round trip per keystroke would be slower and no
+ * more correct at this size.
+ */
+export function DoersScreen({ rows }: { rows: DoerRow[] }) {
+  const router = useRouter();
+  const [q, setQ] = React.useState("");
+  const [editing, setEditing] = React.useState<DoerRow | "new" | null>(null);
+  const [importing, setImporting] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState<DoerRow | null>(null);
+  const [busyId, setBusyId] = React.useState<number | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const existingEmails = React.useMemo(
+    () => new Set(rows.map((r) => r.email)),
+    [rows],
+  );
+
+  const filtered = React.useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((r) =>
+      [r.name, r.email, r.department ?? ""].some((f) =>
+        f.toLowerCase().includes(needle),
+      ),
+    );
+  }, [rows, q]);
+
+  const activeCount = rows.filter((r) => r.active).length;
+
+  const toggleActive = async (row: DoerRow) => {
+    setBusyId(row.id);
+    setError(null);
+    try {
+      await setDoerActive(row.id, !row.active);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That could not be saved.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const doDelete = async (row: DoerRow) => {
+    setBusyId(row.id);
+    setError(null);
+    try {
+      await deleteDoer(row.id);
+      setConfirmDelete(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That could not be deleted.");
+      setConfirmDelete(null);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHead
+        eyebrow="Team"
+        title="Doers"
+        lede="People duties are assigned to. Deleting somebody is blocked while they have work or history — deactivate them instead."
+        action={
+          <>
+            <QuietButton onClick={() => setImporting(true)}>
+              <IconTableImport className="size-3.5" />
+              Bulk import
+            </QuietButton>
+            <PrimaryButton onClick={() => setEditing("new")}>
+              <IconUserPlus className="size-4" />
+              New doer
+            </PrimaryButton>
+          </>
+        }
+      />
+
+      <ErrorNote>{error}</ErrorNote>
+
+      <div className="rounded-card border border-border bg-surface p-3">
+        <Field label="Search">
+          <div className="relative">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-3" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by name, email or department…"
+              className="pl-8"
+            />
+          </div>
+        </Field>
+      </div>
+
+      {rows.length === 0 ? (
+        <TableCard
+          empty={
+            <EmptyState
+              icon={<IconUsers className="size-5" />}
+              title="Nobody on the list yet"
+              body="Add people one at a time, or paste the whole list straight out of a spreadsheet. Tasks can only be assigned to somebody who is on this list."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <PrimaryButton onClick={() => setEditing("new")}>
+                    <IconUserPlus className="size-4" />
+                    Add the first doer
+                  </PrimaryButton>
+                  <QuietButton onClick={() => setImporting(true)}>
+                    <IconTableImport className="size-3.5" />
+                    Bulk import
+                  </QuietButton>
+                </div>
+              }
+            />
+          }
+        />
+      ) : (
+        <>
+          <TableCard>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={cn(th, "w-full")}>Name</th>
+                  <th className={th}>Department</th>
+                  <th className={th}>Email</th>
+                  <th className={th}>Signs in</th>
+                  <th className={th}>Tasks</th>
+                  <th className={th}>Status</th>
+                  <th className={cn(th, "text-right")}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className={cn(
+                      "transition-colors hover:bg-surface-2",
+                      !r.active && "opacity-55",
+                    )}
+                  >
+                    <td className={td}>
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={cn(
+                            "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                            r.isAdmin
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-accent text-accent-text",
+                          )}
+                        >
+                          {initials(r.name)}
+                        </span>
+                        <span className="font-semibold text-text-1">{r.name}</span>
+                        {r.isAdmin && <Pill tone="blue">Admin</Pill>}
+                      </div>
+                    </td>
+                    <td className={cn(td, "whitespace-nowrap")}>
+                      {r.department || <span className="text-text-3">—</span>}
+                    </td>
+                    <td className={cn(td, "whitespace-nowrap")}>{r.email}</td>
+                    <td className={cn(td, "whitespace-nowrap")}>
+                      {r.hasLogin ? (
+                        <span className="text-status-green">Yes</span>
+                      ) : (
+                        <span className="text-text-3">No login</span>
+                      )}
+                    </td>
+                    <td className={cn(td, "num text-right whitespace-nowrap")}>
+                      {r.taskCount}
+                    </td>
+                    <td className={cn(td, "whitespace-nowrap")}>
+                      {r.active ? (
+                        <Pill tone="green">Active</Pill>
+                      ) : (
+                        <Pill tone="grey">Inactive</Pill>
+                      )}
+                    </td>
+                    <td className={cn(td, "whitespace-nowrap")}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <QuietButton
+                          onClick={() => void toggleActive(r)}
+                          busy={busyId === r.id}
+                        >
+                          {r.active ? (
+                            <>
+                              <IconCircleMinus className="size-3.5" />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <IconCircleCheck className="size-3.5" />
+                              Reactivate
+                            </>
+                          )}
+                        </QuietButton>
+                        <QuietButton onClick={() => setEditing(r)}>
+                          <IconPencil className="size-3.5" />
+                          Edit
+                        </QuietButton>
+                        <QuietButton
+                          tone="danger"
+                          aria-label={`Delete ${r.name}`}
+                          onClick={() => setConfirmDelete(r)}
+                        >
+                          <IconTrash className="size-3.5" />
+                        </QuietButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableCard>
+
+          <p className="text-[12px] text-text-3">
+            {filtered.length} of {rows.length} shown · {activeCount} active
+          </p>
+        </>
+      )}
+
+      {editing && (
+        <DoerDialog
+          row={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      <ImportDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        title="Bulk import doers"
+        columns={DOER_COLUMNS}
+        formatHint={
+          <>
+            Four columns, in this order: <strong>name</strong>,{" "}
+            <strong>email</strong>, <strong>department</strong>,{" "}
+            <strong>role</strong>. Department and role can be left blank —
+            anybody without &ldquo;admin&rdquo; in the role column becomes an
+            ordinary doer. A heading row is fine; it will be spotted and
+            ignored.
+          </>
+        }
+        sample={
+          "Name,Email,Department,Role\n" +
+          "Aditya Lohar,aditya@example.com,Analytics,\n" +
+          "Seema Patil,seema@example.com,HR,Admin"
+        }
+        parse={(text) => parseDoers(text, existingEmails)}
+        submit={importDoers}
+        onDone={() => router.refresh()}
+      />
+
+      <Modal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title={`Delete ${confirmDelete?.name ?? ""}?`}
+        subtitle="This removes them from the list entirely. It cannot be undone."
+        footer={
+          <>
+            <QuietButton onClick={() => setConfirmDelete(null)}>Cancel</QuietButton>
+            <button
+              type="button"
+              onClick={() => confirmDelete && void doDelete(confirmDelete)}
+              disabled={busyId !== null}
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-field bg-status-red px-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] leading-relaxed text-text-2">
+          If they have any tasks or any checklist history, this will be refused
+          and nothing will change —{" "}
+          <strong className="font-semibold text-text-1">Deactivate</strong> is
+          the right choice for somebody who has left, because it keeps the
+          record of what they did and simply stops new work being scheduled.
+        </p>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── the add / edit dialog ────────────────────────────────────────────────
+
+function DoerDialog({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: DoerRow | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = React.useState(row?.name ?? "");
+  const [email, setEmail] = React.useState(row?.email ?? "");
+  const [department, setDepartment] = React.useState(row?.department ?? "");
+  const [role, setRole] = React.useState(row?.isAdmin ? "admin" : "user");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    const input: DoerInput = {
+      name,
+      email,
+      department: department || null,
+      isAdmin: role === "admin",
+    };
+    try {
+      if (row) await updateDoer(row.id, input);
+      else await createDoer(input);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That could not be saved.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={row ? `Edit ${row.name}` : "New doer"}
+      footer={
+        <>
+          <QuietButton onClick={onClose} disabled={busy}>
+            Cancel
+          </QuietButton>
+          <PrimaryButton onClick={save} busy={busy} disabled={!name.trim() || !email.trim()}>
+            Save
+          </PrimaryButton>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <Field label="Name">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            placeholder="Full name"
+          />
+        </Field>
+
+        <Field
+          label="Email"
+          hint="Also how they are matched to an ERP login, if they have one. They do not need one."
+        >
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+        </Field>
+
+        <Field label="Department">
+          <Input
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            placeholder="Accounts, Housekeeping, Design…"
+          />
+        </Field>
+
+        <Field
+          label="Role"
+          hint="An administrator can create tasks, tick anybody's work off and see every scorecard. Everybody else sees only their own."
+        >
+          <Select value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="user">Doer — sees only their own work</option>
+            <option value="admin">Administrator — runs the checklist</option>
+          </Select>
+        </Field>
+
+        <ErrorNote>{error}</ErrorNote>
+      </div>
+    </Modal>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
