@@ -29,6 +29,13 @@
       "when": 1788507753254,
       "tag": "0003_far_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788584250637,
+      "tag": "0004_narrow_ben_parker",
+      "breakpoints": true
     }
   ]
 }
