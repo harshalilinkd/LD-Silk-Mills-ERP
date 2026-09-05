@@ -24,7 +24,7 @@ sidebar offer an address that does not exist. Then check `system_access`: a
 system nobody has been granted is a system nobody sees, which is exactly the
 "I marked it active and it still is not in the menu" the owner hit with CRR.
 
-Four things are outstanding, and none of them is code:
+Three things are outstanding, and none of them is code:
 
 1. **The AI Assistant needs an `ANTHROPIC_API_KEY`.** Everything is built; the
    endpoint answers with one specific sentence until the key exists. The owner
@@ -37,11 +37,21 @@ Four things are outstanding, and none of them is code:
    also holds `naushi.linkdprints@gmail.com`; and two "test admin" Help Slip
    profiles (`harshali08033@`, `harshalibhopale08033@`) own no concerns and
    cannot sign in. All three are the owner's call.
-4. **Masters shows empty lists to an ERP admin who has no Order Entry
-   account.** `/api/order-entry/lookups` answers 401 — correctly, it is an
-   Order Entry resource — but the page renders its tabs and then silently has
-   nothing in them. It should say so. Does not affect the owner, whose account
-   is an Order Entry admin.
+
+**Petty Cash roles are unset.** Six people held `system_access` for it before
+it went live, so all six can READ the ledger and only the ERP admin can record
+anything. Setting each of them in Lists and access → Who may use it is the
+owner's call, not a bug.
+
+**The `attachments` storage bucket is PUBLIC, and must stay that way.** It is
+EMPTY — zero objects, nothing in this repo references it — but it is the bucket
+the still-live standalone Goods Return app writes to
+(`lib/storage.ts`: `ATTACHMENTS_BUCKET = "attachments"`, read back with
+`getPublicUrl()`). Making it private would break that app's uploads the first
+time somebody used them. Nothing is exposed today because nothing is in it; it
+can be deleted the day that site is retired, and not before. Our own three
+buckets (`concern-attachments`, `goods-return-attachments`,
+`petty-cash-attachments`) are private and proxied.
 
 **The standalone Goods Return app stays live**, passwordless, on the owner's
 explicit instruction (Sep 2026): *"keep old as it is"*. Do not propose
@@ -358,7 +368,7 @@ you're inside that section). Toggling a system's `status`/`route`/
   real — Dashboard, Master Checklist, Scorecards, Tasks, Doers, Holidays —
   over our own empty `ld_checklist_system` schema. See its section below.
 - **Petty Cash** (`/petty-cash/*`, system_code `petty-cash`): all four screens
-  real — Ledger, Monthly summary, Analysis, Lists and access — over our own
+  real — Ledger, Monthly summary, Dashboard, Lists and access — over our own
   `ld_petty_cash` schema, built from scratch rather than ported. See its
   section below.
 - **CRM** (`/crm/*`, own top-level sidebar entry, system_code `crm`):
@@ -727,7 +737,8 @@ Apps Script runs, and not one row was imported.** The old app is untouched and
 still live; importing its 1,589 rows is a separate job nobody has asked for.
 
 Four screens: **Ledger** (`/petty-cash`) · **Monthly summary** (`/summary`) ·
-**Analysis** (`/analysis`) · **Lists and access** (`/masters`).
+**Dashboard** (`/analysis` — the route kept its original folder name; only the
+label and the screen changed) · **Lists and access** (`/masters`).
 
 **Two questions, and BOTH are security boundaries.** This is where the module
 differs from Goods Return, whose office is only a mode.
@@ -816,14 +827,56 @@ Audit rows go to `ld_erp_core.audit_logs` under `system_code = 'petty-cash'`
 with hyphenated action names (`petty-cash.created`, `.updated`, `.deleted`,
 `.payee_renamed`, `.category_switched_off`, `.role_set`, …).
 
-**The Analysis screen is a calendar above `sm` and a LIST below it.** A
-seven-column grid with rupee figures in it is a desktop layout; at 390px each
-cell is 45px and "+ ₹10,000" wraps onto three lines. The list shows only the
-days that had activity and opens the same filtered ledger when tapped.
+**The Dashboard (`/analysis`) is more than the calendar it started as.** It
+was one calendar and nothing else; it now leads with a CA-style figure strip
+(net for the period, top category and its share, average payment size, spend
+vs last month), a six-month cash-flow chart, a category donut, a spend-by-
+group bar chart and a top-payees panel — THEN the calendar, demoted to a "Day
+by day" section rather than removed, because it is still the only shape that
+answers "which day did that go out on" and there was no reason to trade a
+working feature for a new one. **Two clocks, deliberately**: the cash-flow
+chart is always the real last six months ending today (`getMonthlyTrend`,
+`src/lib/petty-cash/queries.ts` — ONE `GROUP BY to_char(transaction_date,
+'YYYY-MM-01')`, months with no activity filled in as zero so the X axis stays
+continuous), while the figure strip, the two breakdown charts and the calendar
+all describe whichever month the picker is set to. Navigating to March does
+not also rewrite the trend chart into being about March.
+
+The two charts (`src/app/(app)/petty-cash/charts.tsx`) are Recharts, the same
+approach as `components/order-entry/dashboard/charts.tsx`: every colour handed
+to a chart is a `var(--token)` string, so the SVG repaints on a theme flip with
+no JS colour plumbing and no re-render. A negative axis tick carries U+2212
+(minus sign), not a hyphen — the same rule as every other figure in the
+module.
+
+**The calendar itself is a grid above `sm` and a LIST below it**, unchanged
+from before: a seven-column grid with rupee figures in it is a desktop layout;
+at 390px each cell is 45px and "+ ₹10,000" wraps onto three lines. The list
+shows only the days that had activity and opens the same filtered ledger when
+tapped.
 
 **`/masters` is ADMIN only and refuses rather than hides** — a non-admin is
 sent back to the ledger, the same shape as CRM rules and four of the six
 Checklist screens.
+
+**The Categories tab is ONE list, not one card per group.** It used to render
+a separate `TableCard` — full column header included — for every group, which
+at eight groups was eight near-identical headers for what was often a single
+row each. It is now one table with the group as a slim divider row inside it;
+grouping still shows (it is what the monthly summary rolls up to) without
+paying for it in scroll length.
+
+**The Payees / Categories / Who-may-use-it switcher on `/masters` is `Tabs`,
+not `Segmented`.** `Segmented` (`components/ui/segmented.tsx`) is a radiogroup
+for a single either/or QUESTION ("did it reach on time?") and reads as an
+unlabelled row of buttons when used to switch between whole sections of a
+screen instead. `Tabs` (`components/ui/module-parts.tsx`) is the fix: the same
+pill-strip look `SettingsTabs` and `HelpSlipSettingsTabs` already use for real
+routes (`bg-surface-2` strip, active tab lifted on `bg-surface` with a
+shadow), just driven by a controlled `value`/`onChange` instead of
+`Link`/`usePathname` since these are sections of one screen, not separate
+pages. Reach for `Tabs` the next time a screen needs a section switcher — not
+`Segmented`.
 
 **It starts empty and the owner fills it.** Eight categories were seeded
 (Petty Cash, Deposit, Cash Salary, Salary, Advance Salary, Transport, Hamal,

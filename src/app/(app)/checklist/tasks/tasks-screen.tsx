@@ -670,7 +670,7 @@ function TaskDialog({
             </Select>
           </Field>
 
-          <Field label="How often" hint={meta.help}>
+          <Field label="How often" help={meta.help}>
             <Select
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as Frequency)}
@@ -687,7 +687,7 @@ function TaskDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Starts"
-            hint={
+            help={
               meta.weekdayFromStart && startDate.length === 10
                 ? frequencyLabelFor(frequency, startDate)
                 : "Defaults to today. It is also the anchor — a monthly task takes its day of the month from here."
@@ -700,7 +700,7 @@ function TaskDialog({
             />
           </Field>
 
-          <Field label="Ends (optional)" hint={`Blank runs to ${formatDate(fy.to)}.`}>
+          <Field label="Ends (optional)" help={`Blank runs to ${formatDate(fy.to)}.`}>
             <Input
               type="date"
               value={endDate}
@@ -712,7 +712,7 @@ function TaskDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Assigned by"
-            hint={
+            help={
               typingAssigner
                 ? "It will be on the list next time."
                 : "Who asked for this duty."
@@ -763,7 +763,7 @@ function TaskDialog({
 
           <Field
             label="Status"
-            hint={active ? undefined : "No new dates will be scheduled."}
+            help={active ? undefined : "No new dates will be scheduled."}
           >
             <Select
               value={active ? "active" : "inactive"}

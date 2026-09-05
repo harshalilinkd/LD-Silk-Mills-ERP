@@ -65,31 +65,118 @@ export const selectBase = cn(
 );
 
 /**
- * One field inside a DIALOG.
+ * One field, in a dialog or a form card.
  *
- * `text-xs font-medium text-text-2` above the control, in sentence case — the
- * shape every other dialog in the ERP uses (see Settings → Users). The
- * uppercase tracked caption this used to have belongs on a filter panel, and
- * having both on one screen was the thing that made these dialogs read as a
- * different application.
+ * ── THIS IS `order-form.tsx`'s FIELD, MOVED ──────────────────────────────
+ *
+ * The order form is the ERP's oldest and busiest form, and `docs/DESIGN.md`
+ * already names its label as THE form label. So rather than keeping a second
+ * shape here that merely matched the class, this is that component: the same
+ * `gap-[7px]`, the same required asterisk, and the same short hint sitting on
+ * the label row rather than under the control.
+ *
+ * ── `hint` AND `help` ARE DIFFERENT JOBS ─────────────────────────────────
+ *
+ *   · `hint` is SHORT and sits right-aligned on the label row: "Optional",
+ *     "Already exists", "₹1,250.00". It is the field's status, and putting it
+ *     beside the label means it costs no vertical space — which is what lets a
+ *     ten-field form fit on a screen without scrolling.
+ *   · `help` is a sentence and sits under the control. Reach for it only when
+ *     a field genuinely needs explaining; two of them in a row is a sign the
+ *     labels are wrong.
+ *
+ * A long sentence squeezed onto the label row wraps and pushes the control
+ * down unevenly across a grid, which is exactly what `help` avoids.
  */
 export function Field({
   label,
-  children,
-  className,
+  htmlFor,
+  required,
   hint,
+  hintTone = "muted",
+  help,
+  className,
+  children,
 }: {
   label: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
+  htmlFor?: string;
+  required?: boolean;
   hint?: React.ReactNode;
+  hintTone?: "muted" | "danger" | "success";
+  help?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <label className="text-[13px] font-medium text-text-2">{label}</label>
+    <div className={cn("flex min-w-0 flex-col gap-[7px]", className)}>
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={htmlFor} className="text-[13px] font-medium text-text-2">
+          {label}
+          {required ? <span className="font-semibold text-status-red"> *</span> : null}
+        </label>
+        {hint ? (
+          <span
+            className={cn(
+              "shrink-0 text-xs",
+              hintTone === "danger"
+                ? "text-status-red"
+                : hintTone === "success"
+                  ? "text-status-green"
+                  : "text-text-3",
+            )}
+          >
+            {hint}
+          </span>
+        ) : null}
+      </div>
       {children}
-      {hint && <p className="text-[11.5px] leading-snug text-text-3">{hint}</p>}
+      {help ? <p className="text-[11.5px] leading-snug text-text-3">{help}</p> : null}
     </div>
+  );
+}
+
+/**
+ * The heading of a block of fields — the order form's, moved here for the
+ * same reason `Field` was.
+ *
+ * A form long enough to need sections gets one of these per section: a small
+ * accent chip carrying the section's icon, and a 14.5px bold heading. It is
+ * what makes a dialog with ten fields read as three short forms instead of one
+ * long list, and it is why the order form has never needed numbered steps.
+ */
+export function SectionHead({
+  icon,
+  children,
+  aside,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-7 shrink-0 place-items-center rounded-[9px] bg-accent text-accent-text ring-1 ring-accent-text/15 ring-inset">
+          {icon}
+        </span>
+        <h2 className="text-[14.5px] font-bold text-text-1">{children}</h2>
+      </div>
+      {aside}
+    </div>
+  );
+}
+
+/** A multi-line field, styled as the one-line ones are. */
+export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      {...props}
+      className={cn(
+        fieldBase,
+        "h-auto resize-y py-2 leading-snug",
+        className,
+      )}
+    />
   );
 }
 

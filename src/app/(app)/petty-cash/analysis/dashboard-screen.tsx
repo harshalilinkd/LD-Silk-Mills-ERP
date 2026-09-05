@@ -6,6 +6,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconReceipt,
+  IconMinus,
   IconScale,
   IconTrendingDown,
   IconTrendingUp,
@@ -31,11 +32,21 @@ import type {
 } from "@/lib/petty-cash/queries";
 import { cn } from "@/lib/utils";
 import { PageHead, QuietButton, Select } from "@/components/ui/module-parts";
-import { CashFlowChart, CategoryDonut } from "../charts";
+import { CashFlowChart, CategoryDonut, GroupBarChart } from "../charts";
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 type View = "CREDIT" | "DEBIT" | "NET";
@@ -154,8 +165,8 @@ export function DashboardScreen({
 
   const thisTrend = trend[trend.length - 1];
   const prevTrend = trend.length > 1 ? trend[trend.length - 2] : null;
-  const thisDebits = thisTrend ? toNumber(thisTrend.debits) ?? 0 : 0;
-  const prevDebits = prevTrend ? toNumber(prevTrend.debits) ?? 0 : null;
+  const thisDebits = thisTrend ? (toNumber(thisTrend.debits) ?? 0) : 0;
+  const prevDebits = prevTrend ? (toNumber(prevTrend.debits) ?? 0) : null;
   const momChange =
     prevDebits != null && prevDebits > 0
       ? Math.round(((thisDebits - prevDebits) / prevDebits) * 100)
@@ -173,11 +184,19 @@ export function DashboardScreen({
     value: toNumber(c.debits) ?? 0,
   }));
 
+  const groupBarData = summary.byGroup.map((g) => ({
+    name: g.groupName,
+    value: toNumber(g.debits) ?? 0,
+  }));
+
   const topPayees = [...payees]
     .filter((p) => (toNumber(p.paid) ?? 0) > 0)
     .sort((a, b) => (toNumber(b.paid) ?? 0) - (toNumber(a.paid) ?? 0))
     .slice(0, 5);
-  const topPayeesTotal = topPayees.reduce((s, p) => s + (toNumber(p.paid) ?? 0), 0);
+  const topPayeesTotal = topPayees.reduce(
+    (s, p) => s + (toNumber(p.paid) ?? 0),
+    0,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -215,34 +234,39 @@ export function DashboardScreen({
           sub={`Across ${periodCount.toLocaleString("en-IN")} ${periodCount === 1 ? "entry" : "entries"}`}
         />
         <CaFigure
-          icon={momChange == null ? <IconScale className="size-4" /> : momChange > 0 ? (
-            <IconTrendingUp className="size-4" />
-          ) : (
-            <IconTrendingDown className="size-4" />
-          )}
+          icon={
+            // Not the scale — that is "Net this period" two cards along, and
+            // repeating an icon makes two different figures look like one.
+            momChange == null ? (
+              <IconMinus className="size-4" />
+            ) : momChange > 0 ? (
+              <IconTrendingUp className="size-4" />
+            ) : (
+              <IconTrendingDown className="size-4" />
+            )
+          }
           label="Vs last month"
-          value={momChange == null ? "—" : `${momChange > 0 ? "+" : ""}${momChange}%`}
+          value={
+            momChange == null ? "—" : `${momChange > 0 ? "+" : ""}${momChange}%`
+          }
           tone={momChange == null ? "grey" : momChange > 0 ? "red" : "green"}
-          sub={momChange == null ? "Not enough history yet" : "Money paid out, month over month"}
+          sub={
+            momChange == null
+              ? "Not enough history yet"
+              : "Money paid out, month over month"
+          }
         />
       </div>
 
       {/* ── the trend, always the real last six months ──────────────────── */}
       <section className="rounded-card border border-border bg-surface">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
-          <div>
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-              Cash flow
-            </div>
-            <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Last six months
-            </h2>
+        <div className="border-b border-border px-4 py-3">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            Cash flow
           </div>
-          <div className="flex items-center gap-3 text-[11.5px] text-text-3">
-            <Key colour="bg-status-green" label="In" />
-            <Key colour="bg-status-red" label="Out" />
-            <Key colour="bg-accent-text" label="Net" />
-          </div>
+          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+            Last six months
+          </h2>
         </div>
         <div className="px-2 pt-3 pb-1 sm:px-4">
           <CashFlowChart data={trendData} />
@@ -265,53 +289,70 @@ export function DashboardScreen({
           </div>
         </section>
 
-        {/* ── who it mostly goes to ────────────────────────────────────── */}
+        {/* ── the same money, ranked by heading instead of sliced ─────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
             <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-              All time
+              This period
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Top payees
+              Spend by group
             </h2>
           </div>
-          {topPayees.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[12.5px] text-text-3">
-              Nothing paid out yet.
-            </p>
-          ) : (
-            <div className="flex flex-col divide-y divide-border">
-              {topPayees.map((p) => {
-                const paid = toNumber(p.paid) ?? 0;
-                const pct = topPayeesTotal ? Math.round((paid / topPayeesTotal) * 100) : 0;
-                return (
-                  <div key={p.id} className="px-4 py-2.5">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold text-text-1">
-                        {p.name}
-                      </span>
-                      <span className="num shrink-0 text-[12.5px] font-bold text-text-1">
-                        {formatMoney(paid)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
-                        <div
-                          className="h-full rounded-pill bg-status-red/70"
-                          style={{ width: `${Math.max(4, pct)}%` }}
-                        />
-                      </div>
-                      <span className="num shrink-0 text-[11px] text-text-3">
-                        {p.used} {p.used === 1 ? "entry" : "entries"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="px-4 py-4">
+            <GroupBarChart data={groupBarData} />
+          </div>
         </section>
       </div>
+
+      {/* ── who it mostly goes to ──────────────────────────────────────── */}
+      <section className="rounded-card border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            All time
+          </div>
+          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+            Top payees
+          </h2>
+        </div>
+        {topPayees.length === 0 ? (
+          <p className="px-4 py-8 text-center text-[12.5px] text-text-3">
+            Nothing paid out yet.
+          </p>
+        ) : (
+          <div className="flex flex-col divide-y divide-border">
+            {topPayees.map((p) => {
+              const paid = toNumber(p.paid) ?? 0;
+              const pct = topPayeesTotal
+                ? Math.round((paid / topPayeesTotal) * 100)
+                : 0;
+              return (
+                <div key={p.id} className="px-4 py-2.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="truncate text-[13px] font-semibold text-text-1">
+                      {p.name}
+                    </span>
+                    <span className="num shrink-0 text-[12.5px] font-bold text-text-1">
+                      {formatMoney(paid)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
+                      <div
+                        className="h-full rounded-pill bg-status-red/70"
+                        style={{ width: `${Math.max(4, pct)}%` }}
+                      />
+                    </div>
+                    <span className="num shrink-0 text-[11px] text-text-3">
+                      {p.used} {p.used === 1 ? "entry" : "entries"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* ── which day, exactly ───────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
@@ -368,7 +409,9 @@ export function DashboardScreen({
             className="w-auto min-w-[150px]"
             value={String(m)}
             onChange={(e) =>
-              set({ month: `${y}-${String(Number(e.target.value)).padStart(2, "0")}-01` })
+              set({
+                month: `${y}-${String(Number(e.target.value)).padStart(2, "0")}-01`,
+              })
             }
           >
             {MONTHS.map((name, i) => (
@@ -382,7 +425,11 @@ export function DashboardScreen({
             aria-label="Year"
             className="w-auto min-w-[110px]"
             value={String(y)}
-            onChange={(e) => set({ month: `${e.target.value}-${String(m).padStart(2, "0")}-01` })}
+            onChange={(e) =>
+              set({
+                month: `${e.target.value}-${String(m).padStart(2, "0")}-01`,
+              })
+            }
           >
             {yearOptions.map((yr) => (
               <option key={yr} value={yr}>
@@ -399,7 +446,10 @@ export function DashboardScreen({
             <IconChevronRight className="size-4" />
           </QuietButton>
 
-          <QuietButton className="h-9" onClick={() => set({ month: startOfMonth(today) })}>
+          <QuietButton
+            className="h-9"
+            onClick={() => set({ month: startOfMonth(today) })}
+          >
             This month
           </QuietButton>
         </div>
@@ -477,7 +527,8 @@ export function DashboardScreen({
             {weeks.map((week, wi) => (
               <div key={wi} className="grid grid-cols-7 gap-1.5">
                 {week.map((cell, ci) => {
-                  if (cell === null) return <div key={ci} className="min-h-[74px]" />;
+                  if (cell === null)
+                    return <div key={ci} className="min-h-[74px]" />;
                   const has = !("empty" in cell);
                   const credits = has ? (toNumber(cell.credits) ?? 0) : 0;
                   const debits = has ? (toNumber(cell.debits) ?? 0) : 0;
@@ -502,7 +553,8 @@ export function DashboardScreen({
                         has
                           ? "cursor-pointer border-border bg-surface-2 hover:border-primary/40"
                           : "cursor-default border-transparent",
-                        cell.date === today && "ring-2 ring-primary ring-offset-1 ring-offset-[var(--surface)]",
+                        cell.date === today &&
+                          "ring-2 ring-primary ring-offset-1 ring-offset-[var(--surface)]",
                       )}
                     >
                       <span
@@ -534,7 +586,9 @@ export function DashboardScreen({
                                 ? "bg-status-red/70"
                                 : "bg-status-green/70",
                             )}
-                            style={{ width: `${Math.max(6, Math.round(weight * 100))}%` }}
+                            style={{
+                              width: `${Math.max(6, Math.round(weight * 100))}%`,
+                            }}
                           />
                         </span>
                       )}
@@ -547,9 +601,9 @@ export function DashboardScreen({
 
           <p className="mt-3 border-t border-border pt-2.5 text-[11.5px] text-text-3">
             Each day shows what went in and out on{" "}
-            <strong className="font-semibold text-text-2">that date</strong> — the
-            date on the entry, not when it was typed in. Click a day to open its
-            entries.
+            <strong className="font-semibold text-text-2">that date</strong> —
+            the date on the entry, not when it was typed in. Click a day to open
+            its entries.
           </p>
         </section>
       </section>
@@ -565,15 +619,6 @@ export function DashboardScreen({
 function compact(n: number): string {
   const full = formatMoney(n);
   return full.endsWith(".00") ? full.slice(0, -3) : full;
-}
-
-function Key({ colour, label }: { colour: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("size-2 rounded-full", colour)} />
-      {label}
-    </span>
-  );
 }
 
 function CaFigure({
@@ -607,7 +652,9 @@ function CaFigure({
       <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
         {label}
       </div>
-      <div className="mt-0.5 truncate text-[11.5px] leading-snug text-text-3">{sub}</div>
+      <div className="mt-0.5 truncate text-[11.5px] leading-snug text-text-3">
+        {sub}
+      </div>
     </div>
   );
 }

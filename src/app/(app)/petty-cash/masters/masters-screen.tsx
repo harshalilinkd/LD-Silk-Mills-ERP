@@ -304,7 +304,7 @@ function PayeeDialog({ row, onClose }: { row?: PayeeRow; onClose: () => void }) 
 
       <Field
         label="Code (optional)"
-        hint="A staff or shop number, if the office uses one."
+        help="A staff or shop number, if the office uses one."
       >
         <Input
           value={code}
@@ -530,7 +530,7 @@ function CategoryDialog({
         />
       </Field>
 
-      <Field label="Rolls up to" hint="The heading the monthly summary adds it under.">
+      <Field label="Rolls up to" help="The heading the monthly summary adds it under.">
         <Select value={group} onChange={(e) => setGroup(e.target.value)}>
           {groups.map((g) => (
             <option key={g} value={g}>

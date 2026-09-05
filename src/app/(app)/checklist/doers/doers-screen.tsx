@@ -479,7 +479,7 @@ function DoerDialog({
 
         <Field
           label="Email"
-          hint="Also how they are matched to an ERP login, if they have one. They do not need one."
+          help="Also how they are matched to an ERP login, if they have one. They do not need one."
         >
           <Input
             type="email"
@@ -491,7 +491,7 @@ function DoerDialog({
 
         <Field
           label="Department"
-          hint={
+          help={
             typing
               ? "It will appear in this list for everybody else once saved."
               : "From your company list in Masters, plus any already used on the checklist."
@@ -542,7 +542,7 @@ function DoerDialog({
 
         <Field
           label="Role"
-          hint="An administrator can create tasks, tick anybody's work off and see every scorecard. Everybody else sees only their own."
+          help="An administrator can create tasks, tick anybody's work off and see every scorecard. Everybody else sees only their own."
         >
           <Select value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="user">Doer — sees only their own work</option>

@@ -396,31 +396,31 @@ function PersonDialog({
           <section className="flex flex-col gap-3">
             <SectionLabel>Access</SectionLabel>
             <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
-              <Field label="ERP" hint="Signing in at all, and admin rights.">
+              <SettingRow label="ERP" hint="Signing in at all, and admin rights.">
                 <Picker
                   value={erp}
                   onChange={setErp}
                   options={ERP_ROLES}
                   disabled={isSelf}
                 />
-              </Field>
+              </SettingRow>
 
               <div className="h-px bg-border" />
 
-              <Field label="Orders & CRM" hint="Their role in Order Entry.">
+              <SettingRow label="Orders & CRM" hint="Their role in Order Entry.">
                 <Picker value={oe} onChange={setOe} options={OE_ROLES} />
-              </Field>
+              </SettingRow>
 
               <div className="h-px bg-border" />
 
-              <Field label="Help Slip" hint="Raising and handling concerns.">
+              <SettingRow label="Help Slip" hint="Raising and handling concerns.">
                 <Picker value={hs} onChange={setHs} options={HS_ROLES} />
-              </Field>
+              </SettingRow>
             </div>
 
             {hs !== "none" && (
               <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
-                <Field label="Department" hint="Used to route their concerns.">
+                <SettingRow label="Department" hint="Used to route their concerns.">
                   <Picker
                     value={dept}
                     onChange={setDept}
@@ -429,7 +429,7 @@ function PersonDialog({
                       ...departments.map((d) => ({ v: d.id, label: d.name })),
                     ]}
                   />
-                </Field>
+                </SettingRow>
                 <label className="flex cursor-pointer items-start gap-2.5">
                   <input
                     type="checkbox"
@@ -628,7 +628,14 @@ function SectionLabel({
   );
 }
 
-function Field({
+/**
+ * A settings ROW: label and explanation on the left, control on the right.
+ *
+ * NOT the stacked `Field` in `components/ui/module-parts` — a different shape
+ * for a different job, which is why it has a different name. It borrows that
+ * component's label size and colour so the two read as one family.
+ */
+function SettingRow({
   label,
   hint,
   children,
@@ -643,7 +650,7 @@ function Field({
     // instead of keeping a fixed 190px and leaving the rest of the row blank.
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <div className="text-[13px] font-medium text-text-1">{label}</div>
+        <div className="text-[13px] font-medium text-text-2">{label}</div>
         <div className="text-[11.5px] text-text-3">{hint}</div>
       </div>
       <div className="w-full sm:w-[200px] sm:shrink-0">{children}</div>

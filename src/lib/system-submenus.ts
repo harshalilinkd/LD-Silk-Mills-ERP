@@ -69,7 +69,7 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
   "petty-cash": [
     { label: "Ledger", href: "/petty-cash", exact: true },
     { label: "Monthly summary", href: "/petty-cash/summary" },
-    { label: "Dashboard", href: "/petty-cash/analysis" },
+    { label: "Analysis", href: "/petty-cash/analysis" },
     { label: "Lists and access", href: "/petty-cash/masters" },
   ],
   crm: [

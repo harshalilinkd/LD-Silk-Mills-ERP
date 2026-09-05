@@ -3,10 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  IconArrowDown,
+  IconArrowUp,
+  IconArrowsExchange,
   IconPaperclip,
   IconPlus,
   IconTrash,
   IconUpload,
+  IconUsers,
 } from "@tabler/icons-react";
 
 import { formatDate, todayIso } from "@/lib/dates";
@@ -32,7 +36,9 @@ import {
   Input,
   Modal,
   QuietButton,
+  SectionHead,
   Select,
+  Textarea,
 } from "@/components/ui/module-parts";
 import { usePettyCashViewer } from "./viewer-context";
 import { addEmployee, createEntry, updateEntry } from "./actions";
@@ -159,11 +165,10 @@ export function EntryDialog({
       <Modal
         open={open}
         onClose={onClose}
-        title={editing ? `Edit ${draft.id ? "transaction" : ""}`.trim() : "New transaction"}
+        wide
+        title={editing ? "Edit transaction" : "New transaction"}
         subtitle={
-          editing
-            ? "The reference and who first recorded it never change."
-            : undefined
+          editing ? "The reference and who first recorded it never change." : undefined
         }
         footer={
           <>
@@ -175,268 +180,321 @@ export function EntryDialog({
         }
       >
         <div className="flex flex-col gap-4">
-          {/* ── 1. the movement ──────────────────────────────────────── */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Date" hint="Defaults to today.">
-              <Input
-                type="date"
-                className="num"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </Field>
+          {/* ══ 1. the movement ═══════════════════════════════════════════
+              Date, amount and direction on ONE row. These three are the
+              entry: everything below them describes a movement that has
+              already been decided by the time somebody reaches this dialog. */}
+          <section className="flex flex-col gap-3">
+            <SectionHead icon={<IconArrowsExchange className="size-4" />}>
+              The movement
+            </SectionHead>
 
-            <Field
-              label="Amount"
-              hint={
-                amount && !amountCheck.ok
-                  ? undefined
-                  : amountCheck.ok
-                    ? formatMoney(amountCheck.value)
-                    : "Rupees, e.g. 1250 or 1250.50"
-              }
-            >
-              <Input
-                inputMode="decimal"
-                className="num"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                aria-invalid={!!amount && !amountCheck.ok}
-              />
-            </Field>
-          </div>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Date" htmlFor="pc_date" required>
+                <Input
+                  id="pc_date"
+                  type="date"
+                  className="num"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </Field>
 
-          {!!amount && !amountCheck.ok && (
-            <p className="-mt-2 text-[12px] text-status-red">{amountCheck.error}</p>
-          )}
+              <Field
+                label="Amount"
+                htmlFor="pc_amount"
+                required
+                hint={
+                  amount && !amountCheck.ok
+                    ? amountCheck.error
+                    : amountCheck.ok
+                      ? formatMoney(amountCheck.value)
+                      : "In rupees"
+                }
+                hintTone={
+                  amount && !amountCheck.ok
+                    ? "danger"
+                    : amountCheck.ok
+                      ? "success"
+                      : "muted"
+                }
+              >
+                <Input
+                  id="pc_amount"
+                  inputMode="decimal"
+                  className="num"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  aria-invalid={!!amount && !amountCheck.ok}
+                />
+              </Field>
 
-          <Field label="Money in or out">
-            <div className="grid grid-cols-2 gap-2">
-              {TRANSACTION_TYPES.map((t) => {
-                const m = TRANSACTION_TYPE_META[t];
-                const on = type === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setType(t)}
-                    className={cn(
-                      "cursor-pointer rounded-field border px-3 py-2.5 text-left transition-colors",
-                      on
-                        ? t === "DEBIT"
-                          ? "border-status-red/40 bg-status-red-dim"
-                          : "border-status-green/40 bg-status-green-dim"
-                        : "border-border bg-surface hover:border-border-strong",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "block text-[13px] font-semibold",
-                        on ? m.text : "text-text-1",
-                      )}
-                    >
-                      {m.label}
-                    </span>
-                    <span className="block text-[11.5px] leading-snug text-text-3">
-                      {m.help}
-                    </span>
-                  </button>
-                );
-              })}
+              {/* Two buttons rather than a dropdown: there are exactly two,
+                  it is the most consequential choice on the form, and a
+                  dropdown hides the one that is not selected. They sit at the
+                  same 36px as the fields beside them so the row is level. */}
+              <Field label="Money in or out" required>
+                <div className="grid grid-cols-2 gap-2">
+                  {TRANSACTION_TYPES.map((t) => {
+                    const m = TRANSACTION_TYPE_META[t];
+                    const on = type === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-pressed={on}
+                        title={m.help}
+                        onClick={() => setType(t)}
+                        className={cn(
+                          "flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-field border px-2 text-[12.5px] font-semibold transition-colors",
+                          on
+                            ? t === "DEBIT"
+                              ? cn("border-status-red/40 bg-status-red-dim", m.text)
+                              : cn("border-status-green/40 bg-status-green-dim", m.text)
+                            : "border-border bg-surface text-text-2 hover:border-border-strong hover:text-text-1",
+                        )}
+                      >
+                        {/* The same arrows the ledger puts on Total debit and
+                            Total credit, so the direction is recognisable
+                            before the word is read. */}
+                        {t === "DEBIT" ? (
+                          <IconArrowUp className="size-3.5" />
+                        ) : (
+                          <IconArrowDown className="size-3.5" />
+                        )}
+                        {m.short}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
             </div>
-          </Field>
+          </section>
 
-          {/* ── 2. the parties ───────────────────────────────────────── */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="From" hint="Who handed the money over. Optional.">
-              {typingFrom ? (
-                <div className="flex gap-2">
-                  <Input
+          {/* ══ 2. who and what for ═══════════════════════════════════════ */}
+          <section className="flex flex-col gap-3 border-t border-border pt-4">
+            <SectionHead icon={<IconUsers className="size-4" />}>
+              Who, and what for
+            </SectionHead>
+
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="From" htmlFor="pc_from" hint="Optional">
+                {typingFrom ? (
+                  <div className="flex gap-2">
+                    <Input
+                      id="pc_from"
+                      value={fromName}
+                      onChange={(e) => setFromName(e.target.value)}
+                      placeholder="Name or entity"
+                      autoFocus
+                    />
+                    {fromOptions.length > 0 && (
+                      <QuietButton
+                        className="h-9 shrink-0"
+                        onClick={() => {
+                          setTypingFrom(false);
+                          setFromName("");
+                        }}
+                      >
+                        List
+                      </QuietButton>
+                    )}
+                  </div>
+                ) : (
+                  <Select
+                    id="pc_from"
                     value={fromName}
-                    onChange={(e) => setFromName(e.target.value)}
-                    placeholder="Name or entity"
-                    autoFocus
-                  />
-                  {fromOptions.length > 0 && (
+                    onChange={(e) =>
+                      e.target.value === "__new__"
+                        ? (setTypingFrom(true), setFromName(""))
+                        : setFromName(e.target.value)
+                    }
+                  >
+                    <option value="">Not recorded</option>
+                    {fromOptions.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                    <option value="__new__">+ Someone else…</option>
+                  </Select>
+                )}
+              </Field>
+
+              <Field label="To" htmlFor="pc_to" required>
+                <div className="flex gap-2">
+                  <Select
+                    id="pc_to"
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
+                  >
+                    <option value="">Choose a person…</option>
+                    {employees.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {viewer.can.manageMasters && (
                     <QuietButton
                       className="h-9 shrink-0"
-                      onClick={() => {
-                        setTypingFrom(false);
-                        setFromName("");
-                      }}
+                      aria-label="Add a new payee"
+                      onClick={() => setAddingPayee(true)}
                     >
-                      List
+                      <IconPlus className="size-3.5" />
                     </QuietButton>
                   )}
                 </div>
-              ) : (
-                <Select
-                  value={fromName}
-                  onChange={(e) =>
-                    e.target.value === "__new__"
-                      ? (setTypingFrom(true), setFromName(""))
-                      : setFromName(e.target.value)
-                  }
-                >
-                  <option value="">Not recorded</option>
-                  {fromOptions.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                  <option value="__new__">+ Someone else…</option>
-                </Select>
-              )}
-            </Field>
+              </Field>
 
-            <Field label="To" hint="Who received it.">
-              <div className="flex gap-2">
+              <Field label="Category" htmlFor="pc_category" required>
                 <Select
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
+                  id="pc_category"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
                 >
-                  <option value="">Choose a person…</option>
-                  {employees.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
+                  <option value="">Choose a category…</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.groupName !== c.name ? ` · ${c.groupName}` : ""}
                     </option>
                   ))}
                 </Select>
-                {viewer.can.manageMasters && (
-                  <QuietButton
-                    className="h-9 shrink-0"
-                    aria-label="Add a new payee"
-                    onClick={() => setAddingPayee(true)}
-                  >
-                    <IconPlus className="size-3.5" />
-                  </QuietButton>
-                )}
-              </div>
-            </Field>
-          </div>
+              </Field>
 
-          {/* ── 3. what it was for ───────────────────────────────────── */}
-          <Field label="Category">
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Choose a category…</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.groupName !== c.name ? ` · ${c.groupName}` : ""}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="What was it for">
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              placeholder="Transport charges for machine parts"
-              className="w-full resize-y rounded-field border border-border bg-surface px-2.5 py-2 text-[13px] text-text-1 outline-none placeholder:text-text-placeholder focus:border-primary/50 focus:ring-3 focus:ring-primary/15"
-            />
-          </Field>
-
-          {/* ── 4. proof ─────────────────────────────────────────────── */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Proof kept">
-              <Select
-                value={proofType}
-                onChange={(e) => setProofType(e.target.value as ProofType)}
+              {/* Across two columns, because a reason worth reading is longer
+                  than a name. Its height is set to match the pair of stacked
+                  fields beside it so the row bottoms out level. */}
+              <Field
+                label="What was it for"
+                htmlFor="pc_reason"
+                required
+                className="sm:col-span-2"
               >
-                {PROOF_TYPES.map((p) => (
-                  <option key={p} value={p}>
-                    {PROOF_TYPE_META[p].label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            {proofType === "OTHER" && (
-              <Field label="What kind">
-                <Input
-                  value={proofOther}
-                  onChange={(e) => setProofOther(e.target.value)}
-                  placeholder="Kaccha slip, WhatsApp message…"
+                <Textarea
+                  id="pc_reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  placeholder="Transport charges for machine parts"
                 />
               </Field>
-            )}
-          </div>
 
-          <Field label="Receipt (optional)" hint={ATTACHMENT_HELP}>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 text-[12.5px] font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1">
-                <IconUpload className="size-3.5" />
-                {file ? "Choose a different file" : "Attach a file"}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept={ATTACHMENT_MIME.join(",")}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    setError(null);
-                    // `accept` only filters the picker. A drag-drop, an "All
-                    // files" pick or a phone's share sheet all get past it, and
-                    // the server then refuses the upload — correctly, but after
-                    // a round trip and with nothing on screen until it returns.
-                    // Saying it here is the same rule, said sooner.
-                    if (f && !ATTACHMENT_MIME.includes(f.type as never)) {
-                      setError(`A ${f.name.split(".").pop()?.toUpperCase() ?? "file"} cannot be attached. ${ATTACHMENT_HELP}`);
-                      e.target.value = "";
-                      return;
-                    }
-                    if (f && f.size > ATTACHMENT_MAX_BYTES) {
-                      setError("That file is larger than 10 MB.");
-                      e.target.value = "";
-                      return;
-                    }
-                    setFile(f);
-                    setRemoveAttachment(false);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-
-              {file && (
-                <span className="inline-flex items-center gap-1.5 text-[12.5px] text-text-2">
-                  <IconPaperclip className="size-3.5 text-text-3" />
-                  {file.name}
-                  <button
-                    type="button"
-                    aria-label="Remove the chosen file"
-                    onClick={() => setFile(null)}
-                    className="cursor-pointer text-text-3 hover:text-status-red"
-                  >
-                    <IconTrash className="size-3.5" />
-                  </button>
-                </span>
-              )}
-
-              {/* An existing receipt, when nothing new has been chosen. */}
-              {!file && editing && draft.hasAttachment && !removeAttachment && (
-                <span className="inline-flex items-center gap-1.5 text-[12.5px] text-text-2">
-                  <IconPaperclip className="size-3.5 text-text-3" />
-                  {draft.attachmentName ?? "Receipt"}
-                  <button
-                    type="button"
-                    onClick={() => setRemoveAttachment(true)}
-                    className="cursor-pointer text-[12px] text-status-red hover:underline"
-                  >
-                    Remove
-                  </button>
-                </span>
-              )}
-
-              {removeAttachment && !file && (
-                <span className="text-[12.5px] text-status-amber">
-                  The receipt will be removed when you save.
-                </span>
-              )}
+              <Field label="Proof kept" htmlFor="pc_proof">
+                <Select
+                  id="pc_proof"
+                  value={proofType}
+                  onChange={(e) => setProofType(e.target.value as ProofType)}
+                >
+                  {PROOF_TYPES.map((p) => (
+                    <option key={p} value={p}>
+                      {PROOF_TYPE_META[p].label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
             </div>
-          </Field>
+          </section>
+
+          {/* ══ 3. the paperwork ══════════════════════════════════════════ */}
+          <section className="flex flex-col gap-3 border-t border-border pt-4">
+            <SectionHead icon={<IconPaperclip className="size-4" />}>
+              The paperwork
+            </SectionHead>
+
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
+              {proofType === "OTHER" && (
+                <Field label="What kind of proof" htmlFor="pc_proof_other" required>
+                  <Input
+                    id="pc_proof_other"
+                    value={proofOther}
+                    onChange={(e) => setProofOther(e.target.value)}
+                    placeholder="Kaccha slip, WhatsApp…"
+                  />
+                </Field>
+              )}
+
+              <Field
+                label="Receipt"
+                className={proofType === "OTHER" ? "sm:col-span-2" : "sm:col-span-3"}
+              >
+                <div className="flex h-9 flex-wrap items-center gap-2">
+                  <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 text-[12.5px] font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1">
+                    <IconUpload className="size-3.5" />
+                    {file ? "Choose a different file" : "Attach a file"}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept={ATTACHMENT_MIME.join(",")}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setError(null);
+                        // `accept` only filters the picker. A drag-drop, an
+                        // "All files" pick or a phone's share sheet all get
+                        // past it, and the server then refuses the upload —
+                        // correctly, but after a round trip and with nothing
+                        // on screen until it returns. Saying it here is the
+                        // same rule, said sooner.
+                        if (f && !ATTACHMENT_MIME.includes(f.type as never)) {
+                          setError(
+                            `A ${f.name.split(".").pop()?.toUpperCase() ?? "file"} cannot be attached. ${ATTACHMENT_HELP}`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        if (f && f.size > ATTACHMENT_MAX_BYTES) {
+                          setError("That file is larger than 10 MB.");
+                          e.target.value = "";
+                          return;
+                        }
+                        setFile(f);
+                        setRemoveAttachment(false);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+
+                  {file ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] text-text-2">
+                      <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
+                      <span className="truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        aria-label="Remove the chosen file"
+                        onClick={() => setFile(null)}
+                        className="shrink-0 cursor-pointer text-text-3 hover:text-status-red"
+                      >
+                        <IconTrash className="size-3.5" />
+                      </button>
+                    </span>
+                  ) : editing && draft.hasAttachment && !removeAttachment ? (
+                    /* An existing receipt, when nothing new has been chosen. */
+                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] text-text-2">
+                      <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
+                      <span className="truncate">{draft.attachmentName ?? "Receipt"}</span>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveAttachment(true)}
+                        className="shrink-0 cursor-pointer text-[12px] text-status-red hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  ) : removeAttachment ? (
+                    <span className="text-[12.5px] text-status-amber">
+                      The receipt will be removed when you save.
+                    </span>
+                  ) : (
+                    <span className="truncate text-[12px] text-text-3">
+                      {ATTACHMENT_HELP}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            </div>
+          </section>
 
           <ErrorNote>{error}</ErrorNote>
 
@@ -444,16 +502,14 @@ export function EntryDialog({
               move money — the direction and the figure — restated together, so
               a debit typed as a credit is caught before it is saved.
 
-              The BOX is neutral and only the figure carries the colour. Tinting
-              the whole strip red for a debit made it read as a second error
-              whenever it sat under a real one, which is the opposite of what a
-              confirmation is for. */}
+              The BOX is neutral and only the figure carries the colour.
+              Tinting the whole strip red for a debit made it read as a second
+              error whenever it sat under a real one, which is the opposite of
+              what a confirmation is for. */}
           {ready && (
             <p className="rounded-field border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">
               {type === "DEBIT" ? "Paying out" : "Taking in"}{" "}
-              <strong
-                className={cn("num font-bold", TRANSACTION_TYPE_META[type].text)}
-              >
+              <strong className={cn("num font-bold", TRANSACTION_TYPE_META[type].text)}>
                 {formatMoney(amountCheck.value)}
               </strong>{" "}
               on {formatDate(date)}
@@ -536,7 +592,7 @@ function AddPayeeDialog({
             placeholder="Full name"
           />
         </Field>
-        <Field label="Staff number (optional)" hint="The old sheet's Emp-ID, if they have one.">
+        <Field label="Staff number (optional)" help="The old sheet's Emp-ID, if they have one.">
           <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="AB-02" />
         </Field>
         <ErrorNote>{error}</ErrorNote>

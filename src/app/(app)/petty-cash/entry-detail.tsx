@@ -301,7 +301,7 @@ function DeleteDialog({
           kept with it.
         </p>
 
-        <Field label="Why (optional)" hint="Recorded on the audit entry.">
+        <Field label="Why (optional)" help="Recorded on the audit entry.">
           <Input
             value={note}
             onChange={(e) => setNote(e.target.value)}

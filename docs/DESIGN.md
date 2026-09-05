@@ -295,8 +295,10 @@ key, the scroll lock, the focus handling and the close button top-right.
 - **Title**: `<DialogTitle>` and nothing else — 16px medium from the heading
   face. Never restyle it. A one-line explanation goes under it as a
   `text-[12.5px] text-text-3` paragraph inside the header.
-- **Field captions**: **`text-[13px] font-medium text-text-2`**, sentence case,
-  above the control, `gap-1.5`. This is `order-form.tsx`'s `Field` label, which
+- **Field captions**: use the shared **`Field`** from
+  `components/ui/module-parts` — do not hand-roll the label. It renders
+  **`text-[13px] font-medium text-text-2`**, sentence case, above the control.
+  This is `order-form.tsx`'s `Field` label, which
   Help Slip's type scale already cites by name as the ERP form label — so it
   is the value with the most claim to being the standard, and the audit below
   found four dialogs quietly using 12px or 12.5px instead. **Not** an uppercase
@@ -309,10 +311,11 @@ key, the scroll lock, the focus handling and the close button top-right.
   the shell's `<Button>` at default size: `variant="outline"` to cancel,
   default to confirm. A destructive confirm keeps the same Button and takes a
   red background, rather than becoming a bespoke element.
-- **Width**: `sm:max-w-md` for a form, `sm:max-w-sm` for a confirmation,
-  `sm:max-w-2xl`/`3xl` for something with a table in it. Always pair a wide or
-  tall dialog with `max-h-[85dvh] overflow-auto` — a dialog taller than the
-  viewport hides its own Save button.
+- **Width**: `sm:max-w-md` for a short form, `sm:max-w-sm` for a confirmation,
+  `sm:max-w-2xl`/`3xl` for something with a table in it or for a SECTIONED form
+  — see the next section. Always pair a wide or tall dialog with
+  `max-h-[85dvh] overflow-auto` — a dialog taller than the viewport hides its
+  own Save button.
 
 **Native `<input type="date">` inside a dialog is fine.** The order form has
 done it in production for months. An earlier assumption that the focus trap
@@ -322,6 +325,69 @@ cost a whole parallel dialog implementation.
 **A date field that means "from now" defaults to today**, not to the start of
 a period. A task created in September that defaults to 1 April silently
 generates five months of already-overdue rows.
+
+### A form dialog: sections, three columns, and no scrolling
+
+Added Sep 2026 after the owner said the Petty Cash entry form did not look like
+the ERP and made them scroll. It is `order-form.tsx`'s shape, put into a
+dialog — that form is the oldest and busiest in the app, so it is the one the
+rest should look like rather than the other way round.
+
+**Three pieces, all in `components/ui/module-parts`:**
+
+- **`Field`** — this IS the order form's field, moved. `flex flex-col
+  gap-[7px]`; the label is the standard `text-[13px] font-medium text-text-2`;
+  `required` adds a red asterisk; `hint` is SHORT and sits **right-aligned on
+  the label row** (`text-xs`, tone muted/danger/success) so it costs no
+  vertical space; `help` is a sentence **under** the control, for the rare
+  field that genuinely needs explaining. A sentence in `hint` wraps the label
+  row and pushes the control down unevenly across a grid — that is the whole
+  reason there are two props.
+- **`SectionHead`** — a `size-7 rounded-[9px] bg-accent text-accent-text` chip
+  carrying the section's icon, plus a `text-[14.5px] font-bold text-text-1`
+  heading. One per block of fields. It is what makes ten fields read as three
+  short forms instead of one long list, and it is why neither form has ever
+  needed numbered steps.
+- **`Textarea`** — `fieldBase` with `h-auto resize-y py-2`, so a multi-line
+  field matches the one-line ones it sits beside.
+
+**The layout that fits a ten-field form on a laptop without scrolling:**
+
+```tsx
+<Modal wide title="New transaction" footer={…}>
+  <div className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
+      <SectionHead icon={<IconX className="size-4" />}>The movement</SectionHead>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Date" required>…</Field>
+        …
+      </div>
+    </section>
+
+    {/* every later section repeats it, separated by a rule */}
+    <section className="flex flex-col gap-3 border-t border-border pt-4">…</section>
+  </div>
+</Modal>
+```
+
+- **`wide`** on `Modal` (`sm:max-w-3xl`, 768px) is the width for a form with
+  sections. `sm:max-w-md` stays right for three or four fields;
+  `sm:max-w-sm` for a confirmation.
+- **Three columns at `lg`, two at `sm`, one below.** Controls are all 36px, so
+  a row bottoms out level. A field needing more room takes `sm:col-span-2`.
+- **Measure it.** The rule is that a form dialog must not scroll at
+  **1280×720** — the smallest laptop in the office — with every conditional
+  field showing. Two things buy the most room when it does not fit: dropping a
+  subtitle that only restates the title, and moving a `help` sentence into a
+  short `hint`.
+- A phone will still scroll a ten-field form. That is expected and is not what
+  this rule is about.
+
+**A settings ROW is a different component.** Label and explanation on the left,
+control right-aligned at a fixed width — `SettingRow` in
+`settings/users/people-table.tsx`. It borrows `Field`'s label size and colour
+so the two read as one family, but it is not `Field` and must not be called
+that; two components with one name is how the drift started.
 
 ### The four caption styles, and which is which
 

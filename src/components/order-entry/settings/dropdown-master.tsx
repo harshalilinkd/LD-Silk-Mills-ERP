@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   IconCheck,
   IconListSearch,
+  IconLock,
   IconPencil,
   IconRotateClockwise,
   IconTrash,
@@ -299,6 +300,53 @@ export function DropdownMaster({
     setBulkText("");
     setNotice(
       `Imported into ${categoryLabel}: ${res.data.added} added, ${res.data.reactivated} reactivated, ${res.data.skipped} skipped.`,
+    );
+  }
+
+  // ── when the list itself refuses ────────────────────────────────────────
+  //
+  // These lists live in `ld_order_entry`, and that API keeps its OWN Order
+  // Entry ADMIN check — being an ERP administrator is deliberately not enough.
+  // That is right, but the screen used to answer it by printing the word
+  // "Unauthorized" and then, underneath, "No values yet — add the first party
+  // above", beside an Add box that could only fail. Two contradictory
+  // statements and a dead end.
+  //
+  // So a refusal replaces the list and its controls with one honest panel that
+  // says who to ask. Anything else — a network blip, a 500 — keeps the normal
+  // shape, because retrying is the right answer there.
+  const refused = /unauthor|forbidden|not authoris|no access|401|403/i.test(
+    loadError ?? "",
+  );
+
+  if (refused) {
+    return (
+      <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+        <Panel
+          title="Dropdown Master"
+          description="The values that fill the order form's autocomplete lists."
+          bodyClassName="flex flex-col gap-3"
+        >
+          <div className="flex flex-col items-center gap-2.5 px-4 py-10 text-center">
+            <span className="grid size-11 place-items-center rounded-full bg-status-amber-dim text-status-amber">
+              <IconLock className="size-5" />
+            </span>
+            <h3 className="text-[14.5px] font-bold text-text-1">
+              These lists need an Order Entry administrator
+            </h3>
+            <p className="max-w-sm text-[12.5px] leading-relaxed text-text-3">
+              They are Order Entry&rsquo;s own lists, so being an ERP
+              administrator is not enough on its own — the account also has to
+              be an administrator in Orders. Ask somebody who is to add the
+              value, or to give this account that role in{" "}
+              <span className="font-medium text-text-2">
+                Orders → Order Entry rules → Role permissions
+              </span>
+              .
+            </p>
+          </div>
+        </Panel>
+      </div>
     );
   }
 

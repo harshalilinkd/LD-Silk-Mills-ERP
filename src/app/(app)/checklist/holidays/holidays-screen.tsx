@@ -325,7 +325,7 @@ function HolidayDialog({
       <div className="flex flex-col gap-3">
         <Field
           label="Date"
-          hint={
+          help={
             date.length === 10 ? (
               <>
                 {weekdayName(date)}
