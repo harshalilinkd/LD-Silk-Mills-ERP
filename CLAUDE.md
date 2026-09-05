@@ -10,9 +10,19 @@ in as native pages (see Phase 3a below), not just linked to.
 ## Where this stands (Sep 2026)
 
 Six modules are built and verified against live data: **Orders**, **CRM**,
-**Help Slip**, **Goods Return LR**, **AI Assistant** and **Checklist**. NBD,
-SCOT and Petty Cash are still `coming_soon` placeholders in
+**Help Slip**, **Goods Return LR**, **AI Assistant** and **Checklist**. Two
+more are EXTERNAL links rather than screens in this app — **CRR**
+(`crr.linkdprints.com`) and **SCOT** (`ldscot.linkdprints.com`, Sep 2026).
+Only **NBD** and **Petty Cash** are still `coming_soon` placeholders in
 `ld_erp_core.systems`, and `/reports` is the shell's own reports screen.
+
+**An external system needs no code.** `system-nav-item.tsx` already renders any
+row whose `open_mode` is `external` as an `<a target="_blank">` with the
+external-link arrow. Set `status='active'`, `open_mode='external'`,
+`application_url`, and clear `route` — a route on an external system makes the
+sidebar offer an address that does not exist. Then check `system_access`: a
+system nobody has been granted is a system nobody sees, which is exactly the
+"I marked it active and it still is not in the menu" the owner hit with CRR.
 
 Four things are outstanding, and none of them is code:
 
