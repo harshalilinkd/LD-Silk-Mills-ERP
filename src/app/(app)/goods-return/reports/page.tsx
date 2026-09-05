@@ -93,7 +93,7 @@ export default async function GoodsReturnReportsPage({
       <Reveal index={0}>
         <Section
           title="What returns cost"
-          lede={`${money.returns.toLocaleString("en-IN")} returns in this range.`}
+          lede={`${money.returns.toLocaleString("en-IN")} returns in this period.`}
         >
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 p-4 lg:grid-cols-4">
             <Figure
@@ -101,7 +101,7 @@ export default async function GoodsReturnReportsPage({
               value={rupees(money.billingValue)}
               caveat={
                 money.billingValueMissing > 0
-                  ? `${money.billingValueMissing} returns have no amount recorded`
+                  ? `${money.billingValueMissing} returns have no amount written down`
                   : "every return has an amount"
               }
             />
@@ -110,37 +110,43 @@ export default async function GoodsReturnReportsPage({
               value={rupees(money.transportExpected)}
               caveat={
                 money.transportExpectedMissing > 0
-                  ? `${money.transportExpectedMissing} not recorded`
+                  ? `${money.transportExpectedMissing} returns have no transport cost`
                   : undefined
               }
             />
             <Figure
               label="Bhiwandi paid"
               value={rupees(money.totalBhiwandiPaid)}
-              caveat="transport + charges entered on arrival"
+              caveat="what Bhiwandi entered when the goods arrived"
             />
             <Figure
               label="Total outlay"
               value={rupees(money.totalExpectedOutlay)}
-              caveat="billing + head-office charges"
+              caveat="the goods plus what Head Office expects to pay"
             />
           </div>
 
           <div className="border-t border-border p-4">
             {tv == null ? (
               <Note>
-                No return in this range has both an expected and an actual
-                transport figure, so there is nothing to compare.
+                No return here has both an expected and an actual transport
+                cost, so there is nothing to compare yet.
               </Note>
             ) : tv.differing === 0 ? (
               <Note tone="warn">
-                <strong>The actual transport figure is not being entered.</strong>{" "}
-                All {tv.comparable} returns where both numbers exist have them{" "}
-                <em>identical</em> — Bhiwandi&apos;s figure is a copy of what Head
-                Office expected, not what was paid at the lorry. Until that
-                changes, expected-versus-actual cannot tell you anything.{" "}
+                <strong>
+                  Bhiwandi is copying the transport cost instead of entering the
+                  real one.
+                </strong>{" "}
+                In all {tv.comparable} returns that have both figures, the two
+                numbers are exactly the same. So we cannot tell you whether
+                transport is costing more or less than expected.
                 {tv.awaitingActual > 0 && (
-                  <>A further {tv.awaitingActual} are still awaiting an actual.</>
+                  <>
+                    {" "}
+                    Another {tv.awaitingActual} returns have no Bhiwandi figure
+                    yet.
+                  </>
                 )}
               </Note>
             ) : (
@@ -148,7 +154,7 @@ export default async function GoodsReturnReportsPage({
                 <Figure
                   label="Expected"
                   value={rupees(tv.expected)}
-                  caveat={`across ${tv.comparable} comparable returns`}
+                  caveat={`from ${tv.comparable} returns that have both figures`}
                 />
                 <Figure label="Actually paid" value={rupees(tv.actual)} />
                 <Figure
@@ -162,7 +168,7 @@ export default async function GoodsReturnReportsPage({
                 <Figure
                   label="Over / under"
                   value={`${tv.overpaid} / ${tv.underpaid}`}
-                  caveat={`${tv.matched} matched exactly`}
+                  caveat={`${tv.matched} were exactly the same`}
                 />
               </div>
             )}
@@ -174,7 +180,7 @@ export default async function GoodsReturnReportsPage({
       <Reveal index={1}>
         <Section
           title="How long goods take"
-          lede="From the day a return is posted to Bhiwandi to the day it is marked received."
+          lede="Counted from the day goods leave Head Office to the day Bhiwandi marks them received."
         >
           <div className="grid gap-4 p-4 lg:grid-cols-2">
             <div className="grid grid-cols-2 gap-x-6 gap-y-5">
@@ -182,12 +188,12 @@ export default async function GoodsReturnReportsPage({
                 label="Average"
                 value={
                   speed.received.avgDays == null ? (
-                    <NotMeasurable reason="no usable pairs of dates" />
+                    <NotMeasurable reason="no dates to work from" />
                   ) : (
                     days(speed.received.avgDays)
                   )
                 }
-                caveat={`from ${speed.received.measured} of ${speed.received.total} received`}
+                caveat={`worked out from ${speed.received.measured} of ${speed.received.total} received returns`}
               />
               <Figure
                 label="Median"
@@ -229,21 +235,21 @@ export default async function GoodsReturnReportsPage({
             speed.received.negativeInterval > 0) && (
             <div className="border-t border-border p-4">
               <Note tone="warn">
+                <strong>Why only part of the returns could be counted.</strong>{" "}
                 {speed.received.missingDates > 0 && (
                   <>
-                    <strong>{speed.received.missingDates}</strong> received
-                    returns are missing a posted or received date.{" "}
+                    {speed.received.missingDates} returns have no dates written
+                    down.{" "}
                   </>
                 )}
                 {speed.received.negativeInterval > 0 && (
                   <>
-                    <strong>{speed.received.negativeInterval}</strong> record
-                    arrival <em>before</em> dispatch — receiving is done in
-                    batches, so one date covers a pile of returns posted on
-                    different days. Both groups are left out of the average
-                    rather than smoothed into it.
+                    Another {speed.received.negativeInterval} show the goods
+                    arriving before they were sent, which happens when a whole
+                    batch is marked received on one day.{" "}
                   </>
                 )}
+                These are left out of the average rather than guessed at.
               </Note>
             </div>
           )}
@@ -260,7 +266,7 @@ export default async function GoodsReturnReportsPage({
             <Section
               key={title}
               title={title}
-              lede={`${data.distinct} ${noun} appear in this range.`}
+              lede={`${data.distinct} ${noun} sent goods back in this period.`}
             >
               <div className="grid gap-0 sm:grid-cols-2">
                 {[
@@ -306,7 +312,7 @@ export default async function GoodsReturnReportsPage({
       <Reveal index={3}>
         <Section
           title="Why goods come back"
-          lede="Grouped on the reason chosen at entry."
+          lede="Whichever reason was picked when the return was recorded."
         >
           <div className="p-4">
             <Bars
@@ -335,14 +341,14 @@ export default async function GoodsReturnReportsPage({
       <Reveal index={4}>
         <Section
           title="Which fabric comes back"
-          lede={`${fabric.distinctQualities} qualities across ${fabric.lines} lines — the first report this module has had on the quality lines.`}
+          lede={`${fabric.distinctQualities} different fabrics across ${fabric.lines} lines. Nothing has ever reported on the fabric itself before.`}
         >
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-b border-border p-4 sm:grid-cols-4">
             <Figure
               label="Total metres"
               value={
                 fabric.totalMetres == null ? (
-                  <NotMeasurable reason="none recorded" />
+                  <NotMeasurable reason="none written down" />
                 ) : (
                   fabric.totalMetres.toLocaleString("en-IN", {
                     maximumFractionDigits: 1,
@@ -351,7 +357,7 @@ export default async function GoodsReturnReportsPage({
               }
               caveat={
                 fabric.linesWithoutMetres > 0
-                  ? `${fabric.linesWithoutMetres} lines have no quantity`
+                  ? `${fabric.linesWithoutMetres} lines have no metres written down`
                   : undefined
               }
             />
@@ -359,19 +365,19 @@ export default async function GoodsReturnReportsPage({
               label="Total pieces"
               value={
                 fabric.totalPieces == null ? (
-                  <NotMeasurable reason="none recorded" />
+                  <NotMeasurable reason="none written down" />
                 ) : (
                   fabric.totalPieces.toLocaleString("en-IN")
                 )
               }
               caveat={
                 fabric.linesWithoutPieces > 0
-                  ? `${fabric.linesWithoutPieces} of ${fabric.lines} lines have no piece count`
+                  ? `${fabric.linesWithoutPieces} of ${fabric.lines} lines have no pieces written down`
                   : undefined
               }
             />
-            <Figure label="Qualities" value={fabric.distinctQualities} />
-            <Figure label="Lines" value={fabric.lines} />
+            <Figure label="Different fabrics" value={fabric.distinctQualities} />
+            <Figure label="Fabric lines" value={fabric.lines} />
           </div>
 
           <div className="overflow-x-auto">
@@ -413,8 +419,8 @@ export default async function GoodsReturnReportsPage({
           title="Month by month"
           lede={
             trend.comparableMonths > 0
-              ? `${trend.comparableMonths} of ${trend.months.length} months have the same month a year earlier to compare against.`
-              : "No month yet has a year-earlier month to compare against."
+              ? `${trend.comparableMonths} of these ${trend.months.length} months can be compared with the same month last year.`
+              : "There is not yet a full year of records to compare against."
           }
         >
           <div className="overflow-x-auto">
@@ -425,7 +431,7 @@ export default async function GoodsReturnReportsPage({
                   <th className={`${TH} text-right`}>Returns</th>
                   <th className={`${TH} text-right`}>Value</th>
                   <th className={`${TH} text-right`}>Pending</th>
-                  <th className={`${TH} text-right`}>vs last year</th>
+                  <th className={`${TH} text-right`}>vs same month last year</th>
                 </tr>
               </thead>
               <tbody className="[&>tr:last-child>td]:border-b-0">
@@ -443,7 +449,7 @@ export default async function GoodsReturnReportsPage({
                     </td>
                     <td className={`${TD} num text-right`}>
                       {m.changeCountPct == null ? (
-                        <span className="text-text-3">no data</span>
+                        <span className="text-text-3">nothing to compare</span>
                       ) : (
                         <span
                           className={
