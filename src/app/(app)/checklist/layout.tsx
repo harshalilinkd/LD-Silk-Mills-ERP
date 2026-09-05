@@ -1,8 +1,10 @@
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { IconLock } from "@tabler/icons-react";
 
 import { auth } from "@/auth";
 import { resolveChecklistViewer } from "@/lib/checklist/authz";
+import { ensureCurrentYearScheduled } from "@/lib/checklist/occurrences";
 import { ChecklistProvider } from "./viewer-context";
 
 /**
@@ -45,6 +47,32 @@ export default async function ChecklistLayout({
       </div>
     );
   }
+
+  /**
+   * The financial year rolls over here, after the page has been sent.
+   *
+   * `after()` runs once the response is already on its way, so whoever opens
+   * the Checklist first on the 1st of April does not sit waiting while a
+   * year's dates are written — they get their page, and the schedule fills in
+   * behind them. It is a single cheap query on almost every request; see
+   * `ensureCurrentYearScheduled` for the guard that keeps it that way.
+   *
+   * Wrapped, because a failure here must never take the module down. The
+   * "Rebuild schedule" button on the Tasks screen remains as the manual way
+   * in if this ever does not fire.
+   */
+  after(async () => {
+    try {
+      const done = await ensureCurrentYearScheduled();
+      if (done) {
+        console.log(
+          `checklist: rolled into ${done.window} — ${done.added} dates across ${done.tasks} tasks`,
+        );
+      }
+    } catch (e) {
+      console.error("checklist: year rollover failed", e);
+    }
+  });
 
   return <ChecklistProvider value={viewer}>{children}</ChecklistProvider>;
 }

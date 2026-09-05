@@ -4,8 +4,33 @@ import { NotificationBell } from "./notification-bell";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  The clock here is BHIWANDI'S, not the server's
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * This is a Server Component, so `new Date()` is the clock of whatever machine
+ * Vercel ran it on — which is UTC. India is five and a half hours ahead, so
+ * the bar was wrong for most of the working day and every night:
+ *
+ *   · 5pm in Bhiwandi is 11:30 UTC, so it still said "Good morning".
+ *   · Between midnight and 5:30am the DATE was yesterday's — the one thing on
+ *     this bar somebody might actually rely on.
+ *
+ * `timeZone: "Asia/Kolkata"` fixes both, and it is the same correction the
+ * Checklist's `todayIso()` already carries for the same reason. IST has no
+ * daylight saving, so there is nothing seasonal to get wrong.
+ */
+const IST = "Asia/Kolkata";
+
 function greeting() {
-  const hour = new Date().getHours();
+  const hour = Number(
+    new Date().toLocaleString("en-GB", {
+      hour: "2-digit",
+      hour12: false,
+      timeZone: IST,
+    }),
+  );
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -17,6 +42,7 @@ function todayLabel() {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: IST,
   });
 }
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gte, inArray, isNull, ne, sql as raw } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, or, sql as raw } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, holidays, occurrences, tasks } from "@/db/checklist/schema";
@@ -244,4 +244,102 @@ export async function completedOn(date: IsoDate): Promise<number> {
     .from(occurrences)
     .where(and(eq(occurrences.plannedDate, date), eq(occurrences.status, "Done")));
   return row?.n ?? 0;
+}
+
+// ─── the financial year rolls over on its own ─────────────────────────────
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Nobody should have to remember the 1st of April
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `generationWindow()` moves to the new financial year by itself, but the
+ * dated rows for that year do not exist until generation runs. So without
+ * this, on 1 April somebody would open the Checklist to an empty screen and
+ * have to know that a button called "Rebuild schedule" is what fixes it. That
+ * is a trap with a twelve-month fuse.
+ *
+ * ── WHY NOT A CRON JOB ───────────────────────────────────────────────────
+ *
+ * A scheduled job is the obvious answer and it was the wrong one here. It
+ * needs a `CRON_SECRET` set in Vercel, a public endpoint guarded by it, and a
+ * plan that allows the schedule — three things that can each be missed or
+ * misconfigured once and then sit broken until the day they are needed, which
+ * is the one day nobody is watching. A check that runs when somebody opens
+ * the module cannot rot: if it is broken, it is broken visibly, today.
+ *
+ * ── IT COSTS ONE CHEAP QUERY, AND NEVER BLOCKS A PAGE ────────────────────
+ *
+ * The check is a single `LIMIT 1` — "is there an active task with nothing
+ * scheduled inside this year?" — and it is the only thing on the request
+ * path. The regeneration itself is handed to `after()`, so it runs once the
+ * response has already gone to the browser; the person who happened to open
+ * the page first never waits for it.
+ *
+ * The in-memory guard stops it re-running: same window, within six hours, and
+ * it does not even ask. A task whose every date falls on a Sunday legitimately
+ * generates nothing, and without the guard that one task would trigger a full
+ * regeneration on every single page load for a year.
+ */
+let lastRollover: { window: string; at: number } | null = null;
+const ROLLOVER_RECHECK_MS = 6 * 60 * 60 * 1000;
+
+/** True when an active task has no dates at all inside the current year. */
+export async function currentYearNeedsScheduling(): Promise<boolean> {
+  const w = generationWindow();
+  const [row] = await checklistDb
+    .select({ id: tasks.id })
+    .from(tasks)
+    .innerJoin(doers, eq(doers.id, tasks.doerId))
+    .where(
+      and(
+        eq(tasks.active, true),
+        isNull(tasks.deletedAt),
+        eq(doers.active, true),
+        isNull(doers.deletedAt),
+        // Only tasks that OVERLAP this year. One that ended last March is not
+        // missing anything.
+        lte(tasks.startDate, w.to),
+        or(isNull(tasks.endDate), gte(tasks.endDate, w.from)),
+        raw`not exists (
+          select 1 from ${occurrences}
+           where ${occurrences.taskId} = ${tasks.id}
+             and ${occurrences.plannedDate} between ${w.from} and ${w.to}
+        )`,
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * Fill in the current financial year if it is not already scheduled.
+ *
+ * Safe to call on every request: the guard makes it one cheap query almost
+ * every time, and generation itself is an upsert that cannot disturb a tick.
+ * Returns null when it decided there was nothing to do.
+ */
+export async function ensureCurrentYearScheduled(): Promise<
+  { tasks: number; added: number; window: string } | null
+> {
+  const w = generationWindow();
+  if (
+    lastRollover &&
+    lastRollover.window === w.label &&
+    Date.now() - lastRollover.at < ROLLOVER_RECHECK_MS
+  ) {
+    return null;
+  }
+
+  if (!(await currentYearNeedsScheduling())) {
+    // Mark it checked, so the next hundred page loads do not ask again.
+    lastRollover = { window: w.label, at: Date.now() };
+    return null;
+  }
+
+  // Claim it BEFORE the slow part, so two requests arriving together do not
+  // both start a full regeneration.
+  lastRollover = { window: w.label, at: Date.now() };
+  const { tasks: n, added } = await regenerateAll();
+  return { tasks: n, added, window: w.label };
 }

@@ -252,7 +252,7 @@ export function TasksScreen({
         >
           <span
             className="hidden shrink-0 text-[12px] whitespace-nowrap text-text-3 lg:inline"
-            title={`Financial year ${fy.label}: ${formatDate(fy.from)} to ${formatDate(fy.to)}`}
+            title={`Financial year ${fy.label}: ${formatDate(fy.from)} to ${formatDate(fy.to)}. The next year fills itself in on 1 April — Rebuild is only needed if you have edited holidays directly.`}
           >
             <strong className="num font-semibold text-text-2">
               {scheduledRows.toLocaleString("en-IN")}
@@ -264,7 +264,12 @@ export function TasksScreen({
             active={activeCount > 0}
             onClick={() => setShowFilters((v) => !v)}
           />
-          <QuietButton onClick={doRebuild} busy={busy} className="h-9 shrink-0">
+          <QuietButton
+            onClick={doRebuild}
+            busy={busy}
+            className="h-9 shrink-0"
+            title="Fills in any missing dates. The new financial year does this on its own every 1 April — this is here for the rare case where holidays were changed outside the app."
+          >
             <IconRefresh className="size-3.5" />
             Rebuild
           </QuietButton>

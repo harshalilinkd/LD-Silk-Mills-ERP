@@ -14,7 +14,7 @@ Six modules are built and verified against live data: **Orders**, **CRM**,
 SCOT and Petty Cash are still `coming_soon` placeholders in
 `ld_erp_core.systems`, and `/reports` is the shell's own reports screen.
 
-Five things are outstanding, and only one of them is code:
+Four things are outstanding, and none of them is code:
 
 1. **The AI Assistant needs an `ANTHROPIC_API_KEY`.** Everything is built; the
    endpoint answers with one specific sentence until the key exists. The owner
@@ -23,19 +23,34 @@ Five things are outstanding, and only one of them is code:
    then Holidays, then Tasks. Every one of those screens takes a paste from
    Excel or a CSV. Only the owner's own account has been granted the module;
    everybody else is a tick in Settings → Access.
-3. **`ld_help_slip.departments` is wrong and must be fixed before Help Slip
-   goes live.** Two rows, and their names do not match their codes
-   ("Analytics"/`IT_SYSTEMS`, "Sales"/`PURCHASE`), against six correct ones in
-   Masters. A concern already renders "Department: Analytics". The owner's
-   decision is one unified list, so `profiles.department_id` gets pointed at
-   the Masters list — deferred only because that is a foreign-key migration
-   for a module with no live users yet.
-4. **`naushi500@gmail.com`** is a second Order Entry ADMIN for a person who
+3. **`naushi500@gmail.com`** is a second Order Entry ADMIN for a person who
    also holds `naushi.linkdprints@gmail.com`; and two "test admin" Help Slip
    profiles (`harshali08033@`, `harshalibhopale08033@`) own no concerns and
    cannot sign in. All three are the owner's call.
-5. **The standalone Goods Return app is still live and still passwordless.**
-   Retiring it is the owner's decision, not a code change.
+4. **Masters shows empty lists to an ERP admin who has no Order Entry
+   account.** `/api/order-entry/lookups` answers 401 — correctly, it is an
+   Order Entry resource — but the page renders its tabs and then silently has
+   nothing in them. It should say so. Does not affect the owner, whose account
+   is an Order Entry admin.
+
+**The standalone Goods Return app stays live**, passwordless, on the owner's
+explicit instruction (Sep 2026): *"keep old as it is"*. Do not propose
+retiring it again unless they raise it.
+
+── DEPARTMENTS ARE ONE LIST NOW (Sep 2026) ───────────────────────────────
+
+`ld_help_slip.departments` had two rows whose `code` and `name` disagreed —
+`IT_SYSTEMS`/"Analytics" and `PURCHASE`/"Sales" — and the code is printed on
+the Departments settings screen. They were RENAMED IN PLACE (`ANALYTICS`,
+`SALES`) rather than replaced, so every profile and concern kept pointing at
+the row it always did; nothing was moved and nothing was deleted. The five
+missing departments were added.
+
+"Analytics" was added to `CRM_DEPT` in Masters, because it is a real
+department here and dropping it would have orphaned three profiles and a
+concern with nowhere obvious to send them. Both lists are now identical:
+**Accounts, Analytics, Design, Dispatch, Operations, Sales, Transport.** If
+one gains a department, give the other the same one.
 
 ## Stack
 Next.js 15 (App Router, TS strict) · Drizzle ORM + `postgres.js` · Auth.js v5
@@ -638,6 +653,14 @@ is already tomorrow in Bhiwandi. The financial year (1 Apr – 31 Mar) is
 COMPUTED from today, not pinned in an env var like theirs, so it rolls over on
 its own.
 
+**The financial year rolls over on its own.** `ensureCurrentYearScheduled()`
+runs from the Checklist layout inside `after()`, so it costs one cheap
+`LIMIT 1` on the request path and does the generating once the response has
+already been sent. A cron job was the obvious alternative and was rejected: it
+needs a `CRON_SECRET`, a public endpoint and a plan that allows the schedule —
+three things that can rot silently until the one day a year they matter. The
+"Rebuild schedule" button stays as the manual way in.
+
 **A holiday is a day off, not a day moved.** A duty landing on Diwali is
 dropped for that cycle rather than shunted to the next day. Adding a holiday
 clears only what is not Done and only from today onwards; removing one calls
@@ -664,6 +687,17 @@ DAY-FIRST. The server always re-parses the raw text; the preview is a
 courtesy, never a check.
 
 ## Known gotchas (hit these once already — don't re-discover them)
+- **A Server Component's `new Date()` is the SERVER's clock, which on Vercel
+  is UTC.** The topbar greeting and date were computed that way, so 5pm in
+  Bhiwandi still said "Good morning" and between midnight and 05:30 the date
+  was YESTERDAY's. Anything the owner reads as a time or a date must carry
+  `timeZone: "Asia/Kolkata"` — see `components/shell/topbar.tsx` and
+  `lib/checklist/dates.ts`.
+- **A hydration warning in a Playwright run is usually the SCRIPT, not the
+  app.** Filling a form before React has attached to the inputs reproduces
+  "attributes of the server rendered HTML didn't match the client properties"
+  3 times out of 3; waiting for `load` first gives 0 out of 3. Half a day went
+  into chasing it as a product bug. Wait for hydration before typing.
 - **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base
   UI app, not Radix — `onSelect` on a `DropdownMenuItem` is silently a
   no-op (TypeScript won't catch it either, since `...props` is untyped
