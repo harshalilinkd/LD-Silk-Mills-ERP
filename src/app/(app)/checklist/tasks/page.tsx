@@ -5,7 +5,7 @@ import { asc, eq, isNull, sql } from "drizzle-orm";
 import { checklistDb } from "@/db/checklist";
 import { doers, occurrences, tasks } from "@/db/checklist/schema";
 import { resolveChecklistViewer } from "@/lib/checklist/authz";
-import { generationWindow } from "@/lib/checklist/dates";
+import { generationWindow, todayIso } from "@/lib/checklist/dates";
 import { TasksScreen } from "./tasks-screen";
 
 export const metadata: Metadata = {
@@ -93,6 +93,7 @@ export default async function TasksPage() {
       assigners={assigners}
       scheduledRows={scheduledRows}
       window={generationWindow()}
+      today={todayIso()}
     />
   );
 }

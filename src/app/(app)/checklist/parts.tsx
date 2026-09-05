@@ -6,9 +6,16 @@ import {
   IconFilter,
   IconLoader2,
   IconSearch,
-  IconX,
 } from "@tabler/icons-react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,24 +55,15 @@ export const selectBase = cn(
   "cursor-pointer appearance-none bg-[length:0] pr-8",
 );
 
-export function Label({
-  children,
-  htmlFor,
-}: {
-  children: React.ReactNode;
-  htmlFor?: string;
-}) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase"
-    >
-      {children}
-    </label>
-  );
-}
-
-/** A labelled control in a filter bar or a form. */
+/**
+ * One field inside a DIALOG.
+ *
+ * `text-xs font-medium text-text-2` above the control, in sentence case — the
+ * shape every other dialog in the ERP uses (see Settings → Users). The
+ * uppercase tracked caption this used to have belongs on a filter panel, and
+ * having both on one screen was the thing that made these dialogs read as a
+ * different application.
+ */
 export function Field({
   label,
   children,
@@ -78,10 +76,10 @@ export function Field({
   hint?: React.ReactNode;
 }) {
   return (
-    <div className={cn("min-w-0", className)}>
-      <Label>{label}</Label>
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <label className="text-xs font-medium text-text-2">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-[11.5px] leading-snug text-text-3">{hint}</p>}
+      {hint && <p className="text-[11.5px] leading-snug text-text-3">{hint}</p>}
     </div>
   );
 }
@@ -351,14 +349,24 @@ export function EmptyState({
 // ─── the modal ────────────────────────────────────────────────────────────
 
 /**
- * A plain dialog, not the shell's Base UI one.
+ * The dialog.
  *
- * These carry forms whose fields include native date inputs, and a portalled
- * popup that traps focus fights the browser's own calendar panel — which is
- * itself a popup, rendered outside the React tree, that the focus trap tries
- * to pull focus back from. The result is a date field that closes the moment
- * you click a day. Escape and the backdrop still close this, and the panel
- * still takes focus on open.
+ * ── THIS WAS A HAND-ROLLED OVERLAY AND SHOULD NOT HAVE BEEN ──────────────
+ *
+ * The first version built its own backdrop, focus handling and scroll lock,
+ * on the reasoning that a Base UI focus trap would fight the browser's native
+ * date picker — which renders outside the React tree, so clicking a day looked
+ * like a click outside the dialog.
+ *
+ * That reasoning was never checked, and it is wrong: Order Entry's order form
+ * is a `DialogContent` with `type="date"` inside it and has been in production
+ * for months. The cost of not checking was five dialogs that looked like a
+ * different application — different title weight, different label style, a
+ * plain footer instead of the tinted bar every other dialog in the ERP has.
+ *
+ * So this is now a thin wrapper over the shell's own Dialog, and the pattern
+ * is written down in `docs/DESIGN.md` so the next screen does not have to
+ * rediscover it.
  */
 export function Modal({
   open,
@@ -377,64 +385,83 @@ export function Modal({
   footer?: React.ReactNode;
   wide?: boolean;
 }) {
-  const panelRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    // Stop the page behind scrolling under the dialog on a phone.
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/25 p-4 py-10 backdrop-blur-[2px]">
-      {/* The backdrop closes on click; the panel stops the click reaching it. */}
-      <div className="absolute inset-0" onClick={onClose} aria-hidden />
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent
         className={cn(
-          "relative w-full rounded-card border border-border bg-surface shadow-xl outline-none",
-          wide ? "max-w-3xl" : "max-w-md",
+          // Bounded and scrollable: the import preview and the task form both
+          // outgrow a laptop screen, and a dialog taller than the viewport
+          // hides its own Save button.
+          "max-h-[85dvh] overflow-auto",
+          wide ? "sm:max-w-3xl" : "sm:max-w-md",
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-bold text-text-1">{title}</h2>
-            {subtitle && (
-              <p className="mt-0.5 text-[12.5px] leading-snug text-text-3">{subtitle}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mt-0.5 grid size-7 shrink-0 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-chip hover:text-text-1"
-          >
-            <IconX className="size-4" />
-          </button>
-        </div>
-        <div className="px-4 py-4">{children}</div>
-        {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {subtitle && (
+            <p className="text-[12.5px] leading-snug text-text-3">{subtitle}</p>
+          )}
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-2">{children}</div>
+
+        {footer && <DialogFooter>{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The two buttons a dialog footer has, on the shell's own `Button`.
+ *
+ * `PrimaryButton` / `QuietButton` below are for TOOLBARS — they are 8 and 9
+ * pixels tall and sit beside search boxes. A dialog's actions are the shell's
+ * Button at its default size, in a tinted footer bar, the same as Settings and
+ * Order Entry. Mixing the two is what made these dialogs look borrowed.
+ */
+export function DialogCancel({
+  onClick,
+  disabled,
+  children = "Cancel",
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Button variant="outline" onClick={onClick} disabled={disabled}>
+      {children}
+    </Button>
+  );
+}
+
+export function DialogSave({
+  onClick,
+  busy,
+  disabled,
+  destructive,
+  children = "Save",
+}: {
+  onClick: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+  destructive?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Button
+      onClick={onClick}
+      disabled={disabled || busy}
+      className={cn(destructive && "bg-status-red text-white hover:bg-status-red/90")}
+    >
+      {busy && <IconLoader2 className="size-3.5 animate-spin" />}
+      {children}
+    </Button>
   );
 }
 

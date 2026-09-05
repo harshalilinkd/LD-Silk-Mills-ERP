@@ -20,6 +20,8 @@ import { HOLIDAY_COLUMNS, parseHolidays } from "@/lib/checklist/import-parsers";
 import { cn } from "@/lib/utils";
 import { ImportDialog } from "../import-dialog";
 import {
+  DialogCancel,
+  DialogSave,
   EmptyState,
   ErrorNote,
   Field,
@@ -315,12 +317,8 @@ function HolidayDialog({
       title={row ? "Edit holiday" : "New holiday"}
       footer={
         <>
-          <QuietButton onClick={onClose} disabled={busy}>
-            Cancel
-          </QuietButton>
-          <PrimaryButton onClick={save} busy={busy} disabled={date.length !== 10}>
-            Save
-          </PrimaryButton>
+          <DialogCancel onClick={onClose} disabled={busy} />
+          <DialogSave onClick={save} busy={busy} disabled={date.length !== 10} />
         </>
       }
     >

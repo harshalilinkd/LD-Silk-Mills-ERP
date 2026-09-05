@@ -255,6 +255,71 @@ all but disappear on white.
   the toolbar below. See § List screens for the trigger + popover shape and
   why it's lifted this high.
 
+## Dialogs — one shape, and it is already built
+
+Written down after the Checklist shipped five hand-rolled dialogs that looked
+like a different application: a different title weight, uppercase tracked
+field captions, a plain footer, and its own buttons. None of that was a
+decision — it was a component built without reading this file first.
+
+**Always use the shell's `Dialog`.** `src/components/ui/dialog.tsx` (Base UI).
+Do not build an overlay by hand. It already gives you the backdrop, the escape
+key, the scroll lock, the focus handling and the close button top-right.
+
+```tsx
+<Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+  <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle>Edit user</DialogTitle>
+    </DialogHeader>
+
+    <div className="flex flex-col gap-4 py-2">
+      <label className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-text-2">Name</span>
+        <Input … />
+      </label>
+      {/* two short fields share a row */}
+      <div className="grid grid-cols-2 gap-3">…</div>
+    </div>
+
+    <DialogFooter>
+      <Button variant="outline" onClick={close}>Cancel</Button>
+      <Button onClick={save} disabled={busy}>Save</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+**The rules that keep them looking like one another:**
+
+- **Title**: `<DialogTitle>` and nothing else — 16px medium from the heading
+  face. Never restyle it. A one-line explanation goes under it as a
+  `text-[12.5px] text-text-3` paragraph inside the header.
+- **Field captions**: `text-xs font-medium text-text-2`, sentence case, above
+  the control, `gap-1.5`. **Not** the `[10.5px]` uppercase tracked caption —
+  that one belongs to filter panels (see § List screens), and having both on
+  one screen is what made the Checklist read as borrowed.
+- **Body**: `flex flex-col gap-4 py-2`. Two short fields share a row with
+  `grid grid-cols-2 gap-3`; anything longer gets its own.
+- **Footer**: `<DialogFooter>`. It is a tinted bar with a top border and it
+  right-aligns at `sm:` — do not replace it with a plain flex row. Actions are
+  the shell's `<Button>` at default size: `variant="outline"` to cancel,
+  default to confirm. A destructive confirm keeps the same Button and takes a
+  red background, rather than becoming a bespoke element.
+- **Width**: `sm:max-w-md` for a form, `sm:max-w-sm` for a confirmation,
+  `sm:max-w-2xl`/`3xl` for something with a table in it. Always pair a wide or
+  tall dialog with `max-h-[85dvh] overflow-auto` — a dialog taller than the
+  viewport hides its own Save button.
+
+**Native `<input type="date">` inside a dialog is fine.** The order form has
+done it in production for months. An earlier assumption that the focus trap
+would fight the browser's calendar popup was never tested and is wrong; it
+cost a whole parallel dialog implementation.
+
+**A date field that means "from now" defaults to today**, not to the start of
+a period. A task created in September that defaults to 1 April silently
+generates five months of already-overdue rows.
+
 ## List screens — the filter & toolbar pattern
 
 Established on Orders and carried onto every CRM list (Issues, Call log,

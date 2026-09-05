@@ -23,6 +23,8 @@ import {
   Modal,
   PageHead,
   Pill,
+  DialogCancel,
+  DialogSave,
   PrimaryButton,
   QuietButton,
   SearchBox,
@@ -365,15 +367,14 @@ export function DoersScreen({
         subtitle="They leave the list and nothing more is scheduled for them."
         footer={
           <>
-            <QuietButton onClick={() => setConfirmDelete(null)}>Cancel</QuietButton>
-            <button
-              type="button"
+            <DialogCancel onClick={() => setConfirmDelete(null)} />
+            <DialogSave
+              destructive
+              busy={busyId !== null}
               onClick={() => confirmDelete && void doDelete(confirmDelete)}
-              disabled={busyId !== null}
-              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-field bg-status-red px-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               Delete
-            </button>
+            </DialogSave>
           </>
         }
       >
@@ -457,12 +458,12 @@ function DoerDialog({
       title={row ? `Edit ${row.name}` : "New doer"}
       footer={
         <>
-          <QuietButton onClick={onClose} disabled={busy}>
-            Cancel
-          </QuietButton>
-          <PrimaryButton onClick={save} busy={busy} disabled={!name.trim() || !email.trim()}>
-            Save
-          </PrimaryButton>
+          <DialogCancel onClick={onClose} disabled={busy} />
+          <DialogSave
+            onClick={save}
+            busy={busy}
+            disabled={!name.trim() || !email.trim()}
+          />
         </>
       }
     >

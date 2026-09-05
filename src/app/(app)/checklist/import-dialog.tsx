@@ -11,7 +11,7 @@ import {
 
 import { countVerdicts, type ImportRow } from "@/lib/checklist/import";
 import { cn } from "@/lib/utils";
-import { ErrorNote, Modal, PrimaryButton, QuietButton } from "./parts";
+import { DialogCancel, DialogSave, ErrorNote, Modal } from "./parts";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -126,23 +126,21 @@ export function ImportDialog<T>({
       }
       footer={
         result ? (
-          <PrimaryButton onClick={close}>Done</PrimaryButton>
+          <DialogSave onClick={close}>Done</DialogSave>
         ) : (
           <>
             {text && (
-              <QuietButton onClick={reset} disabled={busy}>
+              <DialogCancel onClick={reset} disabled={busy}>
                 <IconArrowBackUp className="size-3.5" />
                 Start again
-              </QuietButton>
+              </DialogCancel>
             )}
-            <QuietButton onClick={close} disabled={busy}>
-              Cancel
-            </QuietButton>
-            <PrimaryButton onClick={run} busy={busy} disabled={counts.add === 0}>
+            <DialogCancel onClick={close} disabled={busy} />
+            <DialogSave onClick={run} busy={busy} disabled={counts.add === 0}>
               {counts.add === 0
                 ? "Nothing to add"
                 : `Add ${counts.add} row${counts.add === 1 ? "" : "s"}`}
-            </PrimaryButton>
+            </DialogSave>
           </>
         )
       }

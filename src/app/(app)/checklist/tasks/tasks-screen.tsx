@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { ImportDialog } from "../import-dialog";
 import {
   EmptyState,
+  DialogCancel,
+  DialogSave,
   ErrorNote,
   Field,
   FilterField,
@@ -98,6 +100,7 @@ export function TasksScreen({
   assigners,
   scheduledRows,
   window: fy,
+  today,
 }: {
   rows: TaskRow[];
   people: Person[];
@@ -105,6 +108,8 @@ export function TasksScreen({
   assigners: string[];
   scheduledRows: number;
   window: { from: string; to: string; label: string };
+  /** Resolved on the server, so the browser's clock cannot disagree. */
+  today: string;
 }) {
   const router = useRouter();
 
@@ -420,6 +425,7 @@ export function TasksScreen({
           people={people}
           assigners={assigners}
           window={fy}
+          today={today}
           onClose={() => setEditing(null)}
           onSaved={(msg) => {
             setEditing(null);
@@ -469,15 +475,14 @@ export function TasksScreen({
         subtitle={confirmDelete?.name}
         footer={
           <>
-            <QuietButton onClick={() => setConfirmDelete(null)}>Cancel</QuietButton>
-            <button
-              type="button"
+            <DialogCancel onClick={() => setConfirmDelete(null)} />
+            <DialogSave
+              destructive
+              busy={busy}
               onClick={() => confirmDelete && void doDelete(confirmDelete)}
-              disabled={busy}
-              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-field bg-status-red px-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               Delete
-            </button>
+            </DialogSave>
           </>
         }
       >
@@ -507,6 +512,7 @@ function TaskDialog({
   people,
   assigners,
   window: fy,
+  today,
   onClose,
   onSaved,
 }: {
@@ -514,6 +520,7 @@ function TaskDialog({
   people: Person[];
   assigners: string[];
   window: { from: string; to: string; label: string };
+  today: string;
   onClose: () => void;
   onSaved: (note: string) => void;
 }) {
@@ -523,7 +530,16 @@ function TaskDialog({
   const [all, setAll] = React.useState(false);
   const [doerId, setDoerId] = React.useState(row ? String(row.doerId) : "");
   const [frequency, setFrequency] = React.useState<Frequency>(row?.frequency ?? "D");
-  const [startDate, setStartDate] = React.useState(row?.startDate ?? fy.from);
+  // TODAY, not the start of the financial year.
+  //
+  // A new task is almost always something starting now. Defaulting to 1 April
+  // meant every task created in September silently generated five months of
+  // dates that were already delayed the moment they appeared — the person
+  // would open their checklist to a hundred overdue rows for a duty they had
+  // just been given. The field is still editable for the rare backdated one.
+  const [startDate, setStartDate] = React.useState(
+    row?.startDate ?? (today > fy.from && today <= fy.to ? today : fy.from),
+  );
   const [endDate, setEndDate] = React.useState(row?.endDate ?? "");
   const [assignedBy, setAssignedBy] = React.useState(row?.assignedBy ?? "");
   // Same rule as the department field: a value that is not on the list opens
@@ -588,12 +604,8 @@ function TaskDialog({
       }
       footer={
         <>
-          <QuietButton onClick={onClose} disabled={busy}>
-            Cancel
-          </QuietButton>
-          <PrimaryButton onClick={save} busy={busy} disabled={!ready}>
-            Save
-          </PrimaryButton>
+          <DialogCancel onClick={onClose} disabled={busy} />
+          <DialogSave onClick={save} busy={busy} disabled={!ready} />
         </>
       }
     >
@@ -673,7 +685,7 @@ function TaskDialog({
             hint={
               meta.weekdayFromStart && startDate.length === 10
                 ? frequencyLabelFor(frequency, startDate)
-                : "Also the anchor — a monthly task takes its day of the month from here."
+                : "Defaults to today. It is also the anchor — a monthly task takes its day of the month from here."
             }
           >
             <Input
