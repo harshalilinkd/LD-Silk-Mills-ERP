@@ -1,5 +1,5 @@
 {
-  "id": "3cba620c-3052-4daf-a367-59c2193ff52b",
+  "id": "a82d049f-c98d-4254-af50-cc618852234f",
   "prevId": "8bed65c9-ae9e-439b-b2b9-39e71fbba0a0",
   "version": "7",
   "dialect": "postgresql",
@@ -363,6 +363,131 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "ld_checklist_system.doers": {
+      "name": "doers",
+      "schema": "ld_checklist_system",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department": {
+          "name": "department",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_admin": {
+          "name": "is_admin",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uq_doer_email": {
+          "name": "uq_doer_email",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uq_doer_user": {
+          "name": "uq_doer_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_doers_active": {
+          "name": "idx_doers_active",
+          "columns": [
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "doers_user_id_users_id_fk": {
+          "name": "doers_user_id_users_id_fk",
+          "tableFrom": "doers",
+          "tableTo": "users",
+          "schemaTo": "ld_erp_core",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "ld_checklist_system.holidays": {
       "name": "holidays",
       "schema": "ld_checklist_system",
@@ -425,97 +550,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "ld_checklist_system.members": {
-      "name": "members",
-      "schema": "ld_checklist_system",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_admin": {
-          "name": "is_admin",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "department": {
-          "name": "department",
-          "type": "varchar(120)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "idx_members_active": {
-          "name": "idx_members_active",
-          "columns": [
-            {
-              "expression": "active",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "members_user_id_users_id_fk": {
-          "name": "members_user_id_users_id_fk",
-          "tableFrom": "members",
-          "tableTo": "users",
-          "schemaTo": "ld_erp_core",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "members_user_id_unique": {
-          "name": "members_user_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "ld_checklist_system.occurrences": {
       "name": "occurrences",
       "schema": "ld_checklist_system",
@@ -540,7 +574,7 @@
         },
         "doer_id": {
           "name": "doer_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -681,11 +715,11 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "occurrences_doer_id_users_id_fk": {
-          "name": "occurrences_doer_id_users_id_fk",
+        "occurrences_doer_id_doers_id_fk": {
+          "name": "occurrences_doer_id_doers_id_fk",
           "tableFrom": "occurrences",
-          "tableTo": "users",
-          "schemaTo": "ld_erp_core",
+          "tableTo": "doers",
+          "schemaTo": "ld_checklist_system",
           "columnsFrom": [
             "doer_id"
           ],
@@ -734,7 +768,7 @@
         },
         "doer_id": {
           "name": "doer_id",
-          "type": "uuid",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -759,7 +793,7 @@
         },
         "assigned_by": {
           "name": "assigned_by",
-          "type": "uuid",
+          "type": "varchar(160)",
           "primaryKey": false,
           "notNull": false
         },
@@ -824,27 +858,13 @@
         }
       },
       "foreignKeys": {
-        "tasks_doer_id_users_id_fk": {
-          "name": "tasks_doer_id_users_id_fk",
+        "tasks_doer_id_doers_id_fk": {
+          "name": "tasks_doer_id_doers_id_fk",
           "tableFrom": "tasks",
-          "tableTo": "users",
-          "schemaTo": "ld_erp_core",
+          "tableTo": "doers",
+          "schemaTo": "ld_checklist_system",
           "columnsFrom": [
             "doer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "tasks_assigned_by_users_id_fk": {
-          "name": "tasks_assigned_by_users_id_fk",
-          "tableFrom": "tasks",
-          "tableTo": "users",
-          "schemaTo": "ld_erp_core",
-          "columnsFrom": [
-            "assigned_by"
           ],
           "columnsTo": [
             "id"

@@ -49,6 +49,19 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "Receiving", href: "/goods-return/receiving" },
     { label: "Reports", href: "/goods-return/reports" },
   ],
+  // Checklist. Four of the six screens are administrators-only and the map is
+  // static, so the entries are listed unconditionally and each page turns back
+  // anybody it is not for — the same shape CRM rules and Goods Return's "New
+  // return" already use. "My Checklist" is the one screen everybody has, so it
+  // sits directly under the dashboard rather than behind it.
+  checklist: [
+    { label: "Dashboard", href: "/checklist", exact: true },
+    { label: "Master Checklist", href: "/checklist/master" },
+    { label: "Scorecards", href: "/checklist/scorecards" },
+    { label: "Tasks", href: "/checklist/tasks" },
+    { label: "Doers", href: "/checklist/doers" },
+    { label: "Holidays", href: "/checklist/holidays" },
+  ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },
     { label: "Issues", href: "/crm/issues" },

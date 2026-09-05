@@ -1,4 +1,5 @@
 import {
+  IconChecklist,
   IconClipboardList,
   IconLifebuoy,
   IconReceipt2,
@@ -20,6 +21,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   crm: IconUsersGroup,
   scot: IconHeadset,
   "goods-return-lr": IconTruckReturn,
+  checklist: IconChecklist,
   "petty-cash": IconCashBanknote,
 };
 

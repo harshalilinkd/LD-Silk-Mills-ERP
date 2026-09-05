@@ -34,24 +34,41 @@ import { users } from "@/db/schema";
  * `drizzle.config.ts`'s `schemaFilter` and managed with ordinary migrations —
  * the same standing `ld_erp_core` has.
  *
- * ── WHAT THE THREE MAIN TABLES ARE ───────────────────────────────────────
+ * ── WHAT THE FOUR TABLES ARE ─────────────────────────────────────────────
  *
+ *   · a DOER is a person duties are assigned to.
  *   · a TASK is a standing duty — "check the dyeing register", assigned to one
- *     person, repeating on a frequency.
+ *     doer, repeating on a frequency.
  *   · an OCCURRENCE is one dated instance of it. A daily task produces about
  *     300 of them a year. This is what people actually tick off, and it is
  *     generated in advance rather than computed on read.
- *   · the ARCHIVE holds occurrences aged out of the working set.
+ *   · a HOLIDAY is a date the generator skips.
  *
- * ── THE ONE REAL DEPARTURE FROM THE ORIGINAL ─────────────────────────────
+ * ── WHY THERE IS A `doers` TABLE AT ALL ──────────────────────────────────
  *
- * That system keeps its own `doers` table — a second staff list with its own
- * emails, maintained by hand. This ERP deliberately has ONE People screen, and
- * a whole consolidation was done to remove exactly that kind of duplicate (14
- * records for one team, one person present in all three lists). So there is no
- * `doers` table: a task is assigned to an `ld_erp_core.users.id`, and being a
- * checklist administrator is a flag on `checklist_members` rather than a
- * separate account.
+ * An earlier draft of this file had no such table: a task pointed straight at
+ * `ld_erp_core.users`, on the reasoning that this ERP deliberately keeps ONE
+ * People screen and a whole consolidation was done to remove duplicate staff
+ * lists. That was wrong for this module, for a plain reason — **most people
+ * with a duty on a checklist have no reason to hold an ERP login.** A folder
+ * whose job is to fold does not need an account to be accountable for folding.
+ * Forcing one would mean creating dozens of logins nobody would ever use, and
+ * granting each of them a password into a system holding order values.
+ *
+ * So a doer is its own row, and `userId` links it to an ERP account only when
+ * that person happens to have one. When they do, signing into the ERP finds
+ * them by email and shows them their own list; when they do not, an
+ * administrator ticks work off on their behalf. The two lists stay honest
+ * about being different things: `ld_erp_core.users` is who can sign in, and
+ * this is who is accountable.
+ *
+ * ── THERE IS NO ARCHIVE TABLE, AND THAT IS DELIBERATE ────────────────────
+ *
+ * The original moves Done rows older than thirty days into an `archive` table
+ * and then has to UNION the two back together in every report — which is where
+ * most of the complexity in its scorecard query comes from. At roughly two to
+ * three thousand occurrences a year, that split buys nothing here and costs a
+ * whole class of bug where a figure silently omits the archived half.
  */
 export const ldChecklist = pgSchema("ld_checklist_system");
 
@@ -95,43 +112,53 @@ export const occurrenceStatusEnum = ldChecklist.enum("occurrence_status", [
   "Done",
 ]);
 
-// ─── who takes part ────────────────────────────────────────────────────────
+// ─── the people ────────────────────────────────────────────────────────────
 
 /**
- * A person's standing in the checklist module.
+ * Somebody duties can be assigned to. See the header for why this is its own
+ * table rather than a pointer into `ld_erp_core.users`.
  *
- * NOT a staff list — the staff list is `ld_erp_core.users`. This says only
- * which of those people take part and which of them administer it. Somebody
- * with no row here can open the module (if granted it in Settings → Access)
- * and simply has nothing to do.
- *
- * `isAdmin` is module admin and is deliberately NOT the shell's admin flag:
+ * `isAdmin` is CHECKLIST admin and is deliberately not the shell's admin flag.
  * CLAUDE.md is explicit that a shell administrator is not automatically a
  * module administrator, and the person who manages ERP accounts is not
  * necessarily the person who decides who checks the dyeing register.
+ *
+ * `email` is the join to the rest of the ERP and is stored lowercased, because
+ * that is the only way a case-different address typed into a bulk import still
+ * finds the same person. It is unique for the same reason: two rows for one
+ * address would split that person's scorecard in half without ever erroring.
  */
-export const members = ldChecklist.table(
-  "members",
+export const doers = ldChecklist.table(
+  "doers",
   {
     id: serial("id").primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .unique()
-      .references(() => users.id),
-    isAdmin: boolean("is_admin").notNull().default(false),
-    /** Their department for this module — grouping on scorecards. */
+    name: varchar("name", { length: 160 }).notNull(),
+    /** Lowercased on write. The identity — see above. */
+    email: varchar("email", { length: 255 }).notNull(),
     department: varchar("department", { length: 120 }),
     /**
+     * Their ERP account, when they have one. Null is the normal case, not an
+     * error state: it means this person is accountable for work but does not
+     * sign in. Resolved by email whenever an ERP user opens the module, so a
+     * login created later links itself without anybody editing this row.
+     */
+    userId: uuid("user_id").references(() => users.id),
+    isAdmin: boolean("is_admin").notNull().default(false),
+    /**
      * Inactive KEEPS every completed row and stops future occurrences being
-     * generated. Never delete a member who has ticked anything: the tick is
-     * the record that the work was done.
+     * generated. Never delete a doer who has ticked anything: the tick is the
+     * record that the work was done.
      */
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("idx_members_active").on(t.active)],
+  (t) => [
+    uniqueIndex("uq_doer_email").on(t.email),
+    uniqueIndex("uq_doer_user").on(t.userId),
+    index("idx_doers_active").on(t.active),
+  ],
 );
 
 // ─── the standing duties ───────────────────────────────────────────────────
@@ -141,10 +168,9 @@ export const tasks = ldChecklist.table(
   {
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 300 }).notNull(),
-    /** Who has to do it. An ERP account, not a separate checklist identity. */
-    doerId: uuid("doer_id")
+    doerId: integer("doer_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => doers.id),
     frequency: frequencyEnum("frequency").notNull(),
     /**
      * The anchor for every calculation, not merely the first date. "Every 2nd
@@ -152,9 +178,14 @@ export const tasks = ldChecklist.table(
      * of the month from here — so changing it re-shapes the whole series.
      */
     startDate: date("start_date").notNull(),
-    /** Open-ended when null; generation then stops at the year window. */
+    /** Open-ended when null; generation then stops at the financial year end. */
     endDate: date("end_date"),
-    assignedBy: uuid("assigned_by").references(() => users.id),
+    /**
+     * Free text, as it is in the original — "Harshali", "Head office". Who
+     * asked for the duty is a note on the record, not a foreign key: the
+     * person who set a task may have left, and the task is still theirs.
+     */
+    assignedBy: varchar("assigned_by", { length: 160 }),
     notes: text("notes"),
     /**
      * Inactive stops NEW occurrences being generated and leaves everything
@@ -169,7 +200,10 @@ export const tasks = ldChecklist.table(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("idx_tasks_doer").on(t.doerId), index("idx_tasks_active").on(t.active)],
+  (t) => [
+    index("idx_tasks_doer").on(t.doerId),
+    index("idx_tasks_active").on(t.active),
+  ],
 );
 
 // ─── the dated instances people tick off ──────────────────────────────────
@@ -186,9 +220,9 @@ export const tasks = ldChecklist.table(
  * before it is ticked. Deriving the schedule on read would leave nowhere to
  * record the answer.
  *
- * `taskName` is snapshotted here so a renamed or deleted task still reads
- * correctly in history — the same reason Goods Return snapshots its quality
- * names on the line.
+ * `taskName` and `frequency` are snapshotted here so a renamed or deleted task
+ * still reads correctly in history — the same reason Goods Return snapshots
+ * its quality names on the line.
  */
 export const occurrences = ldChecklist.table(
   "occurrences",
@@ -207,16 +241,20 @@ export const occurrences = ldChecklist.table(
     taskId: integer("task_id")
       .notNull()
       .references(() => tasks.id, { onDelete: "cascade" }),
-    doerId: uuid("doer_id")
+    doerId: integer("doer_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => doers.id),
     taskName: varchar("task_name", { length: 300 }).notNull(),
     /** Denormalised from the task so the screens can group without a join. */
     frequency: frequencyEnum("frequency").notNull(),
     plannedDate: date("planned_date").notNull(),
     /** When it was actually ticked. On time means actual <= planned. */
     actualDate: date("actual_date"),
-    /** Who ticked it — usually the doer, but an admin may tick on their behalf. */
+    /**
+     * The ERP account that clicked Done — usually the doer themselves, but an
+     * administrator may tick on behalf of somebody with no login, which is the
+     * ordinary case for shop-floor duties. Null on rows still Scheduled.
+     */
     completedBy: uuid("completed_by").references(() => users.id),
     status: occurrenceStatusEnum("status").notNull().default("Scheduled"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -258,17 +296,24 @@ export const holidays = ldChecklist.table(
 
 // ─── relations ────────────────────────────────────────────────────────────
 
-export const tasksRelations = relations(tasks, ({ many }) => ({
+export const doersRelations = relations(doers, ({ many }) => ({
+  tasks: many(tasks),
+  occurrences: many(occurrences),
+}));
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  doer: one(doers, { fields: [tasks.doerId], references: [doers.id] }),
   occurrences: many(occurrences),
 }));
 
 export const occurrencesRelations = relations(occurrences, ({ one }) => ({
   task: one(tasks, { fields: [occurrences.taskId], references: [tasks.id] }),
+  doer: one(doers, { fields: [occurrences.doerId], references: [doers.id] }),
 }));
 
 // ─── inferred types ───────────────────────────────────────────────────────
 
-export type ChecklistMember = typeof members.$inferSelect;
+export type Doer = typeof doers.$inferSelect;
 export type ChecklistTask = typeof tasks.$inferSelect;
 export type Occurrence = typeof occurrences.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
