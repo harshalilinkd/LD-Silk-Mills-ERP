@@ -537,6 +537,46 @@ Other things this module paid for:
   fails the build AND takes unrelated pages down with it. `tsc` passes on that
   import — the constraint is the bundler's and only appears on request.
 
+## AI Assistant — read-only, scoped, and needs a key
+
+`/ai-assistant`. Claude answers questions about the business and walks people
+through screens. Three files: `src/lib/ai/knowledge.ts` (what it knows without
+asking the database), `src/lib/ai/tools.ts` (what it can look up), and
+`src/app/api/ai-assistant/chat/route.ts` (the streaming endpoint).
+
+- **Needs `ANTHROPIC_API_KEY`** in the environment. Without it the endpoint
+  returns a SENTENCE saying so, not a 500 — it is the one failure an owner can
+  fix themselves. Add it to `.env.local` and to Vercel.
+- **Model `claude-opus-5`**, adaptive thinking, streaming. Roughly a rupee or
+  two per question. `max_iterations` caps the tool loop; without it a confused
+  model can search the same thing until the request times out, billing each lap.
+- **EVERY TOOL IS READ-ONLY.** It never creates, edits or receives anything.
+  That is the design, not a first-version shortcut: a model that can act can
+  act on a misunderstanding, and every write in this ERP already has a screen
+  with a guard and a person who chose to press it. If write actions are ever
+  added they belong behind an explicit confirm showing the exact record.
+- **Every tool checks `system_access` for the CALLER** before touching a
+  module. The assistant must never become the one place where a permission
+  leaks — the sidebar hides a system, the module guards refuse it, and so does
+  this. Help Slip reads must additionally go through `withHelpSlip` under the
+  caller's own profile so RLS keeps confidential concerns invisible; the model
+  is never trusted to filter them.
+- **`knowledge.ts` is written for the person at the screen, not for whoever
+  edits the code.** Do not paste CLAUDE.md into it — this file is full of pool
+  sizes and migration warnings, and a model given it answers in those terms. It
+  is the assistant's only source for anything a tool does not return, so a
+  stale line becomes a confident wrong instruction: update it in the same
+  commit as any screen change.
+- It is sent as a CACHED system prompt, so its length costs full price once and
+  about a tenth of that per later turn. Keep it first and keep it stable —
+  anything volatile appended to it invalidates the cache every request.
+- **The tool SQL was verified against the live tables, and the first draft was
+  wrong.** `customer_orders` has no `status` and no `deleted_at` (lines carry
+  `is_cancelled`/`is_deleted`, progress lives in `line_stage_progress`), the
+  column is `agent` not `agent_name`, and `crm_followups` uses `due_at` not
+  `due_date`. Check a column exists before a tool ships; a broken tool fails at
+  question time, in front of somebody.
+
 ## Known gotchas (hit these once already — don't re-discover them)
 - **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base
   UI app, not Radix — `onSelect` on a `DropdownMenuItem` is silently a

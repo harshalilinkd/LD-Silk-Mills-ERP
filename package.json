@@ -12,6 +12,7 @@
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
     "@base-ui/react": "^1.7.0",
     "@number-flow/react": "^0.6.2",
     "@tabler/icons-react": "^3.46.0",
