@@ -43,13 +43,20 @@ function shortMonth(iso: string): string {
   return monthLabel(iso).replace(/\s\d{4}$/, "");
 }
 
-/** Axis ticks only — the tooltip always shows the full rupee figure. */
+/**
+ * Axis ticks only — the tooltip always shows the full rupee figure.
+ *
+ * A negative tick carries U+2212, not a hyphen, the same as every other figure
+ * in the module (see the money rules in `docs/DESIGN.md`). On an axis that
+ * crosses zero it is the glyph telling somebody the month went backwards.
+ */
 function compact(n: number): string {
   const abs = Math.abs(n);
-  if (abs >= 1e7) return `${(n / 1e7).toFixed(1)}Cr`;
-  if (abs >= 1e5) return `${(n / 1e5).toFixed(1)}L`;
-  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
-  return String(n);
+  const sign = n < 0 ? "−" : "";
+  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(1)}Cr`;
+  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
+  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}k`;
+  return `${sign}${abs}`;
 }
 
 function CashFlowTooltip({

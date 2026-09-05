@@ -270,7 +270,9 @@ export function SummaryScreen({
                 href={`/petty-cash?from=${summary.from}&to=${summary.to}`}
                 className="text-[12.5px] font-medium text-text-2 hover:text-text-1"
               >
-                Open these {totals.count} entries →
+                {totals.count === 1
+                  ? "Open the one entry →"
+                  : `Open these ${totals.count} entries →`}
               </Link>
             </div>
           </section>
