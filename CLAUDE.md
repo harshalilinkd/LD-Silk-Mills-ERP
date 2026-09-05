@@ -97,9 +97,25 @@ Adding a file to `schema` is what lets `db:generate` see its tables at all;
 `schemaFilter` only decides which namespaces drizzle-kit may touch. The three
 shared schemas are deliberately absent from both.
 
-**`next build` clobbers a running `next dev`.** They share `.next`, so a
-production build run while the dev server is up leaves that server serving
-blank pages. Restart it (and delete `.next`) after any build.
+**`next build` clobbers a running `next dev`.** They share `.next`. A
+production build — or a `rm -rf .next` — while the dev server is up leaves it
+serving pages with **no stylesheet at all**: raw HTML, blue underlined links,
+default fonts. The tell is `/_next/static/css/app/layout.css` answering 404
+and `/icon.svg` answering 500 while `/login` still answers 200.
+
+**The order matters, and getting it wrong is what caused it twice:**
+
+```
+1. stop the dev server            (it must be DOWN before .next is touched)
+2. confirm nothing is on 3001
+3. rm -rf .next
+4. npm run dev
+5. verify: /login 200 AND its .css 200 AND /icon.svg 200
+```
+
+Deleting `.next` while the server is running, or starting the server in the
+same command that deletes it, both race and leave the same wreckage. Check the
+CSS, not just the page — a 200 on `/login` proves nothing.
 
 ## Auth — two layers, on purpose
 1. **Shell session**: Auth.js v5. Two providers, both real:
