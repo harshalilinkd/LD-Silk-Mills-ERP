@@ -98,12 +98,32 @@ export function Note({
     <div
       className={cn(
         "flex items-start gap-2 rounded-field border px-3 py-2 text-[12.5px] leading-relaxed",
+        // BOTH TONES ARE GREY, and that is a deliberate correction.
+        //
+        // `warn` used to be amber, and on a page of otherwise calm figures two
+        // amber banners read as "the system is broken". They are not errors.
+        // They are notes explaining why a figure is not what somebody would
+        // expect — that the actual transport cost is being copied rather than
+        // entered, and that the average transit time is built from 98 of 277
+        // returns. Every one of those is a fact about how the WORK is recorded,
+        // not a fault in the software, and shouting about it made the whole
+        // report look unwell.
+        //
+        // The distinction is kept in the markup rather than deleted: `warn`
+        // gets a slightly stronger left edge and darker text, so it still reads
+        // as the more important of the two if they ever appear together, and a
+        // future genuine error has somewhere to go.
         tone === "warn"
-          ? "border-status-amber/30 bg-status-amber-dim text-status-amber"
-          : "border-border bg-surface-2 text-text-2",
+          ? "border-border-strong border-l-[3px] bg-surface-2 text-text-2"
+          : "border-border bg-surface-2 text-text-3",
       )}
     >
-      <IconInfoCircle className="mt-0.5 size-4 shrink-0" />
+      <IconInfoCircle
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          tone === "warn" ? "text-text-2" : "text-text-3",
+        )}
+      />
       <p className="min-w-0">{children}</p>
     </div>
   );
@@ -115,6 +135,12 @@ export function Note({
  * Used for the ageing buckets and the reason breakdown. The bar is the width,
  * the number is the truth: the label always carries the exact figure, so the
  * bar never has to be measured by eye to be read.
+ */
+/**
+ * `tone="amber"` is the ONE piece of alarm colour left on this page, and it is
+ * spent on the ageing buckets — 64 returns sitting over 30 days is the only
+ * figure here somebody can act on today. Everything else is descriptive, so it
+ * is grey. Colour that appears everywhere stops meaning anything.
  */
 export function Bars({
   rows,

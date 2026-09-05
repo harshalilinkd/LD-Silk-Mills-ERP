@@ -200,14 +200,12 @@ export default async function GoodsReturnReportsPage({
                 value={
                   days(speed.received.fastestDays) ?? "—"
                 }
-                tone="good"
               />
               <Figure
                 label="Slowest"
                 value={
                   days(speed.received.slowestDays) ?? "—"
                 }
-                tone="warn"
               />
             </div>
 
