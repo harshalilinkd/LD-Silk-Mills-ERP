@@ -9,35 +9,40 @@ in as native pages (see Phase 3a below), not just linked to.
 
 ## Where this stands (Sep 2026)
 
-All three modules are built and verified: every one of the 46 screens loads
-against live data with no errors, and every moved address lands in one hop.
-What is NOT built is future work rather than gaps — NBD, SCOT, Goods Return LR
-and Petty Cash are `coming_soon` placeholders in `ld_erp_core.systems`, and
-`/reports` and `/ai-assistant` render `<ComingSoon>`.
+Six modules are built and verified against live data: **Orders**, **CRM**,
+**Help Slip**, **Goods Return LR**, **AI Assistant** and **Checklist**. NBD,
+SCOT and Petty Cash are still `coming_soon` placeholders in
+`ld_erp_core.systems`, and `/reports` is the shell's own reports screen.
 
-Four things are outstanding, and none of them is code:
+Five things are outstanding, and only one of them is code:
 
-1. **`ld_help_slip.departments` is wrong and must be fixed before Help Slip
+1. **The AI Assistant needs an `ANTHROPIC_API_KEY`.** Everything is built; the
+   endpoint answers with one specific sentence until the key exists. The owner
+   has deferred buying one. Roughly ₹3–5 a question.
+2. **The Checklist starts empty and the owner fills it**, in this order: Doers,
+   then Holidays, then Tasks. Every one of those screens takes a paste from
+   Excel or a CSV. Only the owner's own account has been granted the module;
+   everybody else is a tick in Settings → Access.
+3. **`ld_help_slip.departments` is wrong and must be fixed before Help Slip
    goes live.** Two rows, and their names do not match their codes
    ("Analytics"/`IT_SYSTEMS`, "Sales"/`PURCHASE`), against six correct ones in
    Masters. A concern already renders "Department: Analytics". The owner's
    decision is one unified list, so `profiles.department_id` gets pointed at
    the Masters list — deferred only because that is a foreign-key migration
    for a module with no live users yet.
-2. **`naushi500@gmail.com`** is a second Order Entry ADMIN for a person who
-   also holds `naushi.linkdprints@gmail.com`. Only the second can sign in to
-   the ERP. Owner's call whether the first is still needed.
-3. **Two "test admin" Help Slip profiles** (`harshali08033@`,
-   `harshalibhopale08033@`) own no concerns and cannot sign in. Owner's call.
-4. **`http://localhost:3001/api/auth/callback/google`** is still not registered
-   in Google Console, so Google sign-in works in production but not locally.
+4. **`naushi500@gmail.com`** is a second Order Entry ADMIN for a person who
+   also holds `naushi.linkdprints@gmail.com`; and two "test admin" Help Slip
+   profiles (`harshali08033@`, `harshalibhopale08033@`) own no concerns and
+   cannot sign in. All three are the owner's call.
+5. **The standalone Goods Return app is still live and still passwordless.**
+   Retiring it is the owner's decision, not a code change.
 
 ## Stack
 Next.js 15 (App Router, TS strict) · Drizzle ORM + `postgres.js` · Auth.js v5
 · Tailwind v4 + shadcn/ui on Base UI (`@base-ui/react`) · Supabase Postgres
 (no `@supabase/supabase-js` — plain Postgres connection, same as Order Entry).
 
-## Database — one Supabase project, three schemas
+## Database — one Supabase project, five schemas
 Project **"LD Silk Mills"** (`ygxnbmfmrwookrilpbfx`), region `ap-south-1`.
 No Neon involved anywhere (an earlier Neon project existed for one day in
 Phase 1 and was deleted — do not recreate it).
@@ -46,7 +51,9 @@ Phase 1 and was deleted — do not recreate it).
 |---|---|---|
 | `ld_erp_core` | **This repo, exclusively** | `users`, `systems`, `system_access`, `audit_logs`. Nothing else reads/writes it. |
 | `ld_order_entry` | **Shared** with the standalone Order Entry app | Same live tables, same rows — no sync, no copy. A row written by either app is instantly visible in the other. |
-| `ld_help_slip` | Help Slip app only | Not touched by this repo at all. |
+| `ld_help_slip` | **Shared** with the Help Slip app | RLS is the boundary — see its own section below. |
+| `goods_return` | **Shared** with the standalone Goods Return app | Live. Add and update only; never restructure, never delete. `return_display_seq` must never be created, dropped, altered or reset. |
+| `ld_checklist_system` | **This repo, exclusively** | `doers`, `tasks`, `occurrences`, `holidays`. Nothing else reads or writes it, so — unlike the three shared schemas — it IS managed with ordinary migrations from here. |
 
 `src/db/index.ts` opens the one shared `postgres.js` connection (`sql`),
 reused by `src/db/order-entry/index.ts` for the second schema — one pool,
@@ -58,6 +65,16 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
 
 `DATABASE_URL` in `.env.local` must be the Supavisor **Transaction pooler**
 (port 6543), never the session pooler (5432) or direct connection.
+
+`drizzle.config.ts` lists BOTH owned schemas in `schemaFilter`
+(`ld_erp_core`, `ld_checklist_system`) and both schema files in `schema`.
+Adding a file to `schema` is what lets `db:generate` see its tables at all;
+`schemaFilter` only decides which namespaces drizzle-kit may touch. The three
+shared schemas are deliberately absent from both.
+
+**`next build` clobbers a running `next dev`.** They share `.next`, so a
+production build run while the dev server is up leaves that server serving
+blank pages. Restart it (and delete `.next`) after any build.
 
 ## Auth — two layers, on purpose
 1. **Shell session**: Auth.js v5. Two providers, both real:
@@ -295,6 +312,9 @@ you're inside that section). Toggling a system's `status`/`route`/
   board — real, reads/writes live `ld_order_entry` data. Ported from Order
   Entry's own repo; see `src/lib/order-entry/*` and
   `src/app/api/order-entry/*`.
+- **Checklist** (`/checklist/*`, system_code `checklist`): all six screens
+  real — Dashboard, Master Checklist, Scorecards, Tasks, Doers, Holidays —
+  over our own empty `ld_checklist_system` schema. See its section below.
 - **CRM** (`/crm/*`, own top-level sidebar entry, system_code `crm`):
   Follow-up queue (`/crm`), follow-up detail (`/crm/[id]` — a NEW dedicated
   route; the source app renders this as a draggable floating panel, this
@@ -576,6 +596,72 @@ asking the database), `src/lib/ai/tools.ts` (what it can look up), and
   column is `agent` not `agent_name`, and `crm_followups` uses `due_at` not
   `due_date`. Check a column exists before a tool ships; a broken tool fails at
   question time, in front of somebody.
+
+## Checklist — dated duties, and the two things that must never be overwritten
+
+`/checklist/*`, system_code `checklist`, schema **`ld_checklist_system`** —
+ours alone and therefore migrated from this repo, unlike every other ported
+module. Rebuilt from `github.com/harshalilinkd/Checklist_System`, which runs
+live at the owner's other company. **No data came from there and none ever
+should**; that database is not ours to read.
+
+Six screens: Dashboard · Master Checklist · Scorecards · Tasks · Doers ·
+Holidays, plus a CSV export at `/checklist/scorecards/export`.
+
+**A doer is its own row, NOT an `ld_erp_core.users` id.** The first draft got
+this wrong on the reasoning that this ERP keeps one People list. Most people
+with a duty on a checklist have no cause to hold an ERP login, and forcing one
+would mean creating dozens of passwords into a system holding order values.
+`doers.user_id` links to an ERP account only when that person happens to have
+one, and is resolved by EMAIL on sign-in — so somebody bulk-imported months
+before they get a login finds their own work the first time they open it.
+
+**Only `Scheduled` and `Done` are stored.** Today / Delayed / Upcoming Focus
+are derived from the planned date at read time, in SQL, in
+`master-query.ts`'s `statusCondition()`. Never store them: they would need a
+nightly sweep to stay truthful, and a night it did not run is a morning the
+whole checklist lies. Upcoming Focus deliberately EXCLUDES daily tasks —
+a daily duty is due within a week every day of the year.
+
+**Everything that writes occurrences goes through `lib/checklist/occurrences.ts`.**
+Generation is an upsert on `{taskId}_{plannedDate}` that does nothing on
+conflict, so re-running it can never overwrite a tick. Where rows genuinely
+must go, `status <> 'Done'` is a condition IN THE STATEMENT, never a filter
+applied after a read. Two things are sacred: **a completed row, and its
+actual date.**
+
+**Dates are dates.** `lib/checklist/dates.ts` does all calendar arithmetic in
+UTC and never lets a `Date` escape a function — the original's `parseISO` gives
+LOCAL midnight, which shifts every weekday calculation by one anywhere east of
+UTC. `todayIso()` is Asia/Kolkata on purpose: between 18:30 and midnight UTC it
+is already tomorrow in Bhiwandi. The financial year (1 Apr – 31 Mar) is
+COMPUTED from today, not pinned in an env var like theirs, so it rolls over on
+its own.
+
+**A holiday is a day off, not a day moved.** A duty landing on Diwali is
+dropped for that cycle rather than shunted to the next day. Adding a holiday
+clears only what is not Done and only from today onwards; removing one calls
+`regenerateAll()`.
+
+**Access.** `system_access` gates the module in the layout. `doers.is_admin`
+is checklist admin; a shell admin is ALSO a checklist admin, which is the one
+exception to the shell-admin-is-not-module-admin rule in this file — it is a
+bootstrap problem, since the doers table starts empty and nobody could
+otherwise create the first row. It does not work in reverse. Four of the six
+screens redirect a non-admin. A member's scorecard id comes from their session
+and is never read from the URL — **and the CSV route re-checks that from
+scratch, because a route handler runs without the layout above it.**
+
+**Figures print their denominator.** On-time % is of what was DONE; completion
+is of what has COME ROUND (the original divides by everything ever scheduled,
+which makes the number climb through a month for no reason). A figure that
+cannot be computed shows a dash, never 0%.
+
+**Bulk import**: `lib/checklist/import-parsers.ts` is shared by the browser
+preview and the server action, so the two cannot disagree. Excel copies as
+TAB-separated, not comma — the delimiter is detected. Dates are read
+DAY-FIRST. The server always re-parses the raw text; the preview is a
+courtesy, never a check.
 
 ## Known gotchas (hit these once already — don't re-discover them)
 - **Base UI `Menu.Item` fires `onClick`, not `onSelect`.** This is a Base

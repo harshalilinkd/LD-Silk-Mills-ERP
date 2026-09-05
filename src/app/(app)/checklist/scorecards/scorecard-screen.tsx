@@ -297,8 +297,9 @@ export function ScorecardScreen({
           label="Average delay"
           value={k.avgDelay > 0 ? `${k.avgDelay}d` : "—"}
           sub={k.late > 0 ? `Over the ${k.late} finished late` : "Nothing finished late"}
-          delta={prev.avgDelay > 0 || k.avgDelay > 0 ? -(k.avgDelay - prev.avgDelay) : undefined}
+          delta={prev.avgDelay > 0 || k.avgDelay > 0 ? k.avgDelay - prev.avgDelay : undefined}
           suffix="d"
+          lowerIsBetter
         />
         <Figure
           label="Best run"
@@ -545,6 +546,20 @@ function Part({
   );
 }
 
+/**
+ * A figure, with how it moved since the period before.
+ *
+ * ── THE ARROW FOLLOWS THE NUMBER; THE COLOUR FOLLOWS THE MEANING ─────────
+ *
+ * An earlier version negated the delta for average delay so that an
+ * improvement came out positive and green. It coloured correctly and pointed
+ * the wrong way: a delay that had risen from 0 to 29 days showed a DOWN arrow,
+ * which reads as "the delay fell by 29 days" — the opposite of the truth.
+ *
+ * So the two are separated. The arrow always points the way the value actually
+ * moved, and `lowerIsBetter` decides only whether that movement is coloured as
+ * good or bad. For most figures up is good; for a delay it is not.
+ */
 function Figure({
   label,
   value,
@@ -552,6 +567,7 @@ function Figure({
   delta,
   suffix,
   tone,
+  lowerIsBetter,
 }: {
   label: string;
   value: string;
@@ -559,7 +575,9 @@ function Figure({
   delta?: number;
   suffix?: string;
   tone?: "good" | "warn" | "bad";
+  lowerIsBetter?: boolean;
 }) {
+  const improved = delta === undefined ? false : lowerIsBetter ? delta < 0 : delta > 0;
   return (
     <div className="rounded-card border border-border bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
@@ -570,9 +588,9 @@ function Figure({
           <span
             className={cn(
               "inline-flex items-center gap-0.5 text-[11px] font-semibold",
-              delta > 0 ? "text-status-green" : "text-status-red",
+              improved ? "text-status-green" : "text-status-red",
             )}
-            title="Compared with the period before this one"
+            title={`${delta > 0 ? "Up" : "Down"} ${Math.abs(Math.round(delta * 10) / 10)}${suffix ?? ""} on the period before this one`}
           >
             {delta > 0 ? (
               <IconArrowUpRight className="size-3" />
@@ -625,8 +643,12 @@ function Heatmap({ cells, today }: { cells: DayCell[]; today: string }) {
   const weeks: (DayCell | null)[][] = [];
   for (let i = 0; i < slots.length; i += 7) weeks.push(slots.slice(i, i + 7));
 
+  // Capped, not stretched. `aspect-square` across a full-width card gives
+  // ninety-pixel tiles for a two-month range — a wall of coloured boxes that
+  // hides the pattern it exists to show. A calendar reads best at about the
+  // size of a calendar.
   return (
-    <div className="min-w-[320px]">
+    <div className="w-full max-w-[380px] min-w-[300px]">
       <div className="mb-1 grid grid-cols-7 gap-1">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div

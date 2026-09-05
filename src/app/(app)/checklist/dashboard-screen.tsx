@@ -349,7 +349,7 @@ export function DashboardScreen({
             <Key colour="bg-status-blue" label="Today" />
             <Key colour="bg-status-amber" label="Due soon" />
             <Key colour="bg-status-red" label="Delayed" />
-            <Key colour="bg-text-3/25" label="Later" />
+            <Key colour="bg-text-3/45" label="Later" />
           </div>
 
           <div className="flex flex-col divide-y divide-border px-4 py-2">
@@ -390,7 +390,7 @@ export function DashboardScreen({
                     <Seg w={pct(d.dueToday)} c="bg-status-blue" />
                     <Seg w={pct(d.upcoming)} c="bg-status-amber" />
                     <Seg w={pct(d.delayed)} c="bg-status-red" />
-                    <Seg w={pct(later)} c="bg-text-3/25" />
+                    <Seg w={pct(later)} c="bg-text-3/45" />
                   </div>
                 </div>
               );
@@ -413,7 +413,7 @@ export function DashboardScreen({
             <Bar label="Delayed" n={t.delayed} total={t.total} colour="bg-status-red" text="text-status-red" />
             <Bar label="Due today" n={t.dueToday} total={t.total} colour="bg-status-blue" text="text-status-blue" />
             <Bar label="Due within a week" n={t.upcoming} total={t.total} colour="bg-status-amber" text="text-status-amber" />
-            <Bar label="Later" n={t.scheduled} total={t.total} colour="bg-text-3/30" text="text-text-2" />
+            <Bar label="Later" n={t.scheduled} total={t.total} colour="bg-text-3/45" text="text-text-2" />
           </div>
           <div className="grid grid-cols-2 gap-3 border-t border-border px-4 py-3">
             <div>
