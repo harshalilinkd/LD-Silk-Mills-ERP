@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { useChecklistViewer } from "./viewer-context";
 import {
   EmptyState,
-  Field,
   Input,
   PageHead,
   Select,
@@ -206,73 +205,79 @@ export function DashboardScreen({
         }
       />
 
-      {/* ── filters ─────────────────────────────────────────────────── */}
-      <div className="rounded-card border border-border bg-surface p-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {viewer.isAdmin && (
-            <>
-              <Field label="Doer">
-                <Select
-                  value={params.get("doer") ?? ""}
-                  onChange={(e) => setParam({ doer: e.target.value || null })}
-                >
-                  <option value="">All doers</option>
-                  {people.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Department">
-                <Select
-                  value={params.get("dept") ?? ""}
-                  onChange={(e) => setParam({ dept: e.target.value || null })}
-                >
-                  <option value="">All departments</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </>
-          )}
-          <Field label="From">
-            <Input
-              type="date"
-              value={params.get("from") ?? ""}
-              onChange={(e) => setParam({ from: e.target.value || null })}
-            />
-          </Field>
-          <Field label="To">
-            <Input
-              type="date"
-              value={params.get("to") ?? ""}
-              onChange={(e) => setParam({ to: e.target.value || null })}
-            />
-          </Field>
+      {/* ── one compact row, the shape Order Entry's dashboard uses ──── */}
+      {/* No captions: four controls whose own text says what they are
+          ("All doers", "All departments", a date) do not need a label above
+          each one, and the labels were costing a whole extra line of height
+          before any figure appeared. The panel pattern with captions is for
+          screens where the filters fold away; this bar is always on. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-field border border-border bg-surface p-2.5">
+        {viewer.isAdmin && (
+          <>
+            <Select
+              aria-label="Doer"
+              className="w-auto min-w-[150px] flex-1 sm:flex-none"
+              value={params.get("doer") ?? ""}
+              onChange={(e) => setParam({ doer: e.target.value || null })}
+            >
+              <option value="">All doers</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Department"
+              className="w-auto min-w-[150px] flex-1 sm:flex-none"
+              value={params.get("dept") ?? ""}
+              onChange={(e) => setParam({ dept: e.target.value || null })}
+            >
+              <option value="">All departments</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
+
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
+          <Input
+            type="date"
+            aria-label="From date"
+            className="num min-w-0 flex-1 sm:w-[150px] sm:flex-none"
+            value={params.get("from") ?? ""}
+            max={params.get("to") || undefined}
+            onChange={(e) => setParam({ from: e.target.value || null })}
+          />
+          <span className="text-text-3">–</span>
+          <Input
+            type="date"
+            aria-label="To date"
+            className="num min-w-0 flex-1 sm:w-[150px] sm:flex-none"
+            value={params.get("to") ?? ""}
+            min={params.get("from") || undefined}
+            onChange={(e) => setParam({ to: e.target.value || null })}
+          />
         </div>
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border pt-2.5">
-          <span className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            {activeFilters} filter{activeFilters === 1 ? "" : "s"} active ·{" "}
-            {t.total.toLocaleString("en-IN")} rows in view
-          </span>
+
+        <span className="ml-auto text-[12px] whitespace-nowrap text-text-3">
+          <strong className="num font-semibold text-text-2">
+            {t.total.toLocaleString("en-IN")}
+          </strong>{" "}
+          rows
+        </span>
+        {activeFilters > 0 && (
           <button
             type="button"
             onClick={() => router.push(pathname)}
-            disabled={activeFilters === 0}
-            className={cn(
-              "cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium transition-colors",
-              activeFilters === 0
-                ? "cursor-not-allowed text-text-3 opacity-50"
-                : "text-status-red hover:bg-status-red-dim",
-            )}
+            className="cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium text-text-2 transition-colors hover:bg-chip hover:text-text-1"
           >
-            Clear filters
+            Clear
           </button>
-        </div>
+        )}
       </div>
 
       {/* ── the six figures ─────────────────────────────────────────── */}

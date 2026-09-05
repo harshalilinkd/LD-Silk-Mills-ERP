@@ -8,7 +8,6 @@ import {
   IconChecklist,
   IconChevronLeft,
   IconChevronRight,
-  IconSearch,
 } from "@tabler/icons-react";
 
 import { daysBetween, formatDate } from "@/lib/checklist/dates";
@@ -24,12 +23,16 @@ import { useChecklistViewer } from "../viewer-context";
 import {
   EmptyState,
   ErrorNote,
-  Field,
+  FilterField,
+  FilterPanel,
+  FiltersButton,
   Input,
   PageHead,
   QuietButton,
+  SearchBox,
   Select,
   TableCard,
+  Toolbar,
   td,
   th,
 } from "../parts";
@@ -77,6 +80,7 @@ export function MasterScreen({
   // Rows this browser has just ticked, so the table updates before the server
   // round trip finishes. Cleared by the refresh that follows.
   const [ticked, setTicked] = React.useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const status = params.get("status") ?? "Today";
   const q = params.get("q") ?? "";
@@ -97,9 +101,13 @@ export function MasterScreen({
     [params, pathname, router],
   );
 
-  const activeFilters = ["doer", "dept", "q", "freq", "from", "to"].filter((k) =>
-    params.get(k),
-  ).length + (status !== "Today" ? 1 : 0);
+  const PANEL_KEYS = ["doer", "dept", "freq", "from", "to"] as const;
+  // The dot on the Filters button reports only what is INSIDE the panel.
+  // Search sits in the toolbar and the status cards are their own control, so
+  // counting either would light the dot for something already visible.
+  const panelFilters = PANEL_KEYS.filter((k) => params.get(k)).length;
+  const activeFilters =
+    panelFilters + (params.get("q") ? 1 : 0) + (status !== "Today" ? 1 : 0);
 
   const tick = async (key: string) => {
     setBusyKey(key);
@@ -183,115 +191,10 @@ export function MasterScreen({
 
       <ErrorNote>{error}</ErrorNote>
 
-      {/* ── filters ─────────────────────────────────────────────────── */}
-      <div className="rounded-card border border-border bg-surface p-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {viewer.isAdmin && (
-            <>
-              <Field label="Doer">
-                <Select
-                  value={params.get("doer") ?? ""}
-                  onChange={(e) => setParam({ doer: e.target.value || null })}
-                >
-                  <option value="">All doers</option>
-                  {people.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
-              <Field label="Department">
-                <Select
-                  value={params.get("dept") ?? ""}
-                  onChange={(e) => setParam({ dept: e.target.value || null })}
-                >
-                  <option value="">All departments</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </>
-          )}
-
-          <Field label="Task">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setParam({ q: search || null });
-              }}
-            >
-              <div className="relative">
-                <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-3" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onBlur={() => setParam({ q: search || null })}
-                  placeholder="Search task name…"
-                  className="pl-8"
-                />
-              </div>
-            </form>
-          </Field>
-
-          <Field label="Frequency">
-            <Select
-              value={params.get("freq") ?? ""}
-              onChange={(e) => setParam({ freq: e.target.value || null })}
-            >
-              <option value="">All frequencies</option>
-              {FREQUENCIES.map((f) => (
-                <option key={f} value={f}>
-                  {f} · {FREQUENCY_META[f].label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="From">
-            <Input
-              type="date"
-              value={params.get("from") ?? ""}
-              onChange={(e) => setParam({ from: e.target.value || null })}
-            />
-          </Field>
-
-          <Field label="To">
-            <Input
-              type="date"
-              value={params.get("to") ?? ""}
-              onChange={(e) => setParam({ to: e.target.value || null })}
-            />
-          </Field>
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
-          <span className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            {activeFilters} filter{activeFilters === 1 ? "" : "s"} active ·{" "}
-            {data.total.toLocaleString("en-IN")} row
-            {data.total === 1 ? "" : "s"}
-          </span>
-          <button
-            type="button"
-            onClick={() => router.push(pathname)}
-            disabled={activeFilters === 0}
-            className={cn(
-              "cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium transition-colors",
-              activeFilters === 0
-                ? "cursor-not-allowed text-text-3 opacity-50"
-                : "text-status-red hover:bg-status-red-dim",
-            )}
-          >
-            Clear filters
-          </button>
-        </div>
-      </div>
-
       {/* ── the four cards, which are the status filter ──────────────── */}
+      {/* KPI tiles come FIRST, above the toolbar — the order docs/DESIGN.md
+          fixed after CRM shipped a filter bar that ran above its tiles and
+          pushed the first row of data below the fold. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {CARDS.map((c) => {
           const on = status === c.key;
@@ -338,6 +241,112 @@ export function MasterScreen({
           );
         })}
       </div>
+
+      {/* ── one toolbar row, then the panel only if asked for ────────── */}
+      <Toolbar
+        search={
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setParam({ q: search || null });
+            }}
+          >
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              onBlur={() => setParam({ q: search || null })}
+              placeholder="Search task name…"
+            />
+          </form>
+        }
+      >
+        <span className="shrink-0 text-[12px] whitespace-nowrap text-text-3">
+          <strong className="num font-semibold text-text-2">
+            {data.total.toLocaleString("en-IN")}
+          </strong>{" "}
+          row{data.total === 1 ? "" : "s"}
+        </span>
+        <FiltersButton
+          open={showFilters}
+          active={panelFilters > 0}
+          onClick={() => setShowFilters((v) => !v)}
+        />
+      </Toolbar>
+
+      {showFilters && (
+        <FilterPanel
+          active={activeFilters > 0}
+          onClear={() => {
+            setSearch("");
+            router.push(pathname);
+          }}
+          columns={viewer.isAdmin ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-3"}
+        >
+          {viewer.isAdmin && (
+            <>
+              <FilterField label="Doer">
+                <Select
+                  value={params.get("doer") ?? ""}
+                  onChange={(e) => setParam({ doer: e.target.value || null })}
+                >
+                  <option value="">All doers</option>
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </FilterField>
+
+              <FilterField label="Department">
+                <Select
+                  value={params.get("dept") ?? ""}
+                  onChange={(e) => setParam({ dept: e.target.value || null })}
+                >
+                  <option value="">All departments</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </Select>
+              </FilterField>
+            </>
+          )}
+
+          <FilterField label="Frequency">
+            <Select
+              value={params.get("freq") ?? ""}
+              onChange={(e) => setParam({ freq: e.target.value || null })}
+            >
+              <option value="">All frequencies</option>
+              {FREQUENCIES.map((f) => (
+                <option key={f} value={f}>
+                  {f} · {FREQUENCY_META[f].label}
+                </option>
+              ))}
+            </Select>
+          </FilterField>
+
+          <FilterField label="From">
+            <Input
+              type="date"
+              className="num"
+              value={params.get("from") ?? ""}
+              onChange={(e) => setParam({ from: e.target.value || null })}
+            />
+          </FilterField>
+
+          <FilterField label="To">
+            <Input
+              type="date"
+              className="num"
+              value={params.get("to") ?? ""}
+              onChange={(e) => setParam({ to: e.target.value || null })}
+            />
+          </FilterField>
+        </FilterPanel>
+      )}
 
       {/* ── the table ───────────────────────────────────────────────── */}
       {data.rows.length === 0 ? (

@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { IconChevronDown, IconLoader2, IconX } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconFilter,
+  IconLoader2,
+  IconSearch,
+  IconX,
+} from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -131,55 +137,154 @@ export function PageHead({
   );
 }
 
+// ─── the filter & toolbar pattern (docs/DESIGN.md) ────────────────────────
+
 /**
- * The filter bar.
+ * ── WHY THESE REPLACED A SIX-COLUMN GRID ─────────────────────────────────
  *
- * `activeCount` and the clear link are not decoration. Every one of these
- * screens keeps its filters in the URL, so somebody can arrive on a filtered
- * view from a link or a back button and wonder why the table looks empty. A
- * bar that says "1 filter active" and offers to clear it answers that before
- * it is asked.
+ * The first version of these screens put every filter in an always-open card:
+ * six labelled fields, three rows deep on a laptop, plus a permanent footer
+ * strip reading "0 FILTERS ACTIVE". On the Tasks screen that pushed the first
+ * row of actual data below the fold before a single task existed.
+ *
+ * `docs/DESIGN.md` already had the answer, written after CRM shipped exactly
+ * this mistake: **KPI tiles, then ONE toolbar row, then a collapsed Filters
+ * panel, then the table.** Search stays in the toolbar because it is how you
+ * find one row; everything that NARROWS the set folds away behind the button.
+ * A single dot on that button is the only "something is filtered" signal.
+ *
+ * These are the shapes from that document, so the Checklist reads like Orders
+ * and CRM rather than like a third opinion.
  */
-export function FilterBar({
+
+/**
+ * One toolbar row.
+ *
+ * Below `sm` search takes a row of its own and the rest sits underneath;
+ * at `sm` the second group becomes `display: contents` and everything merges
+ * back into one line. One class change rather than two parallel layouts.
+ */
+export function Toolbar({
+  search,
   children,
-  activeCount,
-  onClear,
-  note,
 }: {
-  children: React.ReactNode;
-  activeCount: number;
-  onClear?: () => void;
-  note?: React.ReactNode;
+  search: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-card border border-border bg-surface p-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="relative w-full sm:min-w-[200px] sm:flex-1">{search}</div>
+      {children && (
+        <div className="flex items-center gap-2 sm:contents">{children}</div>
+      )}
+    </div>
+  );
+}
+
+export function SearchBox({
+  value,
+  onChange,
+  placeholder,
+  ...rest
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+} & Omit<React.ComponentProps<"input">, "value" | "onChange">) {
+  return (
+    <>
+      <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-text-3" />
+      <input
+        {...rest}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cn(fieldBase, "pl-8")}
+      />
+    </>
+  );
+}
+
+/**
+ * The toggle. The dot is the ONLY active-state signal — recolouring the button
+ * as well makes a row of filtered screens louder than the one thing that
+ * changed.
+ */
+export function FiltersButton({
+  open,
+  active,
+  onClick,
+}: {
+  open: boolean;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={open}
+      className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 text-[12.5px] font-medium text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+    >
+      <IconFilter className="size-4" />
+      Filters
+      {active && <span className="ml-0.5 size-1.5 rounded-full bg-primary" />}
+    </button>
+  );
+}
+
+/** The panel, rendered only when the button is on. */
+export function FilterPanel({
+  children,
+  active,
+  onClear,
+  columns = "sm:grid-cols-4",
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClear: () => void;
+  /** Override when a screen has appreciably more or fewer fields. */
+  columns?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-field border border-border bg-surface-2 p-3">
+      <div className={cn("grid grid-cols-2 gap-x-3 gap-y-2.5", columns)}>
         {children}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
-        <span className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-          {activeCount} filter{activeCount === 1 ? "" : "s"} active
-        </span>
-        <div className="flex items-center gap-3">
-          {note}
-          {onClear && (
-            <button
-              type="button"
-              onClick={onClear}
-              disabled={activeCount === 0}
-              className={cn(
-                "cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium transition-colors",
-                activeCount === 0
-                  ? "cursor-not-allowed text-text-3 opacity-50"
-                  : "text-status-red hover:bg-status-red-dim",
-              )}
-            >
-              Clear filters
-            </button>
-          )}
+      {active && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onClear}
+            className="cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium text-text-2 transition-colors hover:bg-chip hover:text-text-1"
+          >
+            Clear filters
+          </button>
         </div>
-      </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * One field inside the panel: an 11px caption above the control.
+ *
+ * A panel is something somebody opened on purpose to look at, so the extra
+ * line per field buys a control that explains itself. The toolbar above it
+ * gets no labels for the same reason in reverse.
+ */
+export function FilterField({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1">
+      <span className="text-[11px] font-medium text-text-2">{label}</span>
+      {children}
+    </label>
   );
 }
 

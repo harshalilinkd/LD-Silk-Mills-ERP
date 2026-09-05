@@ -8,7 +8,6 @@ import {
   IconPencil,
   IconPlus,
   IconRefresh,
-  IconSearch,
   IconTableImport,
   IconTrash,
   IconUsersGroup,
@@ -28,14 +27,19 @@ import {
   EmptyState,
   ErrorNote,
   Field,
+  FilterField,
+  FilterPanel,
+  FiltersButton,
   Input,
   Modal,
   PageHead,
   Pill,
   PrimaryButton,
   QuietButton,
+  SearchBox,
   Select,
   TableCard,
+  Toolbar,
   td,
   th,
 } from "../parts";
@@ -107,6 +111,7 @@ export function TasksScreen({
   const [freq, setFreq] = React.useState("");
   const [status, setStatus] = React.useState("");
 
+  const [showFilters, setShowFilters] = React.useState(false);
   const [editing, setEditing] = React.useState<TaskRow | "new" | null>(null);
   const [importing, setImporting] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState<TaskRow | null>(null);
@@ -202,30 +207,13 @@ export function TasksScreen({
         }
       />
 
-      {noDoers ? (
+      {noDoers && (
         <div className="flex items-start gap-2 rounded-field border border-status-amber/30 bg-status-amber-dim px-3 py-2 text-[12.5px] leading-relaxed text-status-amber">
           <IconInfoCircle className="mt-0.5 size-4 shrink-0" />
           <p>
             Add somebody to the <strong>Doers</strong> list first. A task has to
             belong to a person, so there is nobody to give one to yet.
           </p>
-        </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-field border border-border bg-surface-2 px-3 py-2">
-          <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-text-3">
-            <IconInfoCircle className="mt-0.5 size-4 shrink-0" />
-            <span>
-              <strong className="font-semibold text-text-2">
-                {scheduledRows.toLocaleString("en-IN")}
-              </strong>{" "}
-              dated rows scheduled for {fy.label} ({formatDate(fy.from)} –{" "}
-              {formatDate(fy.to)}).
-            </span>
-          </p>
-          <QuietButton onClick={doRebuild} busy={busy}>
-            <IconRefresh className="size-3.5" />
-            Rebuild schedule
-          </QuietButton>
         </div>
       )}
 
@@ -236,9 +224,44 @@ export function TasksScreen({
         </p>
       )}
 
-      <div className="rounded-card border border-border bg-surface p-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <Field label="Doer">
+      {/* ONE row: search, the count of dated rows, Filters, Rebuild. The
+          count used to be a full-width strip of its own above the filter card
+          — two bands of furniture before any data. It is a fact about the
+          schedule and it belongs beside the button that rebuilds it. */}
+      {!noDoers && (
+        <Toolbar
+          search={
+            <SearchBox
+              value={q}
+              onChange={setQ}
+              placeholder="Search task name…"
+            />
+          }
+        >
+          <span
+            className="hidden shrink-0 text-[12px] whitespace-nowrap text-text-3 lg:inline"
+            title={`Financial year ${fy.label}: ${formatDate(fy.from)} to ${formatDate(fy.to)}`}
+          >
+            <strong className="num font-semibold text-text-2">
+              {scheduledRows.toLocaleString("en-IN")}
+            </strong>{" "}
+            dates scheduled for {fy.label}
+          </span>
+          <FiltersButton
+            open={showFilters}
+            active={activeCount > 0}
+            onClick={() => setShowFilters((v) => !v)}
+          />
+          <QuietButton onClick={doRebuild} busy={busy} className="h-9 shrink-0">
+            <IconRefresh className="size-3.5" />
+            Rebuild
+          </QuietButton>
+        </Toolbar>
+      )}
+
+      {showFilters && !noDoers && (
+        <FilterPanel active={activeCount > 0} onClear={clear}>
+          <FilterField label="Doer">
             <Select value={doerId} onChange={(e) => setDoerId(e.target.value)}>
               <option value="">All doers</option>
               {people.map((p) => (
@@ -248,9 +271,9 @@ export function TasksScreen({
                 </option>
               ))}
             </Select>
-          </Field>
+          </FilterField>
 
-          <Field label="Department">
+          <FilterField label="Department">
             <Select value={department} onChange={(e) => setDepartment(e.target.value)}>
               <option value="">All departments</option>
               {departments.map((d) => (
@@ -259,21 +282,9 @@ export function TasksScreen({
                 </option>
               ))}
             </Select>
-          </Field>
+          </FilterField>
 
-          <Field label="Task">
-            <div className="relative">
-              <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-3" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search task name…"
-                className="pl-8"
-              />
-            </div>
-          </Field>
-
-          <Field label="Frequency">
+          <FilterField label="Frequency">
             <Select value={freq} onChange={(e) => setFreq(e.target.value)}>
               <option value="">All frequencies</option>
               {FREQUENCIES.map((f) => (
@@ -282,35 +293,17 @@ export function TasksScreen({
                 </option>
               ))}
             </Select>
-          </Field>
+          </FilterField>
 
-          <Field label="Status">
+          <FilterField label="Status">
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">Active and inactive</option>
               <option value="active">Active only</option>
               <option value="inactive">Inactive only</option>
             </Select>
-          </Field>
-        </div>
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
-          <span className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            {activeCount} filter{activeCount === 1 ? "" : "s"} active
-          </span>
-          <button
-            type="button"
-            onClick={clear}
-            disabled={activeCount === 0}
-            className={cn(
-              "cursor-pointer rounded-field px-2 py-1 text-[12px] font-medium transition-colors",
-              activeCount === 0
-                ? "cursor-not-allowed text-text-3 opacity-50"
-                : "text-status-red hover:bg-status-red-dim",
-            )}
-          >
-            Clear filters
-          </button>
-        </div>
-      </div>
+          </FilterField>
+        </FilterPanel>
+      )}
 
       {rows.length === 0 ? (
         <TableCard
@@ -411,9 +404,6 @@ export function TasksScreen({
               </tbody>
             </table>
           </TableCard>
-          <p className="text-[12px] text-text-3">
-            {filtered.length} of {rows.length} shown
-          </p>
         </>
       )}
 

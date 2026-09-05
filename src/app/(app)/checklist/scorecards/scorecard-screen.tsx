@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 import { useChecklistViewer } from "../viewer-context";
 import {
   EmptyState,
-  Field,
   Input,
   PageHead,
   QuietButton,
@@ -128,73 +127,79 @@ export function ScorecardScreen({
         }
       />
 
-      {/* ── who and when ────────────────────────────────────────────── */}
-      <div className="rounded-card border border-border bg-surface p-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {viewer.isAdmin && (
-            <Field label="Doer">
-              <Select
-                value={String(data.doer.id)}
-                onChange={(e) => setParam({ doer: e.target.value })}
-              >
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.department ? ` · ${p.department}` : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          )}
-          <Field label="Month">
-            <Select
-              value={
-                from === startOfMonth(from) && to === endOfMonth(from) ? from : ""
-              }
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setParam({ from: e.target.value, to: endOfMonth(e.target.value) });
-              }}
-            >
-              <option value="">Custom range</option>
-              {presets.map((p) => (
-                <option key={p} value={p}>
-                  {monthLabel(p)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="From">
-            <Input
-              type="date"
-              value={from}
-              onChange={(e) => setParam({ from: e.target.value || null })}
-            />
-          </Field>
-          <Field label="To">
-            <Input
-              type="date"
-              value={to}
-              onChange={(e) => setParam({ to: e.target.value || null })}
-            />
-          </Field>
+      {/* ── who and when, in one row ────────────────────────────────── */}
+      {/* The three quick ranges were a second strip under a four-column grid —
+          two bands of controls before the person's name appeared. They are
+          pills on the same line now, and the captions are gone because every
+          control here already says what it is. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-field border border-border bg-surface p-2.5">
+        {viewer.isAdmin && (
+          <Select
+            aria-label="Doer"
+            className="w-auto min-w-[180px] flex-1 sm:flex-none"
+            value={String(data.doer.id)}
+            onChange={(e) => setParam({ doer: e.target.value })}
+          >
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.department ? ` · ${p.department}` : ""}
+              </option>
+            ))}
+          </Select>
+        )}
+
+        <Select
+          aria-label="Month"
+          className="w-auto min-w-[140px] flex-1 sm:flex-none"
+          value={from === startOfMonth(from) && to === endOfMonth(from) ? from : ""}
+          onChange={(e) => {
+            if (!e.target.value) return;
+            setParam({ from: e.target.value, to: endOfMonth(e.target.value) });
+          }}
+        >
+          <option value="">Custom range</option>
+          {presets.map((p) => (
+            <option key={p} value={p}>
+              {monthLabel(p)}
+            </option>
+          ))}
+        </Select>
+
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
+          <Input
+            type="date"
+            aria-label="From date"
+            className="num min-w-0 flex-1 sm:w-[148px] sm:flex-none"
+            value={from}
+            max={to}
+            onChange={(e) => setParam({ from: e.target.value || null })}
+          />
+          <span className="text-text-3">–</span>
+          <Input
+            type="date"
+            aria-label="To date"
+            className="num min-w-0 flex-1 sm:w-[148px] sm:flex-none"
+            value={to}
+            min={from}
+            onChange={(e) => setParam({ to: e.target.value || null })}
+          />
         </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-          <span className="mr-1 text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            Quick
-          </span>
+
+        <div className="ml-auto flex flex-wrap items-center gap-1">
           {[
-            { label: "Last 30 days", days: 30 },
-            { label: "Last 60 days", days: 60 },
-            { label: "Last 90 days", days: 90 },
+            { label: "30d", days: 30 },
+            { label: "60d", days: 60 },
+            { label: "90d", days: 90 },
           ].map((r) => (
             <button
               key={r.label}
               type="button"
+              title={`Last ${r.days} days`}
               onClick={() =>
                 setParam({ from: addDays(data.today, -(r.days - 1)), to: data.today })
               }
-              className="cursor-pointer rounded-field border border-border bg-surface px-2 py-1 text-[12px] text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1"
+              className="cursor-pointer rounded-pill border border-border bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-text-2 transition-colors hover:text-text-1"
             >
               {r.label}
             </button>
@@ -204,7 +209,7 @@ export function ScorecardScreen({
             onClick={() =>
               setParam({ from: startOfMonth(data.today), to: endOfMonth(data.today) })
             }
-            className="cursor-pointer rounded-field border border-border bg-surface px-2 py-1 text-[12px] text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1"
+            className="cursor-pointer rounded-pill border border-border bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-text-2 transition-colors hover:text-text-1"
           >
             This month
           </button>

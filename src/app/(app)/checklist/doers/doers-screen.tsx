@@ -6,7 +6,6 @@ import {
   IconCircleCheck,
   IconCircleMinus,
   IconPencil,
-  IconSearch,
   IconTableImport,
   IconTrash,
   IconUserPlus,
@@ -26,8 +25,10 @@ import {
   Pill,
   PrimaryButton,
   QuietButton,
+  SearchBox,
   Select,
   TableCard,
+  Toolbar,
   td,
   th,
 } from "../parts";
@@ -157,19 +158,27 @@ export function DoersScreen({
 
       <ErrorNote>{error}</ErrorNote>
 
-      <div className="rounded-card border border-border bg-surface p-3">
-        <Field label="Search">
-          <div className="relative">
-            <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-3" />
-            <Input
+      {/* Search is the only filter this screen has, so it needs no panel and
+          no caption — one toolbar row, with the count where the eye already
+          is rather than in a separate strip below the table. */}
+      {rows.length > 0 && (
+        <Toolbar
+          search={
+            <SearchBox
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               placeholder="Search by name, email or department…"
-              className="pl-8"
             />
-          </div>
-        </Field>
-      </div>
+          }
+        >
+          <span className="shrink-0 text-[12px] whitespace-nowrap text-text-3">
+            {filtered.length === rows.length
+              ? `${rows.length} ${rows.length === 1 ? "person" : "people"}`
+              : `${filtered.length} of ${rows.length}`}{" "}
+            · {activeCount} active
+          </span>
+        </Toolbar>
+      )}
 
       {rows.length === 0 ? (
         <TableCard
@@ -290,10 +299,6 @@ export function DoersScreen({
               </tbody>
             </table>
           </TableCard>
-
-          <p className="text-[12px] text-text-3">
-            {filtered.length} of {rows.length} shown · {activeCount} active
-          </p>
         </>
       )}
 
