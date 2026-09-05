@@ -22,9 +22,11 @@ import { formatDateLong } from "@/lib/checklist/dates";
 import { cn } from "@/lib/utils";
 import { useChecklistViewer } from "./viewer-context";
 import {
+  Donut,
   EmptyState,
   Input,
   PageHead,
+  RankBadge,
   Select,
   TableCard,
 } from "./parts";
@@ -365,10 +367,8 @@ export function DashboardScreen({
               return (
                 <div key={d.department} className="py-2.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="num text-[11px] font-bold text-text-3">
-                        #{i + 1}
-                      </span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <RankBadge index={i} />
                       <span className="truncate text-[13px] font-semibold text-text-1">
                         {d.department}
                       </span>
@@ -387,7 +387,7 @@ export function DashboardScreen({
                       )}
                       title="Share of this department's rows that are ticked off"
                     >
-                      {donePct}% done
+                      {donePct}% <span className="text-text-3">on track</span>
                     </span>
                   </div>
                   <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-pill bg-surface-3">
@@ -410,20 +410,41 @@ export function DashboardScreen({
               Status breakdown
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              All {t.total.toLocaleString("en-IN")} rows in view
+              Composition
             </h2>
           </div>
-          <div className="flex flex-col gap-2 px-4 py-3.5">
-            <Bar label="Done" n={t.done} total={t.total} colour="bg-status-green" text="text-status-green" />
-            <Bar label="Delayed" n={t.delayed} total={t.total} colour="bg-status-red" text="text-status-red" />
-            <Bar label="Due today" n={t.dueToday} total={t.total} colour="bg-status-blue" text="text-status-blue" />
-            <Bar label="Due within a week" n={t.upcoming} total={t.total} colour="bg-status-amber" text="text-status-amber" />
-            <Bar label="Later" n={t.scheduled} total={t.total} colour="bg-text-3/45" text="text-text-2" />
+
+          <div className="flex flex-wrap items-center justify-center gap-5 px-4 py-4">
+            <Donut
+              centreLabel="Done"
+              centreValue={t.done.toLocaleString("en-IN")}
+              centreSub={`${t.total ? Math.round((t.done / t.total) * 100) : 0}% of total`}
+              segments={[
+                { label: "Done", value: t.done, className: "stroke-status-green" },
+                { label: "Due today", value: t.dueToday, className: "stroke-status-blue" },
+                { label: "Due within a week", value: t.upcoming, className: "stroke-status-amber" },
+                { label: "Delayed", value: t.delayed, className: "stroke-status-red" },
+                { label: "Later", value: t.scheduled, className: "stroke-text-3/40" },
+              ]}
+            />
+            <div className="flex min-w-[190px] flex-1 flex-col gap-1.5">
+              <LegendRow label="Done" n={t.done} total={t.total} dot="bg-status-green" />
+              <LegendRow label="Due today" n={t.dueToday} total={t.total} dot="bg-status-blue" />
+              <LegendRow
+                label="Due within a week"
+                n={t.upcoming}
+                total={t.total}
+                dot="bg-status-amber"
+              />
+              <LegendRow label="Delayed" n={t.delayed} total={t.total} dot="bg-status-red" />
+              <LegendRow label="Later" n={t.scheduled} total={t.total} dot="bg-text-3/45" />
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3 border-t border-border px-4 py-3">
             <div>
               <div className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-                Finished
+                Completed
               </div>
               <div className="num mt-0.5 text-[19px] font-bold text-status-green">
                 {t.done.toLocaleString("en-IN")}
@@ -431,7 +452,7 @@ export function DashboardScreen({
             </div>
             <div>
               <div className="text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-                Still open
+                Open work
               </div>
               <div className="num mt-0.5 text-[19px] font-bold text-status-red">
                 {openWork.toLocaleString("en-IN")}
@@ -466,12 +487,13 @@ export function DashboardScreen({
             )}
           </div>
           <div className="flex flex-col divide-y divide-border">
-            {shownDoers.map((d) => (
+            {shownDoers.map((d, i) => (
               <Link
                 key={d.doerId}
                 href={`/checklist/master?status=Delayed&doer=${d.doerId}`}
                 className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2"
               >
+                <RankBadge index={i} tone="bad" />
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-bold text-accent-text">
                   {initials(d.name)}
                 </span>
@@ -520,32 +542,27 @@ function Key({ colour, label }: { colour: string; label: string }) {
   );
 }
 
-function Bar({
+/** One line of the donut's key: colour, name, count, share. */
+function LegendRow({
   label,
   n,
   total,
-  colour,
-  text,
+  dot,
 }: {
   label: string;
   n: number;
   total: number;
-  colour: string;
-  text: string;
+  dot: string;
 }) {
   const pct = total ? Math.round((n / total) * 100) : 0;
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[12.5px] text-text-2">{label}</span>
-        <span className="num text-[12.5px] whitespace-nowrap">
-          <strong className={cn("font-bold", text)}>{n.toLocaleString("en-IN")}</strong>
-          <span className="ml-1.5 text-text-3">{pct}%</span>
-        </span>
-      </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-pill bg-surface-3">
-        <div className={cn("h-full rounded-pill", colour)} style={{ width: `${pct}%` }} />
-      </div>
+    <div className="flex items-center gap-2">
+      <span className={cn("size-2 shrink-0 rounded-sm", dot)} />
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-2">{label}</span>
+      <span className="num shrink-0 text-[12.5px] font-bold text-text-1">
+        {n.toLocaleString("en-IN")}
+      </span>
+      <span className="num w-8 shrink-0 text-right text-[11.5px] text-text-3">{pct}%</span>
     </div>
   );
 }

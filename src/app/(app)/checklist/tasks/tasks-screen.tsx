@@ -95,11 +95,14 @@ export type Person = {
 export function TasksScreen({
   rows,
   people,
+  assigners,
   scheduledRows,
   window: fy,
 }: {
   rows: TaskRow[];
   people: Person[];
+  /** Names that have assigned work before, plus every active doer. */
+  assigners: string[];
   scheduledRows: number;
   window: { from: string; to: string; label: string };
 }) {
@@ -411,6 +414,7 @@ export function TasksScreen({
         <TaskDialog
           row={editing === "new" ? null : editing}
           people={people}
+          assigners={assigners}
           window={fy}
           onClose={() => setEditing(null)}
           onSaved={(msg) => {
@@ -487,15 +491,20 @@ export function TasksScreen({
 
 // ─── the add / edit dialog ────────────────────────────────────────────────
 
+/** The sentinel "Assigned by" uses to mean "let me type a name". */
+const ADD_NEW_ASSIGNER = "__add_new__";
+
 function TaskDialog({
   row,
   people,
+  assigners,
   window: fy,
   onClose,
   onSaved,
 }: {
   row: TaskRow | null;
   people: Person[];
+  assigners: string[];
   window: { from: string; to: string; label: string };
   onClose: () => void;
   onSaved: (note: string) => void;
@@ -509,6 +518,12 @@ function TaskDialog({
   const [startDate, setStartDate] = React.useState(row?.startDate ?? fy.from);
   const [endDate, setEndDate] = React.useState(row?.endDate ?? "");
   const [assignedBy, setAssignedBy] = React.useState(row?.assignedBy ?? "");
+  // Same rule as the department field: a value that is not on the list opens
+  // in the text box with itself intact, rather than being silently snapped to
+  // whichever option happened to be first.
+  const [typingAssigner, setTypingAssigner] = React.useState(
+    () => !!row?.assignedBy && !assigners.includes(row.assignedBy),
+  );
   const [notes, setNotes] = React.useState(row?.notes ?? "");
   const [active, setActive] = React.useState(row?.active ?? true);
   const [busy, setBusy] = React.useState(false);
@@ -670,12 +685,55 @@ function TaskDialog({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Assigned by">
-            <Input
-              value={assignedBy}
-              onChange={(e) => setAssignedBy(e.target.value)}
-              placeholder="Who asked for it"
-            />
+          <Field
+            label="Assigned by"
+            hint={
+              typingAssigner
+                ? "It will be on the list next time."
+                : "Who asked for this duty."
+            }
+          >
+            {typingAssigner ? (
+              <div className="flex gap-2">
+                <Input
+                  value={assignedBy}
+                  onChange={(e) => setAssignedBy(e.target.value)}
+                  placeholder="Who asked for it"
+                  autoFocus
+                />
+                {assigners.length > 0 && (
+                  <QuietButton
+                    className="h-9 shrink-0"
+                    onClick={() => {
+                      setTypingAssigner(false);
+                      setAssignedBy("");
+                    }}
+                  >
+                    List
+                  </QuietButton>
+                )}
+              </div>
+            ) : (
+              <Select
+                value={assignedBy}
+                onChange={(e) => {
+                  if (e.target.value === ADD_NEW_ASSIGNER) {
+                    setTypingAssigner(true);
+                    setAssignedBy("");
+                  } else {
+                    setAssignedBy(e.target.value);
+                  }
+                }}
+              >
+                <option value="">Not recorded</option>
+                {assigners.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+                <option value={ADD_NEW_ASSIGNER}>+ Someone else…</option>
+              </Select>
+            )}
           </Field>
 
           <Field

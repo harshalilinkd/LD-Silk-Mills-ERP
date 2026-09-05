@@ -504,6 +504,137 @@ export function ErrorNote({ children }: { children?: React.ReactNode }) {
   );
 }
 
+// ─── charts ───────────────────────────────────────────────────────────────
+
+export type DonutSegment = { label: string; value: number; className: string };
+
+/**
+ * The composition ring.
+ *
+ * ── WHY AN SVG AND NOT RECHARTS ──────────────────────────────────────────
+ *
+ * The shell has Recharts, and this is a ring of four arcs with a number in the
+ * middle. Recharts brings a responsive container, an animation loop and a
+ * tooltip system to draw five `stroke-dasharray` values, and it renders its own
+ * text in its own font — which is exactly how the Goods Return chart ended up
+ * letterboxed inside its card. Thirty lines of SVG for the geometry and plain
+ * HTML for the label sits inside the card correctly at every width.
+ *
+ * The centre label is HTML on top of the SVG, not `<text>`, so it inherits the
+ * page's font and tokens rather than needing them restated in SVG attributes.
+ */
+export function Donut({
+  segments,
+  centreLabel,
+  centreValue,
+  centreSub,
+  size = 168,
+}: {
+  segments: DonutSegment[];
+  centreLabel?: React.ReactNode;
+  centreValue: React.ReactNode;
+  centreSub?: React.ReactNode;
+  size?: number;
+}) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const R = 42;
+  const C = 2 * Math.PI * R;
+
+  let offset = 0;
+  const arcs = segments
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const len = total > 0 ? (s.value / total) * C : 0;
+      const arc = { ...s, len, offset };
+      offset += len;
+      return arc;
+    });
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 100" className="size-full -rotate-90">
+        <circle
+          cx="50"
+          cy="50"
+          r={R}
+          fill="none"
+          strokeWidth="13"
+          className="stroke-surface-3"
+        />
+        {arcs.map((a) => (
+          <circle
+            key={a.label}
+            cx="50"
+            cy="50"
+            r={R}
+            fill="none"
+            strokeWidth="13"
+            strokeDasharray={`${a.len} ${C - a.len}`}
+            strokeDashoffset={-a.offset}
+            className={a.className}
+          >
+            <title>{`${a.label}: ${a.value.toLocaleString("en-IN")}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        {centreLabel && (
+          <span className="text-[9.5px] font-bold tracking-[0.08em] text-text-3 uppercase">
+            {centreLabel}
+          </span>
+        )}
+        <span className="num text-[24px] leading-none font-bold tracking-[-0.02em] text-text-1">
+          {centreValue}
+        </span>
+        {centreSub && (
+          <span className="mt-0.5 text-[10.5px] text-text-3">{centreSub}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The rank marker beside a department or a person.
+ *
+ * Gold, silver and bronze for the top three and a plain number after — the
+ * shape the original uses. It is worth keeping because these lists are read at
+ * a glance in a meeting, and three coloured badges give the eye somewhere to
+ * land in a list of seventeen.
+ *
+ * `tone` matters: on "most delayed" the top three are the WORST, so the medals
+ * would be a reward for being behind. That list passes `tone="bad"` and gets
+ * plain numbers with a red cast instead.
+ */
+export function RankBadge({
+  index,
+  tone = "good",
+}: {
+  index: number;
+  tone?: "good" | "bad";
+}) {
+  const medals = [
+    "bg-[#e0aa3e] text-white",
+    "bg-[#9aa3ad] text-white",
+    "bg-[#b06f3a] text-white",
+  ];
+  const isMedal = tone === "good" && index < 3;
+  return (
+    <span
+      className={cn(
+        "num grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-bold",
+        isMedal
+          ? medals[index]
+          : tone === "bad" && index < 3
+            ? "bg-status-red-dim text-status-red"
+            : "bg-chip text-text-3",
+      )}
+    >
+      {index + 1}
+    </span>
+  );
+}
+
 export function Pill({
   tone,
   children,

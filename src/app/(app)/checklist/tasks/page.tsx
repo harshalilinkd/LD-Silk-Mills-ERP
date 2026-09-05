@@ -67,10 +67,28 @@ export default async function TasksPage() {
     .select({ n: sql<number>`count(*)::int` })
     .from(occurrences);
 
+  /**
+   * Who has assigned work before, plus everybody on the doers list.
+   *
+   * "Assigned by" is free text in the database and stays that way — it is a
+   * note about who asked for the duty, and the person who asked may have left
+   * the company or never have been in it. But typing it fresh every time is
+   * how one manager ends up recorded as "Harshali", "harshali" and "HB", which
+   * makes the column useless for the one thing it is for. The dropdown offers
+   * what has been used before; the text box is still one click away.
+   */
+  const assigners = [
+    ...new Set([
+      ...rows.map((r) => r.assignedBy?.trim()).filter((v): v is string => !!v),
+      ...people.filter((p) => p.active).map((p) => p.name),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
+
   return (
     <TasksScreen
       rows={rows}
       people={people}
+      assigners={assigners}
       scheduledRows={scheduledRows}
       window={generationWindow()}
     />

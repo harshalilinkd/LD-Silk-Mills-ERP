@@ -4,30 +4,51 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   IconArrowDownRight,
+  IconArrowRight,
   IconArrowUpRight,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCircleCheck,
+  IconClockHour4,
   IconDownload,
+  IconFileText,
+  IconFlame,
   IconMinus,
   IconPrinter,
+  IconRotate,
+  IconTargetArrow,
+  IconTrendingDown,
+  IconTrendingUp,
   IconUserQuestion,
 } from "@tabler/icons-react";
 
 import {
   addDays,
+  addMonths,
   endOfMonth,
+  financialYearOf,
   formatDate,
   monthLabel,
   startOfMonth,
   weekdayOf,
 } from "@/lib/checklist/dates";
+import {
+  GRADE_SCALE_TOOLTIP,
+  gradeFor,
+  scoreParts,
+  trendDirection,
+} from "@/lib/checklist/grade";
 import { FREQUENCY_META } from "@/lib/checklist/frequency";
 import type { DayCell, Scorecard } from "@/lib/checklist/scorecard-query";
 import { cn } from "@/lib/utils";
 import { useChecklistViewer } from "../viewer-context";
 import {
+  Donut,
   EmptyState,
   Input,
   PageHead,
   QuietButton,
+  RankBadge,
   Select,
   TableCard,
 } from "../parts";
@@ -97,6 +118,9 @@ export function ScorecardScreen({
   const prev = data.previousKpis;
 
   const presets = lastSixMonths(data.today);
+  const grade = gradeFor(k.reliability);
+  const parts = scoreParts(k);
+  const trend = trendDirection(data.trend.map((m) => m.onTimePct));
 
   const csvHref = `/checklist/scorecards/export?doer=${data.doer.id}&from=${from}&to=${to}`;
 
@@ -187,32 +211,25 @@ export function ScorecardScreen({
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-1">
-          {[
-            { label: "30d", days: 30 },
-            { label: "60d", days: 60 },
-            { label: "90d", days: 90 },
-          ].map((r) => (
-            <button
-              key={r.label}
-              type="button"
-              title={`Last ${r.days} days`}
-              onClick={() =>
-                setParam({ from: addDays(data.today, -(r.days - 1)), to: data.today })
-              }
-              className="cursor-pointer rounded-pill border border-border bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-text-2 transition-colors hover:text-text-1"
-            >
-              {r.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              setParam({ from: startOfMonth(data.today), to: endOfMonth(data.today) })
-            }
-            className="cursor-pointer rounded-pill border border-border bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-text-2 transition-colors hover:text-text-1"
-          >
-            This month
-          </button>
+          {QUICK_RANGES(data.today).map((r) => {
+            const on = from === r.from && to === r.to;
+            return (
+              <button
+                key={r.label}
+                type="button"
+                title={r.hint}
+                onClick={() => setParam({ from: r.from, to: r.to })}
+                className={cn(
+                  "cursor-pointer rounded-pill border px-2.5 py-1 text-[12px] font-medium transition-colors",
+                  on
+                    ? "border-primary/40 bg-primary text-primary-foreground"
+                    : "border-border bg-surface-2 text-text-2 hover:text-text-1",
+                )}
+              >
+                {r.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -236,35 +253,59 @@ export function ScorecardScreen({
           </div>
         </div>
 
+        {/* ── the score, and what it is made of ─────────────────────── */}
+        {/* The three parts print POINTS OUT OF THEIR OWN MAXIMUM — 50, 30, 20
+            — so they add up to the number beside them. Three percentages that
+            did not add to the total is how somebody decides the score is
+            arbitrary and stops trusting the screen. */}
         <div className="flex items-center gap-4 rounded-card border border-border bg-surface-2 px-4 py-3">
           <div className="text-center">
             <div className="text-[10px] font-bold tracking-[0.06em] text-text-3 uppercase">
-              Score
+              Reliability
             </div>
-            <div
+            <div className="flex items-baseline justify-center gap-0.5">
+              <span
+                className={cn(
+                  "num text-[32px] leading-none font-bold tracking-[-0.02em]",
+                  grade.text,
+                )}
+              >
+                {k.reliability ?? "—"}
+              </span>
+              <span className="text-[11px] text-text-3">/100</span>
+            </div>
+            <span
+              title={GRADE_SCALE_TOOLTIP}
               className={cn(
-                "num text-[30px] leading-none font-bold tracking-[-0.02em]",
-                k.reliability === null
-                  ? "text-text-3"
-                  : k.reliability >= 75
-                    ? "text-status-green"
-                    : k.reliability >= 50
-                      ? "text-status-amber"
-                      : "text-status-red",
+                "mt-1 inline-block cursor-help rounded-pill px-2 py-0.5 text-[10px] font-bold tracking-[0.06em] uppercase",
+                grade.chip,
+                grade.text,
               )}
             >
-              {k.reliability ?? "—"}
-            </div>
-            <div className="text-[10.5px] text-text-3">out of 100</div>
+              {grade.label}
+            </span>
           </div>
-          <div className="flex flex-col gap-1 border-l border-border pl-4">
-            <Part label="On time" weight="50%" pct={k.onTimePct} />
-            <Part label="Got done" weight="30%" pct={k.completionPct} />
-            <Part
-              label="Best run"
-              weight="20%"
-              pct={Math.min(100, Math.round((k.bestStreak / 30) * 100))}
-            />
+          <div className="hidden w-px self-stretch bg-border md:block" />
+          <div className="hidden flex-col gap-1 md:flex">
+            {parts.map((p) => (
+              <div
+                key={p.label}
+                title={p.hint}
+                className="flex w-52 cursor-help items-center gap-2 text-[11px]"
+              >
+                <span className="w-[68px] shrink-0 text-text-3">{p.label}</span>
+                <span className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
+                  <span
+                    className={cn("block h-full rounded-pill", grade.bar)}
+                    style={{ width: `${(p.points / p.max) * 100}%` }}
+                  />
+                </span>
+                <span className="num w-9 shrink-0 text-right font-semibold text-text-2">
+                  {p.points}
+                  <span className="font-normal text-text-3">/{p.max}</span>
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -272,18 +313,21 @@ export function ScorecardScreen({
       {/* ── the five figures ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Figure
-          label="Scheduled"
+          icon={<IconFileText className="size-4" />}
+          label="Total scheduled"
           value={k.total.toLocaleString("en-IN")}
           sub={`${k.due.toLocaleString("en-IN")} have come round so far`}
         />
         <Figure
-          label="Ticked off"
+          icon={<IconCircleCheck className="size-4" />}
+          label="Completed"
           value={k.done.toLocaleString("en-IN")}
           sub={`${k.onTime} on time, ${k.late} late`}
           delta={k.done - prev.done}
         />
         <Figure
-          label="On time"
+          icon={<IconTargetArrow className="size-4" />}
+          label="On-time %"
           value={k.onTimePct === null ? "—" : `${k.onTimePct}%`}
           sub={
             k.onTimePct === null
@@ -299,7 +343,8 @@ export function ScorecardScreen({
           tone={k.onTimePct === null ? undefined : k.onTimePct >= 80 ? "good" : k.onTimePct >= 60 ? "warn" : "bad"}
         />
         <Figure
-          label="Average delay"
+          icon={<IconClockHour4 className="size-4" />}
+          label="Avg delay"
           value={k.avgDelay > 0 ? `${k.avgDelay}d` : "—"}
           sub={k.late > 0 ? `Over the ${k.late} finished late` : "Nothing finished late"}
           delta={prev.avgDelay > 0 || k.avgDelay > 0 ? k.avgDelay - prev.avgDelay : undefined}
@@ -307,7 +352,8 @@ export function ScorecardScreen({
           lowerIsBetter
         />
         <Figure
-          label="Best run"
+          icon={<IconFlame className="size-4" />}
+          label="Best streak"
           value={String(k.bestStreak)}
           sub={`In a row, on time · ${k.currentStreak} running now`}
         />
@@ -316,13 +362,36 @@ export function ScorecardScreen({
       <div className="grid gap-4 lg:grid-cols-[1fr_1.6fr]">
         {/* ── six-month trend ───────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
-              Trend
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border px-4 py-3">
+            <div>
+              <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+                Trend
+              </div>
+              <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+                6 months · on-time %
+              </h3>
             </div>
-            <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              On time, last six months
-            </h3>
+            {trend.delta !== null && (
+              <span
+                title="First month with data compared with the latest. A move of two points or less is called steady, because month-to-month noise on a handful of tasks moves it that much on its own."
+                className={cn(
+                  "inline-flex cursor-help items-center gap-1 rounded-pill px-2 py-0.5 text-[11.5px] font-semibold",
+                  trend.tone === "green" && "bg-status-green-dim text-status-green",
+                  trend.tone === "red" && "bg-status-red-dim text-status-red",
+                  trend.tone === "grey" && "bg-chip text-text-2",
+                )}
+              >
+                {trend.tone === "green" ? (
+                  <IconTrendingUp className="size-3.5" />
+                ) : trend.tone === "red" ? (
+                  <IconTrendingDown className="size-3.5" />
+                ) : (
+                  <IconMinus className="size-3.5" />
+                )}
+                {trend.label}
+                {trend.delta !== 0 && ` ${trend.delta > 0 ? "+" : ""}${trend.delta}%`}
+              </span>
+            )}
           </div>
           <div className="flex items-end gap-2 px-4 pt-4">
             {data.trend.map((m) => (
@@ -363,23 +432,103 @@ export function ScorecardScreen({
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
             <div>
               <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
-                Day by day
+                Daily
               </div>
               <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-                {data.period.days} days
+                Heatmap · click a day to open it
               </h3>
             </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-3">
-              <Key c="bg-status-green" label="All on time" />
-              <Key c="bg-status-amber" label="Some late" />
-              <Key c="bg-status-red" label="Still open, day passed" />
-              <Key c="bg-status-blue" label="Open, not late yet" />
-              <Key c="bg-surface-3" label="Nothing due" />
-            </div>
           </div>
-          <div className="overflow-x-auto px-4 py-3.5">
-            <Heatmap cells={data.days} today={data.today} />
+
+          {/* Shift the window a whole period at a time. Predictable in a way
+              "previous month" is not when the range is 47 days long. */}
+          <div className="flex flex-wrap items-center justify-center gap-2 border-b border-border px-4 py-2.5">
+            <button
+              type="button"
+              aria-label="Previous period"
+              onClick={() =>
+                setParam({
+                  from: addDays(from, -data.period.days),
+                  to: addDays(to, -data.period.days),
+                })
+              }
+              className="grid size-8 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+            >
+              <IconChevronLeft className="size-4" />
+            </button>
+            <Input
+              type="date"
+              aria-label="Heatmap from"
+              className="num h-8 w-[142px]"
+              value={from}
+              max={to}
+              onChange={(e) => setParam({ from: e.target.value || null })}
+            />
+            <IconArrowRight className="size-4 text-text-3" />
+            <Input
+              type="date"
+              aria-label="Heatmap to"
+              className="num h-8 w-[142px]"
+              value={to}
+              min={from}
+              onChange={(e) => setParam({ to: e.target.value || null })}
+            />
+            <QuietButton
+              onClick={() =>
+                setParam({
+                  from: startOfMonth(data.today),
+                  to: endOfMonth(data.today),
+                })
+              }
+            >
+              <IconRotate className="size-3.5" />
+              Reset
+            </QuietButton>
+            <button
+              type="button"
+              aria-label="Next period"
+              onClick={() =>
+                setParam({
+                  from: addDays(from, data.period.days),
+                  to: addDays(to, data.period.days),
+                })
+              }
+              className="grid size-8 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+            >
+              <IconChevronRight className="size-4" />
+            </button>
+            <span className="w-full text-center text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+              {data.period.days} days · click any cell to open that day
+            </span>
           </div>
+
+          <div className="flex justify-center overflow-x-auto px-4 py-3.5">
+            <Heatmap
+              cells={data.days}
+              today={data.today}
+              onOpen={(d) =>
+                router.push(
+                  `/checklist/master?status=all&doer=${data.doer.id}&from=${d}&to=${d}`,
+                )
+              }
+            />
+          </div>
+
+          {/* The full key. Six states, not five: "done, some late" and "all on
+              time" are the distinction the whole chart exists to show, and a
+              legend that merges them makes every amber square unexplained. */}
+          <div className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-border px-4 py-3 text-[11px] text-text-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Key c="bg-status-green" label="On time — everything done by its day" />
+            <Key c="bg-status-amber" label="Done late — all done, some after the day" />
+            <Key c="bg-status-red" label="Overdue — the day passed, still not done" />
+            <Key c="bg-status-blue" label="In progress — due today, not late yet" />
+            <Key c="bg-surface-3" label="Scheduled — a future date, not due yet" />
+            <Key c="bg-surface-2" label="Nothing due that day" />
+          </div>
+          <p className="border-t border-border px-4 py-2 text-[10.5px] tracking-[0.03em] text-text-3 uppercase">
+            Each cell: day · done/planned · +avg days late · hover for the full
+            breakdown
+          </p>
         </section>
       </div>
 
@@ -434,6 +583,68 @@ export function ScorecardScreen({
           </p>
         </section>
 
+        {/* ── on-time · late · pending ──────────────────────────────── */}
+        {/* Three states, not five. This one answers "of everything in the
+            period, how much is finished and was it finished on time" — and
+            PENDING is deliberately its own slice rather than being folded in
+            with late, because work still to come is not a failure. */}
+        <section className="rounded-card border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              Composition
+            </div>
+            <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+              On time · late · pending
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-5 px-4 py-4">
+            <Donut
+              size={150}
+              centreLabel="Done"
+              centreValue={
+                k.total ? `${Math.round((k.done / k.total) * 100)}%` : "—"
+              }
+              centreSub={`of ${k.total}`}
+              segments={[
+                { label: "On time", value: k.onTime, className: "stroke-status-green" },
+                { label: "Late", value: k.late, className: "stroke-status-red" },
+                {
+                  label: "Pending",
+                  value: k.total - k.done,
+                  className: "stroke-text-3/40",
+                },
+              ]}
+            />
+            <div className="flex min-w-[160px] flex-1 flex-col gap-1.5">
+              <ScoreLegend label="On time" n={k.onTime} total={k.total} dot="bg-status-green" />
+              <ScoreLegend label="Late" n={k.late} total={k.total} dot="bg-status-red" />
+              <ScoreLegend
+                label="Pending"
+                n={k.total - k.done}
+                total={k.total}
+                dot="bg-text-3/45"
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TaskList
+          eyebrow="Going well"
+          title="Best three duties"
+          rows={data.bestTasks}
+          tone="green"
+        />
+        <TaskList
+          eyebrow="Needs attention"
+          title="Weakest three duties"
+          rows={data.worstTasks}
+          tone="red"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* ── by frequency ──────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
@@ -441,7 +652,7 @@ export function ScorecardScreen({
               By how often
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Daily duties versus the rest
+              Completion breakdown
             </h3>
           </div>
           <div className="flex flex-col gap-2.5 px-4 py-3.5">
@@ -475,97 +686,46 @@ export function ScorecardScreen({
             )}
           </div>
         </section>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TaskList
-          eyebrow="Going well"
-          title="Best three duties"
-          rows={data.bestTasks}
-          tone="green"
-        />
-        <TaskList
-          eyebrow="Needs attention"
-          title="Weakest three duties"
-          rows={data.worstTasks}
-          tone="red"
-        />
-      </div>
-
-      {data.topTasks.length > 0 && (
+        {/* ── the busiest duties ────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
             <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
               Volume
             </div>
             <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Most frequent duties in this period
+              Most frequent in this period
             </h3>
           </div>
-          <div className="flex flex-col divide-y divide-border">
-            {data.topTasks.map((t, i) => (
-              <div key={t.taskId} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="num w-6 shrink-0 text-[11px] font-bold text-text-3">
-                  #{i + 1}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
-                  {t.name}
-                </span>
-                <span className="shrink-0 text-[11.5px] whitespace-nowrap text-text-3">
-                  {t.count} times · {t.donePct}% done
-                </span>
-              </div>
-            ))}
-          </div>
+          {data.topTasks.length === 0 ? (
+            <p className="px-4 py-4 text-[12.5px] text-text-3">
+              Nothing came round in this range.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-border">
+              {data.topTasks.map((t, i) => (
+                <div key={t.taskId} className="flex items-center gap-3 px-4 py-2.5">
+                  <RankBadge index={i} />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
+                    {t.name}
+                  </span>
+                  <span className="shrink-0 text-[11.5px] whitespace-nowrap text-text-3">
+                    {t.count} times · {t.donePct}% done
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
-      )}
+      </div>
     </div>
   );
 }
 
 // ─── pieces ───────────────────────────────────────────────────────────────
 
-function Part({
-  label,
-  weight,
-  pct,
-}: {
-  label: string;
-  weight: string;
-  pct: number | null;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-[11px] whitespace-nowrap">
-      <span className="w-14 text-text-3">{label}</span>
-      <span className="w-7 text-text-3">{weight}</span>
-      <span className="h-1 w-14 overflow-hidden rounded-pill bg-surface-3">
-        <span
-          className="block h-full rounded-pill bg-primary"
-          style={{ width: `${pct ?? 0}%` }}
-        />
-      </span>
-      <span className="num w-8 text-right font-semibold text-text-2">
-        {pct === null ? "—" : `${pct}%`}
-      </span>
-    </div>
-  );
-}
-
-/**
- * A figure, with how it moved since the period before.
- *
- * ── THE ARROW FOLLOWS THE NUMBER; THE COLOUR FOLLOWS THE MEANING ─────────
- *
- * An earlier version negated the delta for average delay so that an
- * improvement came out positive and green. It coloured correctly and pointed
- * the wrong way: a delay that had risen from 0 to 29 days showed a DOWN arrow,
- * which reads as "the delay fell by 29 days" — the opposite of the truth.
- *
- * So the two are separated. The arrow always points the way the value actually
- * moved, and `lowerIsBetter` decides only whether that movement is coloured as
- * good or bad. For most figures up is good; for a delay it is not.
- */
 function Figure({
+  icon,
   label,
   value,
   sub,
@@ -574,6 +734,7 @@ function Figure({
   tone,
   lowerIsBetter,
 }: {
+  icon?: React.ReactNode;
   label: string;
   value: string;
   sub: string;
@@ -586,8 +747,15 @@ function Figure({
   return (
     <div className="rounded-card border border-border bg-surface p-3.5">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
-          {label}
+        <span className="flex items-center gap-1.5">
+          {icon && (
+            <span className="grid size-6 shrink-0 place-items-center rounded-field bg-chip text-text-2">
+              {icon}
+            </span>
+          )}
+          <span className="text-[10.5px] font-bold tracking-[0.06em] text-text-3 uppercase">
+            {label}
+          </span>
         </span>
         {delta !== undefined && delta !== 0 && (
           <span
@@ -636,7 +804,15 @@ function Figure({
  * list is to see a pattern: every Friday green, every Monday red. A flat
  * strip destroys exactly that.
  */
-function Heatmap({ cells, today }: { cells: DayCell[]; today: string }) {
+function Heatmap({
+  cells,
+  today,
+  onOpen,
+}: {
+  cells: DayCell[];
+  today: string;
+  onOpen: (date: string) => void;
+}) {
   if (cells.length === 0) return null;
 
   // Pad the first week so the first day lands in its real column. Monday-first,
@@ -671,13 +847,20 @@ function Heatmap({ cells, today }: { cells: DayCell[]; today: string }) {
               c === null ? (
                 <div key={j} className="aspect-square rounded-sm" />
               ) : (
-                <div
+                <button
                   key={j}
+                  type="button"
+                  disabled={c.total === 0}
+                  onClick={() => onOpen(c.date)}
                   title={cellTitle(c, today)}
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center rounded-sm text-[10px] leading-none font-semibold",
+                    "flex aspect-square flex-col items-center justify-center rounded-sm text-[10px] leading-none font-semibold transition-opacity",
                     cellColour(c, today),
-                    c.date === today && "ring-2 ring-primary ring-offset-1 ring-offset-[var(--surface)]",
+                    c.total > 0
+                      ? "cursor-pointer hover:opacity-80"
+                      : "cursor-default",
+                    c.date === today &&
+                      "ring-2 ring-primary ring-offset-1 ring-offset-[var(--surface)]",
                   )}
                 >
                   <span>{Number(c.date.slice(8, 10))}</span>
@@ -686,7 +869,15 @@ function Heatmap({ cells, today }: { cells: DayCell[]; today: string }) {
                       {c.done}/{c.total}
                     </span>
                   )}
-                </div>
+                  {/* The one number that says HOW late, not just that it was.
+                      A day showing 5/5 in amber is finished; +3d is the fact
+                      worth acting on. */}
+                  {c.avgDelay > 0 && (
+                    <span className="mt-0.5 text-[8px] font-bold opacity-90">
+                      +{c.avgDelay}d
+                    </span>
+                  )}
+                </button>
               ),
             )}
           </div>
@@ -752,9 +943,7 @@ function TaskList({
         <div className="flex flex-col divide-y divide-border">
           {rows.map((t, i) => (
             <div key={t.taskId} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="num w-6 shrink-0 text-[11px] font-bold text-text-3">
-                #{i + 1}
-              </span>
+              <RankBadge index={i} tone={tone === "green" ? "good" : "bad"} />
               <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
                 {t.name}
               </span>
@@ -778,6 +967,29 @@ function TaskList({
   );
 }
 
+/** One line of the composition key. */
+function ScoreLegend({
+  label,
+  n,
+  total,
+  dot,
+}: {
+  label: string;
+  n: number;
+  total: number;
+  dot: string;
+}) {
+  const pct = total ? Math.round((n / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn("size-2 shrink-0 rounded-sm", dot)} />
+      <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-2">{label}</span>
+      <span className="num shrink-0 text-[12.5px] font-bold text-text-1">{n}</span>
+      <span className="num w-8 shrink-0 text-right text-[11.5px] text-text-3">{pct}%</span>
+    </div>
+  );
+}
+
 function Key({ c, label }: { c: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1">
@@ -785,6 +997,43 @@ function Key({ c, label }: { c: string; label: string }) {
       {label}
     </span>
   );
+}
+
+/**
+ * The quick ranges, all six the original offers.
+ *
+ * "Year to date" runs from the start of the FINANCIAL year, not the calendar
+ * one. Theirs uses 1 January because that is what `new Date(y,0,1)` gives; for
+ * a business whose year runs April to March, a figure "for the year" that
+ * silently means January onwards is wrong for nine months out of twelve. The
+ * tooltip says which year it means, so nobody has to guess.
+ */
+function QUICK_RANGES(today: string) {
+  const lastMonthAnchor = addMonths(today, -1);
+  const fy = financialYearOf(today);
+  return [
+    { label: "Last 30 days", from: addDays(today, -29), to: today, hint: "The last 30 days up to today" },
+    { label: "Last 60 days", from: addDays(today, -59), to: today, hint: "The last 60 days up to today" },
+    { label: "Last 90 days", from: addDays(today, -89), to: today, hint: "The last 90 days up to today" },
+    {
+      label: "This month",
+      from: startOfMonth(today),
+      to: endOfMonth(today),
+      hint: "The calendar month you are in",
+    },
+    {
+      label: "Last month",
+      from: startOfMonth(lastMonthAnchor),
+      to: endOfMonth(lastMonthAnchor),
+      hint: "The whole of the previous calendar month",
+    },
+    {
+      label: "Year to date",
+      from: fy.from,
+      to: today,
+      hint: `Financial year ${fy.label} so far — from ${formatDate(fy.from)}, not from January`,
+    },
+  ];
 }
 
 function lastSixMonths(today: string): string[] {
