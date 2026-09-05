@@ -43,6 +43,13 @@
       "when": 1788591051962,
       "tag": "0005_volatile_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788599421941,
+      "tag": "0006_tricky_captain_midlands",
+      "breakpoints": true
     }
   ]
 }
