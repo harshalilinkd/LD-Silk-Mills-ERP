@@ -487,6 +487,39 @@ away.
 - Status badge: pill, `10.5px/600`, padding `3px 8px`, radius `99px` — color-coded per status the same way as the status tag above (green for active, muted gray for inactive/coming-soon).
 - Checkbox (access-control grid): `17×17`, radius `5px`, `1.5px` `var(--border-strong)` border. Checked = `var(--accent)` fill + border, white checkmark icon inside (`#04211d` stroke, matches the brand-mark's dark-on-teal treatment).
 
+## Money — one shape for a rupee figure, everywhere
+
+Added Sep 2026 with Petty Cash, and it applies to every module that prints a
+rupee amount. The one implementation is `src/lib/petty-cash/money.ts`; if a
+second module needs it, promote that file rather than writing a second rule.
+
+- **`en-IN` grouping, always two decimals**: `₹1,23,456.00`. 1,23,456 is how
+  the figure is read here. Two decimals always, so a column of figures has its
+  decimal points in a line.
+- **Always with `.num`**, never `font-mono` — the same rule as every other
+  figure in this ERP. Manrope's default digits are proportional, so a rupee
+  column staggers without it.
+- **A negative uses U+2212 and stands OUTSIDE the symbol**: `− ₹1,500.00`,
+  never `₹-1,500.00`. `toLocaleString` puts a HYPHEN between the symbol and the
+  digits, and at the size money is rendered a hyphen reads as a dash joining
+  two things rather than as a sign. This is the one glyph on the screen that
+  decides whether money came in or went out, so it gets the real minus.
+- **A signed figure leads with its sign and a space**: `+ ₹10,000.00` /
+  `− ₹2,500.00`, coloured `text-status-green` / `text-status-red`. Colour alone
+  is never the only carrier — the sign says it too.
+- **Nothing that cannot be a number prints `0`.** An amount that is absent or
+  unparseable renders an em dash. A zero is a fact about the money; a dash is a
+  fact about the record.
+- **Amounts travel as STRINGS.** `numeric(12,2)` comes back from `postgres.js`
+  as a string and is kept that way through the query layer and over the wire.
+  Parsing it into a JavaScript number to carry it to the browser and back is
+  how ₹10,000.10 becomes ₹10,000.099999999999 — the exact reason the column is
+  not floating point. Parse once, at the moment of formatting or summing.
+- **A calendar cell may drop a trailing `.00`** (`₹10,000`, but `₹1,250.50`
+  keeps its paise). That is the ONLY place the two-decimal rule bends: the cell
+  is 74px wide and holds two figures, and three characters that always say
+  nothing cost more there than the consistency is worth.
+
 ## Placeholder / "coming soon" pages
 
 - Centered card, `60px 30px` padding.

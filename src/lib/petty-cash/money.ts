@@ -32,9 +32,16 @@ export const CURRENCY = "₹";
 export function formatMoney(value: Money | number | null | undefined): string {
   const n = toNumber(value);
   if (n === null) return "—";
+  // A negative net prints `− ₹1,500.00`, never `₹-1,500.00`. `toLocaleString`
+  // puts a HYPHEN between the symbol and the digits, which at a glance reads
+  // as a dash joining two things rather than as a sign — and it is the one
+  // glyph deciding whether a month took money in or paid it out. Same minus
+  // (U+2212) and same shape as `formatSigned`, so the two agree.
+  const sign = n < 0 ? "− " : "";
   return (
+    sign +
     CURRENCY +
-    n.toLocaleString("en-IN", {
+    Math.abs(n).toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })

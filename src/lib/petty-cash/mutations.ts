@@ -1,12 +1,13 @@
 import "server-only";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import type { TransactionSql } from "postgres";
 
 import { sql as pg } from "@/db";
 import { pettyCashDb } from "@/db/petty-cash";
 import { categories, employees, transactions } from "@/db/petty-cash/schema";
+import { memberRoleEnum, type MemberRole } from "@/db/petty-cash/schema";
 import { isIsoDate, type IsoDate } from "@/lib/dates";
 import {
   checkAmount,
@@ -354,6 +355,33 @@ export async function deleteTransaction(
 }
 
 // ─── the masters ──────────────────────────────────────────────────────────
+//
+// These write inside `pg.begin` for the same reason the ledger does: the
+// change and the audit row that explains it either both land or neither does.
+// A payee list that gained a name with nothing saying who added it is a
+// smaller version of the same problem, and this module is about money.
+
+/** The names that must not collide, compared the way the unique index does. */
+async function nameTaken(
+  tx: TransactionSql,
+  table: "employees" | "categories",
+  name: string,
+  exceptId: number | null,
+): Promise<{ id: number; active: boolean } | null> {
+  const rows =
+    table === "employees"
+      ? await tx<{ id: number; active: boolean }[]>`
+          select id, active from ld_petty_cash.employees
+           where lower(name) = lower(${name})
+             and (${exceptId}::int is null or id <> ${exceptId})
+           limit 1`
+      : await tx<{ id: number; active: boolean }[]>`
+          select id, active from ld_petty_cash.categories
+           where lower(name) = lower(${name})
+             and (${exceptId}::int is null or id <> ${exceptId})
+           limit 1`;
+  return rows[0] ?? null;
+}
 
 /**
  * Add a payee, usually from inside the entry form.
@@ -369,47 +397,110 @@ export async function createEmployee(
   code: string | null,
 ): Promise<{ id: number; name: string; revived: boolean }> {
   const clean = name.trim();
+  const cleanCode = code?.trim() || null;
   if (!clean) throw new Error("Enter a name.");
   if (clean.length > 160) throw new Error("That name is too long.");
 
-  const [existing] = await pettyCashDb
-    .select({ id: employees.id, name: employees.name, active: employees.active })
-    .from(employees)
-    .where(sql`lower(${employees.name}) = lower(${clean})`)
-    .limit(1);
+  return pg.begin(async (tx) => {
+    const existing = await nameTaken(tx, "employees", clean, null);
+    if (existing?.active) throw new Error(`${clean} is already on the list.`);
 
-  if (existing?.active) {
-    throw new Error(`${existing.name} is already on the list.`);
-  }
-  if (existing) {
-    await pettyCashDb
-      .update(employees)
-      .set({ name: clean, code: code?.trim() || null, active: true, updatedAt: new Date() })
-      .where(eq(employees.id, existing.id));
-    return { id: existing.id, name: clean, revived: true };
-  }
+    if (existing) {
+      await tx`
+        update ld_petty_cash.employees
+           set name = ${clean}, code = ${cleanCode}, active = true, updated_at = now()
+         where id = ${existing.id}`;
+      await audit(tx, viewer.userId, "petty-cash.payee_revived", {
+        id: existing.id,
+        name: clean,
+      });
+      return { id: existing.id, name: clean, revived: true };
+    }
 
-  const [row] = await pettyCashDb
-    .insert(employees)
-    .values({ name: clean, code: code?.trim() || null, createdBy: viewer.userId })
-    .returning({ id: employees.id });
-
-  return { id: row.id, name: clean, revived: false };
+    const [row] = await tx<{ id: number }[]>`
+      insert into ld_petty_cash.employees (name, code, created_by)
+      values (${clean}, ${cleanCode}, ${viewer.userId}::uuid)
+      returning id`;
+    await audit(tx, viewer.userId, "petty-cash.payee_added", {
+      id: row.id,
+      name: clean,
+      code: cleanCode,
+    });
+    return { id: row.id, name: clean, revived: false };
+  });
 }
 
+/**
+ * Rename a payee.
+ *
+ * Old entries keep the name they were saved with — `transactions.to_name` is a
+ * snapshot, written at the moment of entry, and nothing here touches it. That
+ * is deliberate and it is the same rule the category rename follows: a voucher
+ * printed in April said "Ramesh (canteen)", and correcting the spelling in
+ * September must not make the April voucher claim it always said something
+ * else. New entries pick up the new name.
+ */
+export async function renameEmployee(
+  viewer: PettyCashViewer,
+  id: number,
+  name: string,
+  code: string | null,
+): Promise<void> {
+  const clean = name.trim();
+  const cleanCode = code?.trim() || null;
+  if (!clean) throw new Error("Enter a name.");
+  if (clean.length > 160) throw new Error("That name is too long.");
+
+  await pg.begin(async (tx) => {
+    const clash = await nameTaken(tx, "employees", clean, id);
+    if (clash) throw new Error("Somebody else on the list already has that name.");
+
+    const rows = await tx<{ id: number }[]>`
+      update ld_petty_cash.employees
+         set name = ${clean}, code = ${cleanCode}, updated_at = now()
+       where id = ${id}
+      returning id`;
+    if (rows.length === 0) throw new Error("That person could not be found.");
+
+    await audit(tx, viewer.userId, "petty-cash.payee_renamed", {
+      id,
+      name: clean,
+      code: cleanCode,
+    });
+  });
+}
+
+/**
+ * Switch a payee on or off.
+ *
+ * Off means "do not offer this name on the form again". Every entry already
+ * recorded against them is untouched and every total still includes it — which
+ * is why there is no delete anywhere on that screen.
+ */
 export async function setEmployeeActive(
-  _viewer: PettyCashViewer,
+  viewer: PettyCashViewer,
   id: number,
   active: boolean,
 ): Promise<void> {
-  await pettyCashDb
-    .update(employees)
-    .set({ active, updatedAt: new Date() })
-    .where(eq(employees.id, id));
+  await pg.begin(async (tx) => {
+    const rows = await tx<{ name: string }[]>`
+      update ld_petty_cash.employees
+         set active = ${active}, updated_at = now()
+       where id = ${id}
+      returning name`;
+    if (rows.length === 0) throw new Error("That person could not be found.");
+
+    await audit(
+      tx,
+      viewer.userId,
+      active ? "petty-cash.payee_switched_on" : "petty-cash.payee_switched_off",
+      { id, name: rows[0].name },
+    );
+  });
 }
 
 export async function createCategory(
-  _viewer: PettyCashViewer,
+  viewer: PettyCashViewer,
   name: string,
   groupName: string,
 ): Promise<{ id: number }> {
@@ -418,24 +509,165 @@ export async function createCategory(
   if (!n) throw new Error("Enter a category name.");
   if (!g) throw new Error("Choose which group it rolls up to.");
 
-  const [existing] = await pettyCashDb
-    .select({ id: categories.id, active: categories.active })
-    .from(categories)
-    .where(sql`lower(${categories.name}) = lower(${n})`)
-    .limit(1);
+  return pg.begin(async (tx) => {
+    const existing = await nameTaken(tx, "categories", n, null);
+    if (existing?.active) throw new Error("That category already exists.");
 
-  if (existing?.active) throw new Error("That category already exists.");
-  if (existing) {
-    await pettyCashDb
-      .update(categories)
-      .set({ name: n, groupName: g, active: true })
-      .where(eq(categories.id, existing.id));
-    return { id: existing.id };
+    if (existing) {
+      await tx`
+        update ld_petty_cash.categories
+           set name = ${n}, group_name = ${g}, active = true
+         where id = ${existing.id}`;
+      await audit(tx, viewer.userId, "petty-cash.category_revived", {
+        id: existing.id,
+        name: n,
+        group: g,
+      });
+      return { id: existing.id };
+    }
+
+    const [row] = await tx<{ id: number }[]>`
+      insert into ld_petty_cash.categories (name, group_name)
+      values (${n}, ${g})
+      returning id`;
+    await audit(tx, viewer.userId, "petty-cash.category_added", {
+      id: row.id,
+      name: n,
+      group: g,
+    });
+    return { id: row.id };
+  });
+}
+
+/** Rename a category, or move it to another group. Snapshots are left alone. */
+export async function updateCategory(
+  viewer: PettyCashViewer,
+  id: number,
+  name: string,
+  groupName: string,
+): Promise<void> {
+  const n = name.trim();
+  const g = groupName.trim();
+  if (!n) throw new Error("Enter a category name.");
+  if (!g) throw new Error("Choose which group it rolls up to.");
+
+  await pg.begin(async (tx) => {
+    const clash = await nameTaken(tx, "categories", n, id);
+    if (clash) throw new Error("A category with that name already exists.");
+
+    const rows = await tx<{ id: number }[]>`
+      update ld_petty_cash.categories
+         set name = ${n}, group_name = ${g}
+       where id = ${id}
+      returning id`;
+    if (rows.length === 0) throw new Error("That category could not be found.");
+
+    await audit(tx, viewer.userId, "petty-cash.category_changed", {
+      id,
+      name: n,
+      group: g,
+    });
+  });
+}
+
+/**
+ * Switch a category on or off.
+ *
+ * Off means "do not offer this on the form again". It does NOT hide a single
+ * entry already filed under it, and every total that has ever included it
+ * still does — which is the whole reason there is no delete here. A category
+ * with 200 entries behind it is a part of the record.
+ */
+export async function setCategoryActive(
+  viewer: PettyCashViewer,
+  id: number,
+  active: boolean,
+): Promise<void> {
+  await pg.begin(async (tx) => {
+    const rows = await tx<{ name: string }[]>`
+      update ld_petty_cash.categories
+         set active = ${active}
+       where id = ${id}
+      returning name`;
+    if (rows.length === 0) throw new Error("That category could not be found.");
+
+    await audit(
+      tx,
+      viewer.userId,
+      active ? "petty-cash.category_switched_on" : "petty-cash.category_switched_off",
+      { id, name: rows[0].name },
+    );
+  });
+}
+
+// ─── who may do what ──────────────────────────────────────────────────────
+
+/**
+ * Set somebody's standing in Petty Cash.
+ *
+ * `system_access` decides who may OPEN the module and is not touched here;
+ * this decides what they may do inside it. Upserted on `user_id`, so the row
+ * either appears or is updated and there is never a second one to disagree
+ * with the first.
+ *
+ * The audit row matters more here than almost anywhere else in the module:
+ * this is the write that lets somebody else spend money, and it goes in the
+ * same transaction as the change itself.
+ */
+export async function setMemberRole(
+  viewer: PettyCashViewer,
+  userId: string,
+  role: MemberRole,
+): Promise<void> {
+  if (!memberRoleEnum.enumValues.includes(role)) throw new Error("That is not a role.");
+  if (userId === viewer.userId) {
+    // With nobody able to grant a role back, an administrator who removes
+    // their own last permission locks the module for everybody. The same rule
+    // the shell applies to its own admin list.
+    throw new Error("You cannot change your own Petty Cash role.");
   }
 
-  const [row] = await pettyCashDb
-    .insert(categories)
-    .values({ name: n, groupName: g })
-    .returning({ id: categories.id });
-  return { id: row.id };
+  await pg.begin(async (tx) => {
+    const [account] = await tx<{ id: string; name: string }[]>`
+      select id, name from ld_erp_core.users
+       where id = ${userId}::uuid and status = 'active'
+       limit 1`;
+    if (!account) throw new Error("That person could not be found.");
+
+    await tx`
+      insert into ld_petty_cash.members (user_id, role, active)
+      values (${userId}::uuid, ${role}, true)
+      on conflict (user_id) do update
+        set role = excluded.role, active = true, updated_at = now()`;
+
+    await audit(tx, viewer.userId, "petty-cash.role_set", {
+      targetUserId: userId,
+      targetName: account.name,
+      role,
+    });
+  });
+}
+
+/**
+ * Take somebody's Petty Cash role away.
+ *
+ * The row is deactivated, not deleted, so the audit trail still resolves and
+ * re-granting is one click rather than a fresh record. They keep whatever
+ * `system_access` gives them — read-only — until that tick is removed too.
+ */
+export async function clearMemberRole(
+  viewer: PettyCashViewer,
+  userId: string,
+): Promise<void> {
+  if (userId === viewer.userId) throw new Error("You cannot change your own Petty Cash role.");
+
+  await pg.begin(async (tx) => {
+    const rows = await tx<{ id: number }[]>`
+      update ld_petty_cash.members
+         set active = false, updated_at = now()
+       where user_id = ${userId}::uuid and active
+      returning id`;
+    if (rows.length === 0) return; // Already nothing to take away.
+    await audit(tx, viewer.userId, "petty-cash.role_cleared", { targetUserId: userId });
+  });
 }

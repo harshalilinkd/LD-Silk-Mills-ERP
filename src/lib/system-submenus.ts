@@ -62,6 +62,16 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
     { label: "Doers", href: "/checklist/doers" },
     { label: "Holidays", href: "/checklist/holidays" },
   ],
+  // Petty Cash. "Lists and access" is administrators-only and turns anybody
+  // else back to the ledger, the same shape as CRM rules and the four
+  // Checklist screens above. The other three are for everybody who holds the
+  // module — a viewer is meant to read the ledger and the reports.
+  "petty-cash": [
+    { label: "Ledger", href: "/petty-cash", exact: true },
+    { label: "Monthly summary", href: "/petty-cash/summary" },
+    { label: "Dashboard", href: "/petty-cash/analysis" },
+    { label: "Lists and access", href: "/petty-cash/masters" },
+  ],
   crm: [
     { label: "Follow-ups", href: "/crm", exact: true },
     { label: "Issues", href: "/crm/issues" },

@@ -9,11 +9,11 @@ in as native pages (see Phase 3a below), not just linked to.
 
 ## Where this stands (Sep 2026)
 
-Six modules are built and verified against live data: **Orders**, **CRM**,
-**Help Slip**, **Goods Return LR**, **AI Assistant** and **Checklist**. Two
-more are EXTERNAL links rather than screens in this app — **CRR**
-(`crr.linkdprints.com`) and **SCOT** (`ldscot.linkdprints.com`, Sep 2026).
-Only **NBD** and **Petty Cash** are still `coming_soon` placeholders in
+Seven modules are built and verified against live data: **Orders**, **CRM**,
+**Help Slip**, **Goods Return LR**, **AI Assistant**, **Checklist** and
+**Petty Cash**. Two more are EXTERNAL links rather than screens in this app —
+**CRR** (`crr.linkdprints.com`) and **SCOT** (`ldscot.linkdprints.com`,
+Sep 2026). Only **NBD** is still a `coming_soon` placeholder in
 `ld_erp_core.systems`, and `/reports` is the shell's own reports screen.
 
 **An external system needs no code.** `system-nav-item.tsx` already renders any
@@ -79,6 +79,7 @@ Phase 1 and was deleted — do not recreate it).
 | `ld_help_slip` | **Shared** with the Help Slip app | RLS is the boundary — see its own section below. |
 | `goods_return` | **Shared** with the standalone Goods Return app | Live. Add and update only; never restructure, never delete. `return_display_seq` must never be created, dropped, altered or reset. |
 | `ld_checklist_system` | **This repo, exclusively** | `doers`, `tasks`, `occurrences`, `holidays`. Nothing else reads or writes it, so — unlike the three shared schemas — it IS managed with ordinary migrations from here. |
+| `ld_petty_cash` | **This repo, exclusively** | `members`, `employees`, `categories`, `transactions`. Built from scratch Sep 2026; migrated from here, same as the Checklist. Nothing was imported from the Google Apps Script app it replaces. |
 
 `src/db/index.ts` opens the one shared `postgres.js` connection (`sql`),
 reused by `src/db/order-entry/index.ts` for the second schema — one pool,
@@ -91,11 +92,11 @@ repo. `src/db/order-entry/schema.ts` is query-only, hand-mirrored from
 `DATABASE_URL` in `.env.local` must be the Supavisor **Transaction pooler**
 (port 6543), never the session pooler (5432) or direct connection.
 
-`drizzle.config.ts` lists BOTH owned schemas in `schemaFilter`
-(`ld_erp_core`, `ld_checklist_system`) and both schema files in `schema`.
-Adding a file to `schema` is what lets `db:generate` see its tables at all;
-`schemaFilter` only decides which namespaces drizzle-kit may touch. The three
-shared schemas are deliberately absent from both.
+`drizzle.config.ts` lists ALL THREE owned schemas in `schemaFilter`
+(`ld_erp_core`, `ld_checklist_system`, `ld_petty_cash`) and all three schema
+files in `schema`. Adding a file to `schema` is what lets `db:generate` see its
+tables at all; `schemaFilter` only decides which namespaces drizzle-kit may
+touch. The three shared schemas are deliberately absent from both.
 
 **`next build` clobbers a running `next dev`.** They share `.next`. A
 production build — or a `rm -rf .next` — while the dev server is up leaves it
@@ -356,6 +357,10 @@ you're inside that section). Toggling a system's `status`/`route`/
 - **Checklist** (`/checklist/*`, system_code `checklist`): all six screens
   real — Dashboard, Master Checklist, Scorecards, Tasks, Doers, Holidays —
   over our own empty `ld_checklist_system` schema. See its section below.
+- **Petty Cash** (`/petty-cash/*`, system_code `petty-cash`): all four screens
+  real — Ledger, Monthly summary, Analysis, Lists and access — over our own
+  `ld_petty_cash` schema, built from scratch rather than ported. See its
+  section below.
 - **CRM** (`/crm/*`, own top-level sidebar entry, system_code `crm`):
   Follow-up queue (`/crm`), follow-up detail (`/crm/[id]` — a NEW dedicated
   route; the source app renders this as a draggable floating panel, this
@@ -711,6 +716,121 @@ preview and the server action, so the two cannot disagree. Excel copies as
 TAB-separated, not comma — the delimiter is detected. Dates are read
 DAY-FIRST. The server always re-parses the raw text; the preview is a
 courtesy, never a check.
+
+## Petty Cash — the cash box, and why nothing here is ever destroyed
+
+`/petty-cash/*`, system_code `petty-cash`, schema **`ld_petty_cash`** — ours
+alone and therefore migrated from this repo, like the Checklist and unlike the
+three shared schemas. Built from scratch Sep 2026 against the company's Google
+Apps Script app as the FUNCTIONAL reference only. **No spreadsheet is read, no
+Apps Script runs, and not one row was imported.** The old app is untouched and
+still live; importing its 1,589 rows is a separate job nobody has asked for.
+
+Four screens: **Ledger** (`/petty-cash`) · **Monthly summary** (`/summary`) ·
+**Analysis** (`/analysis`) · **Lists and access** (`/masters`).
+
+**Two questions, and BOTH are security boundaries.** This is where the module
+differs from Goods Return, whose office is only a mode.
+
+1. *May they open it?* — `ld_erp_core.system_access`, the tick in Settings →
+   Access, read on the server in the layout.
+2. *What may they do?* — `ld_petty_cash.members.role`: `VIEWER` reads,
+   `OPERATOR` records and corrects, `ADMIN` also deletes and runs
+   `/masters`. Seeing what the box holds and taking money out of it are not
+   the same permission.
+
+**An ERP admin is a Petty Cash admin only as a bootstrap.** `members` starts
+empty, so without it nobody could grant the first role. It is one-directional
+and it is VISIBLE — `viaShellAdmin` is true when somebody holds their powers
+only that way, and `/masters` prints "ERP administrator" beside them rather
+than letting them believe it was deliberate. An explicit member row always
+wins, so an ERP admin can be deliberately limited to VIEWER here.
+
+**Every figure in the module comes from `lib/petty-cash/queries.ts`.** `LIVE`
+(not deleted) is written once, `CREDIT_SUM`/`DEBIT_SUM` once, and balance is
+always `credits − debits` computed in SQL. The fastest way to lose a company's
+trust is for two screens to disagree by ₹200 because one forgot to exclude
+deleted rows. Every total is a `SUM` Postgres performs; the ledger is paged.
+Queries are awaited IN TURN — the pool is five wide and pipelined statements
+stall under the transaction pooler.
+
+**Nothing is ever destroyed.**
+- A transaction is SOFT deleted (`deleted_at`/`deleted_by`, plus the reason
+  typed into the confirmation) and its receipt is kept with it. The dialog says
+  so in as many words, because a soft delete that pretends to be a hard one is
+  a promise the screen cannot keep. ADMIN only.
+- A payee or a category is switched OFF, never removed. Off means "stop
+  offering this on the form"; every entry already filed under it is untouched
+  and every total still includes it. The usage counts on `/masters` are what
+  make that a decision rather than a guess — a name used 340 times is the
+  canteen, a name used once is a typo.
+
+**`to_name` and `category_name` are SNAPSHOTS and must stay that way.** They
+are written at the moment of entry and no rename ever rewrites them. A voucher
+printed in April said "Ramesh (canteen)"; correcting the spelling in September
+must not make the April voucher claim otherwise. The monthly summary therefore
+groups by the LIVE category for the group breakdown (so a re-grouped category
+reports where it now belongs) and by the SNAPSHOT for the category rows (so an
+old entry still prints what it said). Both are exhaustive partitions of the
+same rows, so they add up — the old app's keyword matching could put one
+category in two groups and did not.
+
+**The reference number is built inside the INSERT** from
+`ld_petty_cash.transaction_uid_seq` with the year taken from
+`now() at time zone 'Asia/Kolkata'`. Two people saving in the same second
+cannot receive the same `PC-2026-000001`. Do not compute it in JavaScript and
+do not "fix" a gap — a gap means a transaction was rolled back, which is
+exactly what it should mean.
+
+**The ledger shows TWO balances and they answer different questions.** "Current
+balance" is the whole box and never moves when a filter changes; a second strip
+appears only when a filter is on, saying what that selection adds up to.
+Showing one filtered figure under the words "Current Balance" is how somebody
+concludes the cash has gone missing.
+
+**Dates are dates.** `transaction_date` is a `date` — the day somebody wrote
+down, not `created_at`. The Analysis calendar groups on it, which is why an
+entry typed at 1am appears on the day it happened. Everything shared with the
+Checklist lives in `src/lib/dates.ts` (UTC arithmetic, `todayIso()` in
+Asia/Kolkata).
+
+**Receipts use a PRIVATE bucket** (`petty-cash-attachments`) and are proxied
+through `/api/petty-cash/entries/[id]/attachment`, re-authorised on every view.
+Never signed URLs: a signed URL is a bearer token in a query string that keeps
+working for anyone holding it, and these are bills carrying names and amounts.
+Both that route and `/api/petty-cash/entries/[id]` re-check
+`resolvePettyCashViewer()` from scratch — **a route handler runs without the
+layout above it**, the same rule the Checklist's CSV export follows. Storage
+calls use `SUPABASE_SERVICE_ROLE_KEY` and are confined to
+`lib/petty-cash/attachments.ts`.
+
+**Every write goes through `lib/petty-cash/mutations.ts`, inside one
+transaction with its audit row.** A payment recorded with no audit trail —
+because the second insert failed — is worse than no payment recorded at all:
+the money has moved and nothing says who moved it. That is also why those
+functions are not in the `"use server"` file: a server action cannot easily
+share one transaction across helpers. The actions in
+`(app)/petty-cash/actions.ts` are thin: **authorise → validate → write →
+audit → revalidate**, with the guard FIRST and before any argument is read.
+Audit rows go to `ld_erp_core.audit_logs` under `system_code = 'petty-cash'`
+with hyphenated action names (`petty-cash.created`, `.updated`, `.deleted`,
+`.payee_renamed`, `.category_switched_off`, `.role_set`, …).
+
+**The Analysis screen is a calendar above `sm` and a LIST below it.** A
+seven-column grid with rupee figures in it is a desktop layout; at 390px each
+cell is 45px and "+ ₹10,000" wraps onto three lines. The list shows only the
+days that had activity and opens the same filtered ledger when tapped.
+
+**`/masters` is ADMIN only and refuses rather than hides** — a non-admin is
+sent back to the ledger, the same shape as CRM rules and four of the six
+Checklist screens.
+
+**It starts empty and the owner fills it.** Eight categories were seeded
+(Petty Cash, Deposit, Cash Salary, Salary, Advance Salary, Transport, Hamal,
+Other); there are no payees, no transactions and no member roles. Six people
+already hold `system_access` for it, so all six can READ the ledger the moment
+it goes live and only the ERP admin can record anything — worth a look before
+the first real entry.
 
 ## Known gotchas (hit these once already — don't re-discover them)
 - **A Server Component's `new Date()` is the SERVER's clock, which on Vercel

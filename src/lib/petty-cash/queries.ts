@@ -1,10 +1,14 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
+import { db } from "@/db";
+import { systemAccess, systems, users } from "@/db/schema";
 import { pettyCashDb } from "@/db/petty-cash";
-import { categories, employees, transactions } from "@/db/petty-cash/schema";
-import type { IsoDate } from "@/lib/dates";
+import { categories, employees, members, transactions } from "@/db/petty-cash/schema";
+import type { MemberRole } from "@/db/petty-cash/schema";
+import { addMonths, startOfMonth, todayIso, type IsoDate } from "@/lib/dates";
+import { PETTY_CASH_SYSTEM_CODE } from "./authz";
 import type { Money, ProofType, TransactionType } from "./money";
 
 /**
@@ -268,6 +272,66 @@ export async function getMonthlySummary(
   return { from, to, totals, byGroup, byCategory };
 }
 
+export type MonthPoint = {
+  /** First day of the month, e.g. `2026-09-01`. */
+  month: IsoDate;
+  credits: Money;
+  debits: Money;
+  balance: Money;
+  count: number;
+};
+
+/**
+ * Credits, debits, balance and entry count for each of the last `monthsBack`
+ * months (the current one included), oldest first — the trend line the
+ * Dashboard charts.
+ *
+ * ONE `GROUP BY` in Postgres for the whole window, not `monthsBack` separate
+ * calls to `getTotals` — see the file header on why aggregates run in the
+ * database rather than in a loop.
+ *
+ * A month with no activity is filled in as zero rather than left absent, so
+ * the chart's X axis is continuous — a gap in a trend line reads as missing
+ * data, not as "nothing happened that month".
+ */
+export async function getMonthlyTrend(monthsBack: number): Promise<MonthPoint[]> {
+  const today = todayIso();
+  const from = startOfMonth(addMonths(today, -(monthsBack - 1)));
+  const monthKey = sql<string>`to_char(${transactions.transactionDate}, 'YYYY-MM-01')`;
+
+  const rows = await pettyCashDb
+    .select({
+      month: monthKey,
+      credits: CREDIT_SUM,
+      debits: DEBIT_SUM,
+      // Subtracted in SQL, not in JavaScript. `numeric` minus `numeric` is
+      // exact; `Number(a) - Number(b)` on two paise-bearing strings is how a
+      // month's net becomes 11499.999999999998, and it is the same reason the
+      // column is not floating point in the first place.
+      balance: sql<string>`${CREDIT_SUM} - ${DEBIT_SUM}`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(transactions)
+    .where(and(LIVE, gte(transactions.transactionDate, from)))
+    .groupBy(monthKey);
+
+  const byMonth = new Map(rows.map((r) => [r.month, r]));
+
+  const out: MonthPoint[] = [];
+  for (let i = monthsBack - 1; i >= 0; i -= 1) {
+    const month = startOfMonth(addMonths(today, -i));
+    const r = byMonth.get(month);
+    out.push({
+      month,
+      credits: r?.credits ?? "0",
+      debits: r?.debits ?? "0",
+      balance: r?.balance ?? "0",
+      count: r?.count ?? 0,
+    });
+  }
+  return out;
+}
+
 // ─── the analysis calendar ────────────────────────────────────────────────
 
 export type DayTotals = { date: IsoDate; credits: Money; debits: Money; count: number };
@@ -373,9 +437,6 @@ export async function getTransaction(id: number): Promise<TransactionDetail | nu
 async function resolveActorNames(ids: (string | null)[]): Promise<Map<string, string>> {
   const wanted = [...new Set(ids.filter((v): v is string => !!v))];
   if (wanted.length === 0) return new Map();
-  const { db } = await import("@/db");
-  const { users } = await import("@/db/schema");
-  const { inArray } = await import("drizzle-orm");
   const rows = await db
     .select({ id: users.id, name: users.name })
     .from(users)
@@ -426,4 +487,157 @@ export async function getFromOptions(): Promise<string[]> {
     .where(and(LIVE, sql`${transactions.fromName} is not null`))
     .orderBy(asc(transactions.fromName));
   return rows.map((r) => r.v).filter((v): v is string => !!v);
+}
+
+// ─── the masters screen ───────────────────────────────────────────────────
+
+export type PayeeRow = {
+  id: number;
+  name: string;
+  code: string | null;
+  active: boolean;
+  used: number;
+  paid: Money;
+  lastUsed: IsoDate | null;
+};
+
+/**
+ * The payee list, with how much has actually gone through each one.
+ *
+ * The count is what makes switching somebody off a decision rather than a
+ * guess: a name used 340 times is the canteen, a name used once is a typo. It
+ * counts LIVE rows only, so a payee whose only entry was deleted reads as
+ * unused — which is exactly when it is safe to tidy away.
+ *
+ * A left join, so a payee added five minutes ago and never used still appears.
+ */
+export async function getPayeesWithUse(): Promise<PayeeRow[]> {
+  return pettyCashDb
+    .select({
+      id: employees.id,
+      name: employees.name,
+      code: employees.code,
+      active: employees.active,
+      used: sql<number>`count(${transactions.id})::int`,
+      paid: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.transactionType} = 'DEBIT'), 0)`,
+      lastUsed: sql<IsoDate | null>`max(${transactions.transactionDate})`,
+    })
+    .from(employees)
+    .leftJoin(transactions, and(eq(transactions.employeeId, employees.id), LIVE))
+    .groupBy(employees.id, employees.name, employees.code, employees.active)
+    .orderBy(asc(employees.name));
+}
+
+export type CategoryRow = {
+  id: number;
+  name: string;
+  groupName: string;
+  active: boolean;
+  sortOrder: number;
+  used: number;
+  spent: Money;
+};
+
+/**
+ * The category list, same idea.
+ *
+ * Joined on the category ID, not the snapshot name — the snapshot is what an
+ * old entry PRINTS, and it deliberately does not follow a rename. The id is
+ * what says "this entry was filed here", which is the question this screen
+ * asks.
+ */
+export async function getCategoriesWithUse(): Promise<CategoryRow[]> {
+  return pettyCashDb
+    .select({
+      id: categories.id,
+      name: categories.name,
+      groupName: categories.groupName,
+      active: categories.active,
+      sortOrder: categories.sortOrder,
+      used: sql<number>`count(${transactions.id})::int`,
+      spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.transactionType} = 'DEBIT'), 0)`,
+    })
+    .from(categories)
+    .leftJoin(transactions, and(eq(transactions.categoryId, categories.id), LIVE))
+    .groupBy(
+      categories.id,
+      categories.name,
+      categories.groupName,
+      categories.active,
+      categories.sortOrder,
+    )
+    .orderBy(asc(categories.groupName), asc(categories.sortOrder), asc(categories.name));
+}
+
+/** The distinct groups already in use, so the add form offers them. */
+export async function getCategoryGroups(): Promise<string[]> {
+  const rows = await pettyCashDb
+    .selectDistinct({ g: categories.groupName })
+    .from(categories)
+    .orderBy(asc(categories.groupName));
+  return rows.map((r) => r.g);
+}
+
+export type PettyCashPerson = {
+  userId: string;
+  name: string;
+  email: string;
+  erpAdmin: boolean;
+  /** Null when they have never been given a role here. */
+  role: MemberRole | null;
+  memberActive: boolean;
+  /** What they can actually do right now, bootstrap included. */
+  effective: MemberRole;
+};
+
+/**
+ * Everybody who can open Petty Cash, and what they may do inside it.
+ *
+ * The list comes from `system_access` — the tick box in Settings → Access —
+ * because that is what decides who gets through the door. This screen only
+ * decides what happens after. Somebody who has not been ticked does not appear
+ * here at all, and the screen says where to go and tick them.
+ *
+ * `effective` repeats the bootstrap rule from `authz.ts` rather than being
+ * recomputed by the screen, so what is shown is what the server would decide.
+ */
+export async function getPettyCashPeople(): Promise<PettyCashPerson[]> {
+  const granted = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      erpRole: users.role,
+    })
+    .from(users)
+    .innerJoin(systemAccess, eq(systemAccess.userId, users.id))
+    .innerJoin(systems, eq(systems.id, systemAccess.systemId))
+    .where(
+      and(
+        eq(users.status, "active"),
+        eq(systemAccess.canView, true),
+        eq(systems.systemCode, PETTY_CASH_SYSTEM_CODE),
+      ),
+    )
+    .orderBy(asc(users.name));
+
+  const rows = await pettyCashDb
+    .select({ userId: members.userId, role: members.role, active: members.active })
+    .from(members);
+  const byUser = new Map(rows.map((r) => [r.userId, r]));
+
+  return granted.map((p) => {
+    const m = byUser.get(p.userId);
+    const role = m?.active ? m.role : null;
+    const erpAdmin = p.erpRole === "admin";
+    return {
+      userId: p.userId,
+      name: p.name,
+      email: p.email,
+      erpAdmin,
+      role: m ? m.role : null,
+      memberActive: m?.active ?? false,
+      effective: role ?? (erpAdmin ? "ADMIN" : "VIEWER"),
+    };
+  });
 }

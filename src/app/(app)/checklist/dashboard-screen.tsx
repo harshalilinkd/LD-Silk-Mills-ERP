@@ -301,7 +301,7 @@ export function DashboardScreen({
               </span>
               <div
                 className={cn(
-                  "num mt-2 text-[26px] leading-none font-bold tracking-[-0.02em]",
+                  "num mt-1.5 text-[26px] leading-none font-bold tracking-[-0.02em]",
                   c.tone === "red" ? "text-status-red" : "text-text-1",
                 )}
               >
@@ -319,14 +319,14 @@ export function DashboardScreen({
             <Link
               key={c.label}
               href={c.href}
-              className="rounded-card border border-border bg-surface p-3.5 transition-colors hover:bg-surface-2"
+              className="rounded-card border border-border bg-surface p-3 transition-colors hover:bg-surface-2"
             >
               {body}
             </Link>
           ) : (
             <div
               key={c.label}
-              className="rounded-card border border-border bg-surface p-3.5"
+              className="rounded-card border border-border bg-surface p-3"
             >
               {body}
             </div>
@@ -334,7 +334,12 @@ export function DashboardScreen({
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      {/* `items-start`, not the grid default `stretch`: a department list with
+          one or two rows would otherwise be forced to the donut panel's full
+          height, leaving a dead blank block under it that reads as broken
+          rather than as "not much data yet". Each panel now sizes to its own
+          content instead. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* ── by department ─────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-3">
