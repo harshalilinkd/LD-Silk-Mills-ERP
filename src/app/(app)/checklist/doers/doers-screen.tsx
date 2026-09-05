@@ -75,7 +75,13 @@ export type DoerRow = {
  * filtered in the browser. A round trip per keystroke would be slower and no
  * more correct at this size.
  */
-export function DoersScreen({ rows }: { rows: DoerRow[] }) {
+export function DoersScreen({
+  rows,
+  departments,
+}: {
+  rows: DoerRow[];
+  departments: string[];
+}) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [editing, setEditing] = React.useState<DoerRow | "new" | null>(null);
@@ -294,6 +300,7 @@ export function DoersScreen({ rows }: { rows: DoerRow[] }) {
       {editing && (
         <DoerDialog
           row={editing === "new" ? null : editing}
+          departments={departments}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -360,12 +367,17 @@ export function DoersScreen({ rows }: { rows: DoerRow[] }) {
 
 // ─── the add / edit dialog ────────────────────────────────────────────────
 
+/** The sentinel the Department select uses to mean "let me type a new one". */
+const ADD_NEW = "__add_new__";
+
 function DoerDialog({
   row,
+  departments,
   onClose,
   onSaved,
 }: {
   row: DoerRow | null;
+  departments: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -375,6 +387,19 @@ function DoerDialog({
   const [role, setRole] = React.useState(row?.isAdmin ? "admin" : "user");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  /**
+   * A dropdown with a way out.
+   *
+   * Somebody editing a person whose department is no longer on the list — one
+   * deactivated in Masters, or a spelling nobody else uses — must not have it
+   * silently changed to something else just by opening the dialog. So the
+   * field starts in TYPING mode whenever the current value is not an option,
+   * and the value is preserved rather than snapped to the nearest match.
+   */
+  const [typing, setTyping] = React.useState(
+    () => !!row?.department && !departments.includes(row.department),
+  );
 
   const save = async () => {
     setBusy(true);
@@ -433,12 +458,55 @@ function DoerDialog({
           />
         </Field>
 
-        <Field label="Department">
-          <Input
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            placeholder="Accounts, Housekeeping, Design…"
-          />
+        <Field
+          label="Department"
+          hint={
+            typing
+              ? "It will appear in this list for everybody else once saved."
+              : "From your company list in Masters, plus any already used on the checklist."
+          }
+        >
+          {typing ? (
+            <div className="flex gap-2">
+              <Input
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="Housekeeping, Fusing, DEO…"
+                autoFocus
+              />
+              {departments.length > 0 && (
+                <QuietButton
+                  className="h-9 shrink-0"
+                  onClick={() => {
+                    setTyping(false);
+                    setDepartment("");
+                  }}
+                >
+                  Use the list
+                </QuietButton>
+              )}
+            </div>
+          ) : (
+            <Select
+              value={department}
+              onChange={(e) => {
+                if (e.target.value === ADD_NEW) {
+                  setTyping(true);
+                  setDepartment("");
+                } else {
+                  setDepartment(e.target.value);
+                }
+              }}
+            >
+              <option value="">No department</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+              <option value={ADD_NEW}>+ Add a new department…</option>
+            </Select>
+          )}
         </Field>
 
         <Field

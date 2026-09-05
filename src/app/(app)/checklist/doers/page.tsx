@@ -5,6 +5,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { checklistDb } from "@/db/checklist";
 import { doers, tasks } from "@/db/checklist/schema";
 import { resolveChecklistViewer } from "@/lib/checklist/authz";
+import { getDepartmentOptions } from "@/lib/checklist/departments";
 import { DoersScreen } from "./doers-screen";
 
 export const metadata: Metadata = {
@@ -50,9 +51,14 @@ export default async function DoersPage() {
 
   const byDoer = new Map(counts.map((c) => [c.doerId, c.n]));
 
+  // The company department list from Masters, merged with whatever the
+  // checklist's own people are already in — see lib/checklist/departments.ts.
+  const departments = await getDepartmentOptions();
+
   return (
     <DoersScreen
       rows={rows.map((r) => ({ ...r, taskCount: byDoer.get(r.id) ?? 0 }))}
+      departments={departments}
     />
   );
 }
