@@ -359,8 +359,19 @@ export function ScorecardScreen({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.6fr]">
+      {/* ── LEFT COLUMN STACKS, RIGHT COLUMN IS THE CALENDAR ──────── */}
+      {/* Making one short card stretch to a tall neighbour just moves the
+          empty space inside it — the trend bars grew to six storeys and
+          still said nothing more. The reference solves it by stacking two
+          cards against the calendar, so both columns are full of content
+          rather than one being full of air. */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr]">
+        <div className="flex flex-col gap-4">
         {/* ── six-month trend ───────────────────────────────────────── */}
+        {/* `h-full` + `flex-col` so the chart GROWS into whatever height the
+            heatmap beside it takes. Without it the bars kept their 96px and
+            the rest of the card was dead space — which is half of what the
+            owner was pointing at. */}
         <section className="rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border px-4 py-3">
             <div>
@@ -393,13 +404,23 @@ export function ScorecardScreen({
               </span>
             )}
           </div>
-          <div className="flex items-end gap-2 px-4 pt-4">
+          <div className="relative flex items-end gap-2 px-4 pt-4">
+            {/* Six dashes over six invisible two-pixel bars is not a chart,
+                it is a card that looks broken. When there is nothing to plot,
+                say which of the two reasons it is. */}
+            {data.trend.every((m) => m.onTimePct === null) && (
+              <p className="absolute inset-x-4 top-1/2 z-10 -translate-y-1/2 text-center text-[12.5px] leading-relaxed text-text-3">
+                {data.trend.every((m) => m.total === 0)
+                  ? "Nothing was scheduled for this person in the last six months."
+                  : "Nothing has been ticked off in the last six months, so there is no on-time figure to plot yet."}
+              </p>
+            )}
             {data.trend.map((m) => (
               <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
                 <span className="num text-[11.5px] font-bold text-text-2">
                   {m.onTimePct === null ? "—" : `${m.onTimePct}%`}
                 </span>
-                <div className="flex h-24 w-full items-end">
+                <div className="flex h-28 w-full items-end">
                   <div
                     className={cn(
                       "w-full rounded-t-sm",
@@ -427,6 +448,57 @@ export function ScorecardScreen({
           </p>
         </section>
 
+        {/* ── weekday pattern ───────────────────────────────────────── */}
+        <section className="rounded-card border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
+              By weekday
+            </div>
+            <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+              Which days go well
+            </h3>
+          </div>
+          <div className="flex flex-col gap-1.5 px-4 py-3.5">
+            {data.weekdays.map((w) => {
+              const max = Math.max(...data.weekdays.map((x) => x.total), 1);
+              return (
+                <div key={w.weekday} className="flex items-center gap-2.5">
+                  <span className="w-9 shrink-0 text-[11.5px] font-semibold text-text-3 uppercase">
+                    {w.label}
+                  </span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
+                    <div
+                      className={cn(
+                        "h-full rounded-pill",
+                        w.onTimePct === null
+                          ? "bg-text-3/30"
+                          : w.onTimePct >= 80
+                            ? "bg-status-green"
+                            : w.onTimePct >= 60
+                              ? "bg-status-amber"
+                              : "bg-status-red",
+                      )}
+                      style={{ width: `${(w.total / max) * 100}%` }}
+                    />
+                  </div>
+                  <span className="num w-8 shrink-0 text-right text-[12px] text-text-3">
+                    {w.total}
+                  </span>
+                  <span className="num w-11 shrink-0 text-right text-[12px] font-semibold text-text-2">
+                    {w.onTimePct === null ? "—" : `${w.onTimePct}%`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="px-4 pb-3 text-[11.5px] leading-snug text-text-3">
+            The bar is how much work falls on that day; the figure on the right
+            is how much of it was on time. Sunday is always empty — nothing is
+            ever scheduled on one.
+          </p>
+        </section>
+
+        </div>
         {/* ── the heatmap ───────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3">
@@ -502,7 +574,7 @@ export function ScorecardScreen({
             </span>
           </div>
 
-          <div className="flex justify-center overflow-x-auto px-4 py-3.5">
+          <div className="px-4 py-3.5">
             <Heatmap
               cells={data.days}
               today={data.today}
@@ -533,56 +605,6 @@ export function ScorecardScreen({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* ── weekday pattern ───────────────────────────────────────── */}
-        <section className="rounded-card border border-border bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <div className="text-[10.5px] font-semibold tracking-[0.08em] text-text-3 uppercase">
-              By weekday
-            </div>
-            <h3 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Which days go well
-            </h3>
-          </div>
-          <div className="flex flex-col gap-1.5 px-4 py-3.5">
-            {data.weekdays.map((w) => {
-              const max = Math.max(...data.weekdays.map((x) => x.total), 1);
-              return (
-                <div key={w.weekday} className="flex items-center gap-2.5">
-                  <span className="w-9 shrink-0 text-[11.5px] font-semibold text-text-3 uppercase">
-                    {w.label}
-                  </span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
-                    <div
-                      className={cn(
-                        "h-full rounded-pill",
-                        w.onTimePct === null
-                          ? "bg-text-3/30"
-                          : w.onTimePct >= 80
-                            ? "bg-status-green"
-                            : w.onTimePct >= 60
-                              ? "bg-status-amber"
-                              : "bg-status-red",
-                      )}
-                      style={{ width: `${(w.total / max) * 100}%` }}
-                    />
-                  </div>
-                  <span className="num w-8 shrink-0 text-right text-[12px] text-text-3">
-                    {w.total}
-                  </span>
-                  <span className="num w-11 shrink-0 text-right text-[12px] font-semibold text-text-2">
-                    {w.onTimePct === null ? "—" : `${w.onTimePct}%`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <p className="px-4 pb-3 text-[11.5px] leading-snug text-text-3">
-            The bar is how much work falls on that day; the figure on the right
-            is how much of it was on time. Sunday is always empty — nothing is
-            ever scheduled on one.
-          </p>
-        </section>
-
         {/* ── on-time · late · pending ──────────────────────────────── */}
         {/* Three states, not five. This one answers "of everything in the
             period, how much is finished and was it finished on time" — and
@@ -627,24 +649,6 @@ export function ScorecardScreen({
             </div>
           </div>
         </section>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TaskList
-          eyebrow="Going well"
-          title="Best three duties"
-          rows={data.bestTasks}
-          tone="green"
-        />
-        <TaskList
-          eyebrow="Needs attention"
-          title="Weakest three duties"
-          rows={data.worstTasks}
-          tone="red"
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
         {/* ── by frequency ──────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
@@ -687,6 +691,23 @@ export function ScorecardScreen({
           </div>
         </section>
 
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TaskList
+          eyebrow="Going well"
+          title="Best three duties"
+          rows={data.bestTasks}
+          tone="green"
+        />
+        <TaskList
+          eyebrow="Needs attention"
+          title="Weakest three duties"
+          rows={data.worstTasks}
+          tone="red"
+        />
+      </div>
+
         {/* ── the busiest duties ────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
@@ -717,7 +738,6 @@ export function ScorecardScreen({
             </div>
           )}
         </section>
-      </div>
     </div>
   );
 }
@@ -824,13 +844,20 @@ function Heatmap({
   const weeks: (DayCell | null)[][] = [];
   for (let i = 0; i < slots.length; i += 7) weeks.push(slots.slice(i, i + 7));
 
-  // Capped, not stretched. `aspect-square` across a full-width card gives
-  // ninety-pixel tiles for a two-month range — a wall of coloured boxes that
-  // hides the pattern it exists to show. A calendar reads best at about the
-  // size of a calendar.
+  // ── THE CELLS ARE WIDE, NOT SQUARE ─────────────────────────────────────
+  //
+  // Two earlier attempts were both wrong. `aspect-square` across a full-width
+  // card gave ninety-pixel tiles — a wall of colour that hid the pattern the
+  // chart exists to show. Capping the whole grid at 380px fixed the tiles and
+  // created a new problem: a small calendar marooned in the middle of a wide
+  // card with empty space either side, which is what the owner reported.
+  //
+  // The answer is the one their own system uses: let the grid FILL the card
+  // and fix the ROW HEIGHT instead. Cells come out wide and short, the card
+  // has no dead margins, and a two-month range still fits on one screen.
   return (
-    <div className="w-full max-w-[380px] min-w-[300px]">
-      <div className="mb-1 grid grid-cols-7 gap-1">
+    <div className="w-full">
+      <div className="mb-1.5 grid grid-cols-7 gap-1.5">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div
             key={d}
@@ -840,12 +867,12 @@ function Heatmap({
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {weeks.map((w, i) => (
-          <div key={i} className="grid grid-cols-7 gap-1">
+          <div key={i} className="grid grid-cols-7 gap-1.5">
             {w.map((c, j) =>
               c === null ? (
-                <div key={j} className="aspect-square rounded-sm" />
+                <div key={j} className="h-14 rounded-md" />
               ) : (
                 <button
                   key={j}
@@ -854,7 +881,7 @@ function Heatmap({
                   onClick={() => onOpen(c.date)}
                   title={cellTitle(c, today)}
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center rounded-sm text-[10px] leading-none font-semibold transition-opacity",
+                    "flex h-14 flex-col items-center justify-center rounded-md text-[12px] leading-none font-bold transition-opacity",
                     cellColour(c, today),
                     c.total > 0
                       ? "cursor-pointer hover:opacity-80"
@@ -865,7 +892,7 @@ function Heatmap({
                 >
                   <span>{Number(c.date.slice(8, 10))}</span>
                   {c.total > 0 && (
-                    <span className="mt-0.5 text-[8.5px] font-normal opacity-80">
+                    <span className="mt-1 text-[10px] font-medium opacity-85">
                       {c.done}/{c.total}
                     </span>
                   )}
@@ -873,7 +900,7 @@ function Heatmap({
                       A day showing 5/5 in amber is finished; +3d is the fact
                       worth acting on. */}
                   {c.avgDelay > 0 && (
-                    <span className="mt-0.5 text-[8px] font-bold opacity-90">
+                    <span className="mt-0.5 text-[9.5px] font-bold opacity-95">
                       +{c.avgDelay}d
                     </span>
                   )}

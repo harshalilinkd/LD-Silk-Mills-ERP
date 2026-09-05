@@ -270,12 +270,21 @@ export async function getScorecard(
   }
 
   // ── weekday pattern ────────────────────────────────────────────────────
-  const weekdays = WEEKDAY_LABELS.map((label, weekday) => {
+  // Monday first, Sunday last — the order the working week runs in, and the
+  // order the heatmap's columns are already in. Returning it Sunday-first
+  // because `getUTCDay()` is zero-on-Sunday left the two reading differently
+  // on the same screen.
+  const weekdays = [1, 2, 3, 4, 5, 6, 0].map((weekday) => {
     const rows = inPeriod.filter(
       (r) => new Date(`${r.plannedDate}T00:00:00Z`).getUTCDay() === weekday,
     );
     const k = computeKpis(rows, today);
-    return { weekday, label, total: rows.length, onTimePct: k.onTimePct };
+    return {
+      weekday,
+      label: WEEKDAY_LABELS[weekday],
+      total: rows.length,
+      onTimePct: k.onTimePct,
+    };
   });
 
   // ── by frequency ───────────────────────────────────────────────────────
