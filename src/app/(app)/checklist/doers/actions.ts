@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, occurrences, tasks } from "@/db/checklist/schema";
@@ -43,12 +43,32 @@ export async function createDoer(input: DoerInput) {
   if (!email) throw new Error("That email address does not look right.");
 
   const [existing] = await checklistDb
-    .select({ id: doers.id, name: doers.name })
+    .select({ id: doers.id, name: doers.name, deletedAt: doers.deletedAt })
     .from(doers)
     .where(eq(doers.email, email))
     .limit(1);
-  if (existing) {
+
+  if (existing && existing.deletedAt === null) {
     throw new Error(`${existing.name} is already on the list with that email.`);
+  }
+
+  // A soft-deleted row still holds that email in the unique index, so adding
+  // the person back has to REVIVE it. Refusing would report a clash with
+  // somebody the screen does not show — an error nobody could act on. Their
+  // completed history reattaches with them, which is the point of keeping it.
+  if (existing) {
+    await checklistDb
+      .update(doers)
+      .set({
+        name,
+        department: input.department?.trim() || null,
+        isAdmin: input.isAdmin,
+        active: true,
+        deletedAt: null,
+      })
+      .where(eq(doers.id, existing.id));
+    paths();
+    return existing.id;
   }
 
   const [row] = await checklistDb
@@ -78,7 +98,7 @@ export async function updateDoer(id: number, input: DoerInput) {
   const [clash] = await checklistDb
     .select({ name: doers.name })
     .from(doers)
-    .where(and(eq(doers.email, email), ne(doers.id, id)))
+    .where(and(eq(doers.email, email), ne(doers.id, id), isNull(doers.deletedAt)))
     .limit(1);
   if (clash) throw new Error(`${clash.name} already uses that email.`);
 
@@ -114,39 +134,62 @@ export async function setDoerActive(id: number, active: boolean) {
 }
 
 /**
- * Delete — refused while they have any history at all.
+ * Delete a doer. ALWAYS ALLOWED — and it keeps what they actually did.
  *
- * The original blocks deletion while a doer has tasks. This goes further and
- * blocks it while they have OCCURRENCES too, because a doer with no current
- * tasks may still have a year of completed work behind them, and the cascade
- * would take it silently. The honest answer for somebody who has left is
- * Deactivate, and the message says so.
+ * ── THE OLD BEHAVIOUR WAS WRONG FOR THIS BUSINESS ────────────────────────
+ *
+ * This used to refuse while somebody had tasks or history, and offer
+ * Deactivate instead. That is defensible in the abstract and useless in
+ * practice: a row added by mistake, or somebody who left in April, cannot be
+ * cleared off a list they will sit on for ever. The owner asked for a Delete
+ * that works, and for old entries to stay while new ones stop.
+ *
+ * Both are only possible as a soft delete. A real `DELETE` would cascade
+ * through their tasks into every occurrence, taking a year of ticks with it
+ * and silently changing every figure on the dashboard.
+ *
+ * ── SO THREE THINGS HAPPEN, IN THIS ORDER ────────────────────────────────
+ *
+ *   1. Every occurrence of theirs NOT ticked off is removed — past and
+ *      future. Future dates are work nobody will do; past ones nobody can
+ *      action, and leaving them would keep a deleted person in the Delayed
+ *      count for ever.
+ *   2. Their tasks are marked deleted, so nothing more is ever generated.
+ *   3. They are marked deleted and leave every list and dropdown.
+ *
+ * What survives is the ticks — and those still read correctly, because an
+ * occurrence carries its own snapshot of the task name and the doer row is
+ * still there to be joined to.
  */
-export async function deleteDoer(id: number) {
+export async function deleteDoer(
+  id: number,
+): Promise<{ keptDone: number; removedOpen: number; tasksStopped: number }> {
   await requireChecklistAdmin();
 
-  const [{ n: taskCount }] = await checklistDb
-    .select({ n: sql<number>`count(*)::int` })
-    .from(tasks)
-    .where(eq(tasks.doerId, id));
-  if (taskCount > 0) {
-    throw new Error(
-      `They still have ${taskCount} task${taskCount === 1 ? "" : "s"}. Move or delete those first, or use Deactivate instead.`,
-    );
-  }
-
-  const [{ n: occCount }] = await checklistDb
+  const [{ n: keptDone }] = await checklistDb
     .select({ n: sql<number>`count(*)::int` })
     .from(occurrences)
-    .where(eq(occurrences.doerId, id));
-  if (occCount > 0) {
-    throw new Error(
-      `They have ${occCount} row${occCount === 1 ? "" : "s"} of checklist history, which deleting would destroy. Use Deactivate instead — it keeps the record and stops new work.`,
-    );
-  }
+    .where(and(eq(occurrences.doerId, id), eq(occurrences.status, "Done")));
 
-  await checklistDb.delete(doers).where(eq(doers.id, id));
+  // `status <> 'Done'` is in the statement, not applied after a read.
+  const gone = await checklistDb
+    .delete(occurrences)
+    .where(and(eq(occurrences.doerId, id), ne(occurrences.status, "Done")))
+    .returning({ id: occurrences.id });
+
+  const stopped = await checklistDb
+    .update(tasks)
+    .set({ deletedAt: new Date(), active: false, updatedAt: new Date() })
+    .where(and(eq(tasks.doerId, id), isNull(tasks.deletedAt)))
+    .returning({ id: tasks.id });
+
+  await checklistDb
+    .update(doers)
+    .set({ deletedAt: new Date(), active: false })
+    .where(eq(doers.id, id));
+
   paths();
+  return { keptDone, removedOpen: gone.length, tasksStopped: stopped.length };
 }
 
 /**
@@ -160,7 +203,10 @@ export async function deleteDoer(id: number) {
 export async function importDoers(text: string) {
   await requireChecklistAdmin();
 
-  const existing = await checklistDb.select({ email: doers.email }).from(doers);
+  const existing = await checklistDb
+    .select({ email: doers.email })
+    .from(doers)
+    .where(isNull(doers.deletedAt));
   const rows = parseDoers(text, new Set(existing.map((r) => r.email)));
 
   const toAdd = rows.flatMap((r) => (r.verdict === "add" && r.value ? [r.value] : []));
@@ -173,10 +219,23 @@ export async function importDoers(text: string) {
     // state nobody asked for.
     const CHUNK = 200;
     for (let i = 0; i < toAdd.length; i += CHUNK) {
+      // `doUpdate`, not `doNothing`. The parser has already marked anybody
+      // currently on the list as "already there", so the only row this can
+      // collide with is one that was soft-deleted — and importing that person
+      // again means bringing them back, not silently skipping them.
       const written = await checklistDb
         .insert(doers)
         .values(toAdd.slice(i, i + CHUNK))
-        .onConflictDoNothing({ target: doers.email })
+        .onConflictDoUpdate({
+          target: doers.email,
+          set: {
+            name: sql`excluded.name`,
+            department: sql`excluded.department`,
+            isAdmin: sql`excluded.is_admin`,
+            active: true,
+            deletedAt: null,
+          },
+        })
         .returning({ id: doers.id });
       added += written.length;
     }

@@ -70,6 +70,14 @@ export type DoerRow = {
  * shows as "Signs in", so an administrator can see at a glance who will tick
  * their own work off and who is being ticked off by somebody else.
  *
+ * ── DELETE IS NEVER REFUSED ──────────────────────────────────────────────
+ *
+ * It used to be, while somebody had tasks or history, with Deactivate offered
+ * instead. That was useless in practice — a row added by mistake could never
+ * be cleared. It is now a soft delete: their tasks stop, outstanding dates go,
+ * and their ticks stay. See `deleteDoer` for why those three together are the
+ * only reading of "delete it, but keep the old entries".
+ *
  * ── THE SEARCH IS LOCAL, DELIBERATELY ────────────────────────────────────
  *
  * The whole list is fetched — thirty-odd rows, a hundred at the outside — and
@@ -90,6 +98,7 @@ export function DoersScreen({
   const [confirmDelete, setConfirmDelete] = React.useState<DoerRow | null>(null);
   const [busyId, setBusyId] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [note, setNote] = React.useState<string | null>(null);
 
   const existingEmails = React.useMemo(
     () => new Set(rows.map((r) => r.email)),
@@ -125,8 +134,13 @@ export function DoersScreen({
     setBusyId(row.id);
     setError(null);
     try {
-      await deleteDoer(row.id);
+      const r = await deleteDoer(row.id);
       setConfirmDelete(null);
+      setNote(
+        r.keptDone > 0
+          ? `${row.name} removed. ${r.tasksStopped} task${r.tasksStopped === 1 ? "" : "s"} stopped and ${r.removedOpen} outstanding date${r.removedOpen === 1 ? "" : "s"} cleared; the ${r.keptDone} they had ticked off ${r.keptDone === 1 ? "is" : "are"} kept in the record.`
+          : `${row.name} removed, along with ${r.tasksStopped} task${r.tasksStopped === 1 ? "" : "s"} and ${r.removedOpen} scheduled date${r.removedOpen === 1 ? "" : "s"}.`,
+      );
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That could not be deleted.");
@@ -141,7 +155,7 @@ export function DoersScreen({
       <PageHead
         eyebrow="Team"
         title="Doers"
-        lede="People duties are assigned to. Deleting somebody is blocked while they have work or history — deactivate them instead."
+        lede="People duties are assigned to. Deleting somebody stops their tasks and clears what is outstanding, and keeps everything they ticked off."
         action={
           <>
             <QuietButton onClick={() => setImporting(true)}>
@@ -157,6 +171,11 @@ export function DoersScreen({
       />
 
       <ErrorNote>{error}</ErrorNote>
+      {note && (
+        <p className="rounded-field border border-status-green/30 bg-status-green-dim px-3 py-2 text-[12.5px] text-status-green">
+          {note}
+        </p>
+      )}
 
       {/* Search is the only filter this screen has, so it needs no panel and
           no caption — one toolbar row, with the count where the eye already
@@ -343,7 +362,7 @@ export function DoersScreen({
         open={confirmDelete !== null}
         onClose={() => setConfirmDelete(null)}
         title={`Delete ${confirmDelete?.name ?? ""}?`}
-        subtitle="This removes them from the list entirely. It cannot be undone."
+        subtitle="They leave the list and nothing more is scheduled for them."
         footer={
           <>
             <QuietButton onClick={() => setConfirmDelete(null)}>Cancel</QuietButton>
@@ -359,11 +378,17 @@ export function DoersScreen({
         }
       >
         <p className="text-[13px] leading-relaxed text-text-2">
-          If they have any tasks or any checklist history, this will be refused
-          and nothing will change —{" "}
-          <strong className="font-semibold text-text-1">Deactivate</strong> is
-          the right choice for somebody who has left, because it keeps the
-          record of what they did and simply stops new work being scheduled.
+          Their tasks stop and every date{" "}
+          <strong className="font-semibold text-text-1">not yet ticked
+          off</strong> is cleared, so they stop appearing in the delayed
+          counts.
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-text-2">
+          Everything they{" "}
+          <strong className="font-semibold text-text-1">did tick off
+          stays</strong> — that is a record of work that happened and it keeps
+          counting. Adding the same email again brings them, and their record,
+          back.
         </p>
       </Modal>
     </div>

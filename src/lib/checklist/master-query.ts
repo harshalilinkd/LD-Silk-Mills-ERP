@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, sql, type SQL } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, occurrences } from "@/db/checklist/schema";
@@ -202,6 +202,10 @@ export async function getFilterOptions(): Promise<{
   const people = await checklistDb
     .select({ id: doers.id, name: doers.name, department: doers.department })
     .from(doers)
+    // Deleted people leave the dropdowns. Their completed history is still
+    // joined and still reads — see `deleteDoer` — but nobody should be able
+    // to filter for, or assign to, somebody who has been removed.
+    .where(isNull(doers.deletedAt))
     .orderBy(asc(doers.name));
 
   return {

@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, eq, gte, inArray, ne, sql as raw } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, ne, sql as raw } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
-import { holidays, occurrences, tasks } from "@/db/checklist/schema";
+import { doers, holidays, occurrences, tasks } from "@/db/checklist/schema";
 import { generationWindow, todayIso, weekdayOf, type IsoDate } from "./dates";
 import { recurrenceDates, type Frequency } from "./frequency";
 
@@ -186,6 +186,9 @@ export async function regenerateTask(task: TaskRow): Promise<{ added: number; re
  */
 export async function regenerateAll(): Promise<{ tasks: number; added: number }> {
   const off = await holidaySet();
+  // Four conditions, and the last two are the ones that were missing: a task
+  // belonging to somebody deactivated or deleted must stop generating, or
+  // "Rebuild schedule" would quietly put their work back every time it ran.
   const rows = await checklistDb
     .select({
       id: tasks.id,
@@ -197,7 +200,15 @@ export async function regenerateAll(): Promise<{ tasks: number; added: number }>
       active: tasks.active,
     })
     .from(tasks)
-    .where(eq(tasks.active, true));
+    .innerJoin(doers, eq(doers.id, tasks.doerId))
+    .where(
+      and(
+        eq(tasks.active, true),
+        isNull(tasks.deletedAt),
+        eq(doers.active, true),
+        isNull(doers.deletedAt),
+      ),
+    );
 
   let added = 0;
   for (const t of rows) added += await generateForTask(t as TaskRow, off);

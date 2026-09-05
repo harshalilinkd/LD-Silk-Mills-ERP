@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -107,7 +107,10 @@ export async function resolveChecklistViewer(): Promise<ChecklistViewer | null> 
       userId: doers.userId,
     })
     .from(doers)
-    .where(eq(doers.email, email))
+    // A deleted doer is nobody, the same as an address never added. They keep
+    // their completed history in `occurrences`, but they are not a
+    // participant and must not be resolved back into one by signing in.
+    .where(and(eq(doers.email, email), isNull(doers.deletedAt)))
     .limit(1);
 
   const shellAdmin = account.role === "admin";

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, tasks } from "@/db/checklist/schema";
@@ -39,14 +39,16 @@ export default async function DoersPage() {
       hasLogin: sql<boolean>`${doers.userId} is not null`,
     })
     .from(doers)
+    .where(isNull(doers.deletedAt))
     .orderBy(asc(doers.name));
 
-  // Task counts, so Delete can say what it is refusing before somebody clicks
-  // it rather than after.
+  // Live task counts per person, shown in the table. Deleting is no longer
+  // refused because of them — it stops them instead — but somebody about to
+  // remove a person should see how much work that will stop.
   const counts = await checklistDb
     .select({ doerId: tasks.doerId, n: sql<number>`count(*)::int` })
     .from(tasks)
-    .where(eq(tasks.active, true))
+    .where(and(eq(tasks.active, true), isNull(tasks.deletedAt)))
     .groupBy(tasks.doerId);
 
   const byDoer = new Map(counts.map((c) => [c.doerId, c.n]));

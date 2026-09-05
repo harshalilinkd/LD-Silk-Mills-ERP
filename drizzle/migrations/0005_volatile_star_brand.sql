@@ -1,0 +1,2 @@
+ALTER TABLE "ld_checklist_system"."doers" ADD COLUMN "deleted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "ld_checklist_system"."tasks" ADD COLUMN "deleted_at" timestamp with time zone;

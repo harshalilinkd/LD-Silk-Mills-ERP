@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, occurrences, tasks } from "@/db/checklist/schema";
@@ -85,7 +85,7 @@ export async function createTask(input: TaskInput): Promise<{ id: number; schedu
   const [doer] = await checklistDb
     .select({ id: doers.id, active: doers.active })
     .from(doers)
-    .where(eq(doers.id, input.doerId))
+    .where(and(eq(doers.id, input.doerId), isNull(doers.deletedAt)))
     .limit(1);
   if (!doer) throw new Error("That person is not on the doers list.");
 
@@ -133,7 +133,7 @@ export async function createTaskForAll(
   const people = await checklistDb
     .select({ id: doers.id })
     .from(doers)
-    .where(eq(doers.active, true));
+    .where(and(eq(doers.active, true), isNull(doers.deletedAt)));
 
   if (people.length === 0) throw new Error("There are no active doers to assign it to.");
 
@@ -193,7 +193,7 @@ export async function updateTask(
   const [doer] = await checklistDb
     .select({ id: doers.id })
     .from(doers)
-    .where(eq(doers.id, input.doerId))
+    .where(and(eq(doers.id, input.doerId), isNull(doers.deletedAt)))
     .limit(1);
   if (!doer) throw new Error("That person is not on the doers list.");
 
@@ -227,30 +227,53 @@ export async function updateTask(
 }
 
 /**
- * Delete a task — refused once any of it has been done.
+ * Delete a task. ALWAYS ALLOWED — and it keeps what was actually done.
  *
- * The foreign key cascades, so deleting a task with history would take a
- * year of completed rows with it, silently, and every scorecard would change.
- * A task nobody has ticked yet is a mistake somebody is undoing; a task with
- * ticks against it is a record, and the honest way to stop it is to mark it
- * inactive, which keeps the history and stops new dates being generated.
+ * ── WHY THIS IS A SOFT DELETE ────────────────────────────────────────────
+ *
+ * The owner asked for a Delete that is never refused, and in the same breath
+ * asked that old entries stay and new ones stop. A real `DELETE` cannot do
+ * both: `occurrences.task_id` cascades, so it would take every tick against
+ * this task with it, silently, and every scorecard and dashboard figure would
+ * change to match a history that had been rewritten.
+ *
+ * So the row is marked deleted and vanishes from every screen, while the
+ * OCCURRENCES survive — they carry a snapshot of the task's name, so the
+ * Master Checklist and the scorecards keep reading correctly with the task
+ * itself gone.
+ *
+ * ── WHAT DOES GO ─────────────────────────────────────────────────────────
+ *
+ * Every occurrence NOT yet ticked off, past and future alike. A future date
+ * for a task that no longer exists is work nobody will do; a past one that
+ * was never done is an outstanding item nobody can action, and leaving it
+ * would keep the deleted task in the Delayed count for ever. Only the ticks
+ * remain, because only they record something that happened.
  */
-export async function deleteTask(id: number): Promise<void> {
+export async function deleteTask(
+  id: number,
+): Promise<{ keptDone: number; removedOpen: number }> {
   await requireChecklistAdmin();
 
-  const [{ n }] = await checklistDb
+  const [{ n: keptDone }] = await checklistDb
     .select({ n: sql<number>`count(*)::int` })
     .from(occurrences)
     .where(and(eq(occurrences.taskId, id), eq(occurrences.status, "Done")));
 
-  if (n > 0) {
-    throw new Error(
-      `This task has been ticked off ${n} time${n === 1 ? "" : "s"}. Deleting it would erase that record — set it to Inactive instead, which stops new dates being scheduled and keeps the history.`,
-    );
-  }
+  // The guard is in the statement, not applied after a read: between a SELECT
+  // and a DELETE somebody may have ticked one of these off.
+  const gone = await checklistDb
+    .delete(occurrences)
+    .where(and(eq(occurrences.taskId, id), ne(occurrences.status, "Done")))
+    .returning({ id: occurrences.id });
 
-  await checklistDb.delete(tasks).where(eq(tasks.id, id));
+  await checklistDb
+    .update(tasks)
+    .set({ deletedAt: new Date(), active: false, updatedAt: new Date() })
+    .where(eq(tasks.id, id));
+
   paths();
+  return { keptDone, removedOpen: gone.length };
 }
 
 /**
@@ -283,12 +306,13 @@ export async function importTasks(text: string) {
   const people = await checklistDb
     .select({ id: doers.id, email: doers.email })
     .from(doers)
-    .where(eq(doers.active, true));
+    .where(and(eq(doers.active, true), isNull(doers.deletedAt)));
   const idByEmail = new Map(people.map((p) => [p.email, p.id]));
 
   const existing = await checklistDb
     .select({ name: tasks.name, doerId: tasks.doerId })
-    .from(tasks);
+    .from(tasks)
+    .where(isNull(tasks.deletedAt));
   const emailById = new Map(people.map((p) => [p.id, p.email]));
   const existingKeys = new Set(
     existing.map((t) => `${t.name.toLowerCase()}|${emailById.get(t.doerId) ?? t.doerId}`),

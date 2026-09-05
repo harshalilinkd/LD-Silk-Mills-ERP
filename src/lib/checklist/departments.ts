@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers } from "@/db/checklist/schema";
@@ -49,7 +49,7 @@ export async function getDepartmentOptions(): Promise<string[]> {
   const inUse = await checklistDb
     .selectDistinct({ value: doers.department })
     .from(doers)
-    .where(isNotNull(doers.department));
+    .where(and(isNotNull(doers.department), isNull(doers.deletedAt)));
 
   // Case-insensitive de-duplication, keeping whichever spelling Masters uses —
   // otherwise "accounts" typed on one doer stands beside "Accounts" forever

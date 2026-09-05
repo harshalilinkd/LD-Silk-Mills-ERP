@@ -157,9 +157,13 @@ export function TasksScreen({
     setError(null);
     setNote(null);
     try {
-      await deleteTask(row.id);
+      const r = await deleteTask(row.id);
       setConfirmDelete(null);
-      setNote(`"${row.name}" removed.`);
+      setNote(
+        r.keptDone > 0
+          ? `"${row.name}" removed. ${r.removedOpen} scheduled date${r.removedOpen === 1 ? "" : "s"} cleared; the ${r.keptDone} already ticked off ${r.keptDone === 1 ? "is" : "are"} kept in the record.`
+          : `"${row.name}" removed, along with ${r.removedOpen} scheduled date${r.removedOpen === 1 ? "" : "s"}.`,
+      );
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That could not be deleted.");
@@ -195,7 +199,7 @@ export function TasksScreen({
       <PageHead
         eyebrow="Catalogue"
         title="Tasks"
-        lede="Standing duties and who they belong to. Editing one re-issues the dates that have not happened yet."
+        lede="Standing duties and who they belong to. Editing one re-issues the dates still to come; deleting one keeps whatever was ticked off."
         action={
           <>
             <QuietButton onClick={() => setImporting(true)} disabled={noDoers}>
@@ -478,11 +482,15 @@ export function TasksScreen({
         }
       >
         <p className="text-[13px] leading-relaxed text-text-2">
-          This removes the task and every date scheduled for it. If any of those
-          dates have already been ticked off, the deletion will be refused and
-          nothing will change — set it to{" "}
-          <strong className="font-semibold text-text-1">Inactive</strong>{" "}
-          instead, which stops new dates and keeps the record.
+          The task goes from this list and nothing more is ever scheduled for
+          it. Every date <strong className="font-semibold text-text-1">not
+          yet ticked off</strong> is cleared.
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-text-2">
+          Anything <strong className="font-semibold text-text-1">already
+          ticked off stays</strong> — it is a record of work that actually
+          happened, and it keeps counting on the scorecards. If you only want
+          to pause the task, Edit it and set the status to Inactive instead.
         </p>
       </Modal>
     </div>

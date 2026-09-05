@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 
 import { checklistDb } from "@/db/checklist";
 import { doers, occurrences, tasks } from "@/db/checklist/schema";
@@ -47,6 +47,7 @@ export default async function TasksPage() {
     })
     .from(tasks)
     .innerJoin(doers, eq(doers.id, tasks.doerId))
+    .where(isNull(tasks.deletedAt))
     .orderBy(asc(tasks.name));
 
   const people = await checklistDb
@@ -58,6 +59,7 @@ export default async function TasksPage() {
       active: doers.active,
     })
     .from(doers)
+    .where(isNull(doers.deletedAt))
     .orderBy(asc(doers.name));
 
   // How many dated rows exist right now. Shown beside "Rebuild schedule" so

@@ -145,11 +145,24 @@ export const doers = ldChecklist.table(
     userId: uuid("user_id").references(() => users.id),
     isAdmin: boolean("is_admin").notNull().default(false),
     /**
-     * Inactive KEEPS every completed row and stops future occurrences being
-     * generated. Never delete a doer who has ticked anything: the tick is the
-     * record that the work was done.
+     * Inactive stops future occurrences being generated and keeps everything
+     * already there — the ordinary way to pause somebody.
      */
     active: boolean("active").notNull().default(true),
+    /**
+     * Removed from the lists, WITHOUT destroying what they did.
+     *
+     * The owner asked for a Delete that always works, and in the same
+     * sentence asked that old entries stay and new ones stop. Those two
+     * together can only be a soft delete: a real `DELETE` would cascade and
+     * take every tick this person ever made with it, and their completed work
+     * is a record of something that actually happened.
+     *
+     * So the row stays, the screens stop showing it, and the occurrences it
+     * is joined to still read correctly. Re-adding the same email revives
+     * this row rather than colliding with the unique index.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -193,6 +206,12 @@ export const tasks = ldChecklist.table(
      * of the times it was done.
      */
     active: boolean("active").notNull().default(true),
+    /**
+     * Removed from the catalogue, without destroying the ticks against it.
+     * See the note on `doers.deletedAt` — same reasoning, and the reason the
+     * `onDelete: cascade` below never fires in normal use.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
