@@ -535,7 +535,14 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
 
   const labelCols = 3;
   const first = 2 + labelCols;
-  const cols = m.columns.slice(0, GRID - labelCols);
+  // From the END. Slicing from the front printed the oldest months and hid
+  // the ones somebody is actually asking about. `offset` is what keeps each
+  // row's values lined up with the columns that survived the slice — without
+  // it the grid prints 2024's figures under 2026's headings, which is a wrong
+  // number rather than a missing one.
+  const shown = GRID - labelCols;
+  const offset = Math.max(0, m.columns.length - shown);
+  const cols = m.columns.slice(offset);
 
   // header
   ws.getRow(r).height = 14;
@@ -563,7 +570,7 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
 
     cols.forEach((_, i) => {
       const cell = ws.getCell(r, first + i);
-      cell.value = row.values[i] ?? 0;
+      cell.value = row.values[offset + i] ?? 0;
       cell.numFmt = m.format === "money" ? "#,##0,;;—" : "#,##0;;—";
       cell.font = { name: BODY, size: 8.5, color: { argb: C.ink2 } };
       cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -599,6 +606,9 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
   note.value =
     (m.note ? m.note + "  " : "") +
     (m.format === "money" ? "Figures in thousands of rupees. " : "") +
+    (offset > 0
+      ? `Showing the last ${cols.length} months; Total is of all ${m.columns.length}. `
+      : "") +
     "Darker means more. A dash means nothing that month.";
   note.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
   ws.getRow(r).height = 13;

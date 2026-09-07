@@ -1,5 +1,8 @@
 import "server-only";
 
+import { returnItemDetail } from "./goods-return/item-detail";
+import { partyAnalysis } from "./goods-return/party-analysis";
+import { returnRegister } from "./goods-return/return-register";
 import { agentPerformance } from "./order-entry/agent-performance";
 import { customerLedger } from "./order-entry/customer-ledger";
 import { lineDetail } from "./order-entry/line-detail";
@@ -45,13 +48,36 @@ import { MODULE_META } from "./types";
  * by line, by process, by customer, by agent, by product. Nothing here repeats
  * anything else.
  */
+/**
+ * ── HOW MANY REPORTS A MODULE GETS IS DECIDED BY ITS DATA ────────────────
+ *
+ * The owner's rule, after seeing the first six: *"other modules don't have
+ * much data so we don't need 6 reports there — create reports as per modules,
+ * like for checklist 1 report is sufficient."* That is right, and it is not
+ * only about row counts: a module with one table worth reporting on has one
+ * honest grain, and splitting it into six produces six views of the same
+ * sheet, which is exactly what had to be cut out of Orders.
+ *
+ * So: Orders has six because it has six genuinely different grains and 5,758
+ * live lines behind them. Goods Return has three. Everything else has one,
+ * until its data says otherwise.
+ */
 export const REPORTS: ReportDefinition[] = [
+  // Orders — six grains, six reports.
   orderRegister,     // by order
   lineDetail,        // by line
   productionStatus,  // by process
   customerLedger,    // by customer
   agentPerformance,  // by agent
   qualityAnalysis,   // by product
+
+  // Goods Return — 341 returns over 391 items. Three grains: the return, the
+  // cloth on it, and the customer who sent it back. Receiving is a COLUMN on
+  // the register, not a fourth report, and the reasons are a panel on its
+  // dashboard rather than a sheet of four rows.
+  returnRegister,    // by return
+  returnItemDetail,  // by cloth line
+  partyAnalysis,     // by party
 ];
 
 export function getReport(id: string): ReportDefinition | null {

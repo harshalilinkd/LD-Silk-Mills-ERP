@@ -246,7 +246,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Metres back", value: qty(totalQty), sub: `${count(totalPieces)} pieces` },
         { label: "Cost of moving it", value: inrShort(totalCost), tone: "warn", sub: totalValue > 0 ? `${pct((totalCost / totalValue) * 100, 1)} of the value` : undefined },
         { label: "Still on the way", value: count(open.length), tone: open.length ? "warn" : "good", lowerIsBetter: true, sub: inrShort(openValue) },
-        { label: "Out over a month", value: count(openOver30), tone: openOver30 ? "bad" : "good", lowerIsBetter: true },
+        { label: "Out over a month", value: count(openOver30), tone: openOver30 ? "bad" : "good", lowerIsBetter: true, sub: open.length ? `${pct((openOver30 / open.length) * 100, 0)} of those still out` : undefined },
         { label: "Typical turnaround", value: turn.median !== null ? `${turn.median.toFixed(0)} d` : "—", sub: turn.n ? `over ${count(turn.n)} returns` : undefined },
         { label: "Parties involved", value: count(byParty.size), sub: conc.topLabel ? `biggest ${conc.topLabel}` : undefined },
       ],

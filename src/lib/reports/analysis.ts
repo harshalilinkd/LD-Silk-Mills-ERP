@@ -326,7 +326,11 @@ export function matrixFrom(
   rows: { label: string; month: string; value: number }[],
   opts: { title: string; format: "money" | "count"; display: (n: number) => string; limit?: number; note?: string },
 ): Matrix | undefined {
-  const months = [...new Set(rows.map((r) => r.month))].filter(Boolean).sort();
+  // The MOST RECENT twelve. Goods Return spans 24 months and the workbook grid
+  // only has room for nine columns, so taking them from the front showed 2024
+  // and hid this year — a grid that answers "did they stop in August" by
+  // printing 2024 is worse than no grid.
+  const months = [...new Set(rows.map((r) => r.month))].filter(Boolean).sort().slice(-12);
   if (months.length < 2) return undefined;
 
   const byLabel = new Map<string, Map<string, number>>();

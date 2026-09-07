@@ -20,20 +20,27 @@ import {
 /**
  * Party analysis — one row per customer who has sent cloth back.
  *
- * ── THE COLUMN THIS REPORT EXISTS FOR IS `share_of_own` ──────────────────
+ * ── WHAT THIS REPORT DELIBERATELY DOES NOT DO ────────────────────────────
  *
- * A party who returned ₹4 lakh is not automatically a problem: if they bought
- * ₹2 crore, that is 2%. A party who returned ₹40,000 against ₹80,000 bought is
- * a different conversation entirely. So this report reaches ACROSS into
- * `ld_order_entry` and prints what each party bought over the same period
- * beside what they sent back, and the percentage between them.
+ * The obvious best column here is "how much of what they BOUGHT came back" —
+ * ₹4 lakh returned is nothing against ₹2 crore bought and everything against
+ * ₹8 lakh. It was built, and then removed, because the data cannot support it
+ * honestly:
  *
- * The join is on the party NAME, lower-cased and trimmed, because the two
- * systems have separate party tables and no shared id. That is imperfect and
- * the report says so rather than pretending: a party whose name is spelled
- * differently in the two systems shows a blank "bought" figure, and the count
- * of those is printed on the dashboard. A blank is honest; a zero would say
- * "they bought nothing", which is a different and much worse claim.
+ *   · The two systems keep separate party tables with no shared id, so the
+ *     only join is on the name. It matched 22 of 212 parties.
+ *   · Their histories barely overlap. Returns go back to June 2024; the Orders
+ *     database holds from May 2026. For most parties the "bought" side of the
+ *     comparison is a period Orders knows nothing about.
+ *
+ * Over that sample the figure came out at "the middle party returns 50.6% of
+ * what they bought", which is not true of this business and is exactly the
+ * kind of number that gets quoted in a meeting and then has to be withdrawn.
+ * A report going to the MD is better with an honest gap in it than with a
+ * confident wrong answer, so the column is not offered at all.
+ *
+ * Bring it back the day the two systems share a customer id, or once Orders
+ * holds as much history as Goods Return does.
  */
 const SQL = `
   with returned as (
@@ -79,21 +86,6 @@ const SQL = `
       and ($2::date is null or r.dated <= $2::date)
       ${RETURN_FILTER_SQL}
     group by p.name
-  ),
-  -- What the same party BOUGHT over the same dates, from the other schema.
-  -- Matched on the lower-cased name because the two systems keep separate
-  -- party tables with no shared id.
-  bought as (
-    select lower(trim(o.party_name)) as key,
-           coalesce(sum(li.line_total), 0) as value,
-           coalesce(sum(li.qty_mtr), 0)    as qty,
-           count(distinct o.id)            as orders
-    from ld_order_entry.customer_orders o
-    join ld_order_entry.order_line_items li
-      on li.order_id = o.id and not li.is_deleted and not li.is_cancelled
-    where ($1::date is null or o.order_date >= $1::date)
-      and ($2::date is null or o.order_date <= $2::date)
-    group by 1
   )
   select
     r.*,
@@ -101,13 +93,11 @@ const SQL = `
     coalesce(i.qty, 0)        as qty,
     coalesce(i.pieces, 0)     as pieces,
     coalesce(i.qualities, 0)  as qualities,
-    i.top_quality,
-    bo.value  as bought_value,
-    bo.qty    as bought_qty,
-    bo.orders as bought_orders
+    i.top_quality
   from returned r
   left join items i on i.party = r.party
-  left join bought bo on bo.key = lower(trim(r.party))
+  -- Value, then returns, then the name — the name is the tiebreak that makes
+  -- two runs of the same period produce the same file.
   order by r.value desc, r.returns desc, r.party
 `;
 
@@ -116,7 +106,6 @@ type Raw = {
   cost: string; first_return: string; last_return: string; days_since_last: number;
   a_broker: string | null; brokers: number; reasons: number; top_reason: string | null;
   items: number; qty: string; pieces: number; qualities: number; top_quality: string | null;
-  bought_value: string | null; bought_qty: string | null; bought_orders: number | null;
 };
 
 async function run(params: ReportParams): Promise<ReportResult> {
@@ -137,15 +126,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     avg_return: n(r.returns) > 0 ? money2(n(r.value) / n(r.returns)) : null,
     no_value: n(r.no_value),
     cost: money2(r.cost),
-    bought_value: r.bought_value == null ? null : money2(r.bought_value),
-    bought_orders: r.bought_orders == null ? null : n(r.bought_orders),
-    // The whole point of the report. Null — never zero — when the party could
-    // not be matched to an Orders customer.
-    share_of_own:
-      r.bought_value != null && n(r.bought_value) > 0
-        ? (n(r.value) / n(r.bought_value)) * 100
-        : null,
-    matched_to_orders: r.bought_value != null,
+    cost_share: n(r.value) > 0 ? (n(r.cost) / n(r.value)) * 100 : null,
     top_reason: r.top_reason,
     reasons: n(r.reasons),
     top_quality: r.top_quality,
@@ -157,15 +138,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
   }));
 
   const conc = concentration(raw.map((r) => ({ label: r.party ?? "Not recorded", value: n(r.value) })));
-  const matched = raw.filter((r) => r.bought_value != null && n(r.bought_value) > 0);
-  const unmatched = raw.length - matched.length;
-  const ratios = matched.map((r) => (n(r.value) / n(r.bought_value)) * 100);
-  const ratioSpread = spread(ratios);
-  const heavy = matched
-    .filter((r) => (n(r.value) / n(r.bought_value)) * 100 > 10 && n(r.value) > 0)
-    .sort((a, b) => n(b.value) / n(b.bought_value) - n(a.value) / n(a.bought_value));
   const repeat = raw.filter((r) => n(r.returns) > 1);
   const totalCost = raw.reduce((s, r) => s + n(r.cost), 0);
+  const totalQty = raw.reduce((s, r) => s + n(r.qty), 0);
+  const sizes = spread(raw.map((r) => n(r.value)).filter((x) => x > 0));
+  const stillOut = raw.reduce((s, r) => s + n(r.returns) - n(r.received), 0);
+  // Parties still sending things back. Counted to today, so it answers "is
+  // this still happening", which is a question about now.
+  const recent = raw.filter((r) => n(r.days_since_last) <= 90);
 
   const insights: string[] = [];
   const ci = concentrationInsight(conc, "parties");
@@ -175,22 +155,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
       `${count(repeat.length)} of ${count(raw.length)} parties have sent cloth back more than once — ${pct((repeat.length / raw.length) * 100, 0)} of them.`,
     );
   }
-  if (ratioSpread.n > 0 && ratioSpread.median !== null) {
+  if (sizes.n > 0 && sizes.median !== null) {
     insights.push(
-      `Against what they bought, the middle party returns ${pct(ratioSpread.median, 1)} of their own value. That comparison could be made for ${count(matched.length)} of ${count(raw.length)} parties.`,
+      `The middle party has sent back ${inrShort(sizes.median)} in all; the range runs ${inrShort(sizes.min ?? 0)} to ${inrShort(sizes.max ?? 0)}.`,
     );
   }
-  if (heavy.length) {
-    const top = heavy.slice(0, 3);
+  if (recent.length) {
     insights.push(
-      `${count(heavy.length)} parties sent back more than a tenth of what they bought — worst are ${top
-        .map((r) => `${r.party} (${pct((n(r.value) / n(r.bought_value)) * 100, 0)} of ${inrShort(n(r.bought_value))})`)
-        .join(", ")}.`,
+      `${count(recent.length)} of ${count(raw.length)} parties have sent something back in the last 90 days — those are the ones still worth a conversation.`,
     );
   }
-  if (unmatched) {
+  if (stillOut) {
     insights.push(
-      `${count(unmatched)} parties could not be matched to an Orders customer over the same dates, so their “share of own” is blank rather than zero. Usually the name is spelled differently in the two systems.`,
+      `${count(stillOut)} returns are still on their way to Bhiwandi, spread across ${count(raw.filter((r) => n(r.returns) > n(r.received)).length)} parties.`,
     );
   }
   if (totalCost > 0) {
@@ -211,9 +188,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Biggest returner", value: conc.topShare !== null ? pct(conc.topShare) : "—", tone: conc.topShare !== null && conc.topShare > 20 ? "bad" : "warn", sub: conc.topLabel ?? undefined },
         { label: "Top 5 share", value: conc.top5Share !== null ? pct(conc.top5Share) : "—", tone: "warn" },
         { label: "Sent back twice or more", value: count(repeat.length), tone: repeat.length ? "warn" : "good", sub: raw.length ? pct((repeat.length / raw.length) * 100, 0) : undefined },
-        { label: "Middle return rate", value: ratioSpread.median !== null ? pct(ratioSpread.median, 1) : "—", sub: "of what that party bought" },
-        { label: "Over a tenth back", value: count(heavy.length), tone: heavy.length ? "bad" : "good", lowerIsBetter: true, sub: "of their own purchases" },
-        { label: "Not matched to Orders", value: count(unmatched), tone: unmatched ? "warn" : "good", lowerIsBetter: true, sub: "name differs between systems" },
+        { label: "Middle party", value: sizes.median !== null ? inrShort(sizes.median) : "—", sub: "half sent back more, half less" },
+        { label: "Still active", value: count(recent.length), sub: "sent something back in 90 days" },
+        { label: "Cost of moving it", value: inrShort(totalCost), tone: "warn", sub: `${qty(totalQty)} metres` },
       ],
       panels: [
         { title: "Who sends the most back", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: r.party ?? "Not recorded", value: n(r.value), meta: `${n(r.returns)} returns` })), inrShort) },
@@ -225,24 +202,17 @@ async function run(params: ReportParams): Promise<ReportResult> {
           note: "A wide first block means the returns problem is really one customer's.",
         },
         {
-          title: "Worst return rate against what they bought",
-          valueLabel: "Percent back",
-          rows: rank(
-            heavy.map((r) => ({
-              label: r.party ?? "Not recorded",
-              value: (n(r.value) / n(r.bought_value)) * 100,
-              meta: `${inrShort(n(r.value))} of ${inrShort(n(r.bought_value))}`,
-            })),
-            (v) => pct(v, 1),
-          ),
-          note: "Only parties matched to an Orders customer over the same dates.",
+          title: "Who sends back most often",
+          valueLabel: "Returns",
+          rows: rank(raw.map((r) => ({ label: r.party ?? "Not recorded", value: n(r.returns), meta: inrShort(n(r.value)) })), count),
+          note: "By how MANY times, not how much. A party who sends back small amounts repeatedly is a different problem from one big return.",
         },
         { title: "Who sends the most metres back", valueLabel: "Metres", rows: rank(raw.map((r) => ({ label: r.party ?? "Not recorded", value: n(r.qty) })), qty) },
       ],
       insights,
       caveats: [
         NO_VALUE_CAVEAT,
-        "“Bought” and “share of own” come from the Orders module and are matched on the party NAME, lower-cased — the two systems keep separate party lists with no shared id. Where no match was found the column is BLANK, never zero: a blank means “we could not tell”, a zero would mean “they bought nothing”.",
+        "This report does NOT show what each party bought, on purpose. The comparison was built and removed: the two systems keep separate party lists with no shared id, so the only join is on the name and it matched 22 of 212 parties — and their histories barely overlap, since returns go back to June 2024 while Orders holds from May 2026. The figure it produced was confidently wrong. It comes back the day the two systems share a customer id.",
         "Everything here is of the PERIOD this file covers. Run it for one month and “share” means share of that month.",
         BACKDATED_CAVEAT,
       ],
@@ -255,7 +225,7 @@ export const partyAnalysis: ReportDefinition = {
   module: "goods-return",
   title: "Party return analysis",
   description:
-    "One row per customer who sent cloth back — how much and how often, what it cost to move, and how that compares with what the same customer bought over the same dates.",
+    "One row per customer who sent cloth back — how much, how often, which cloth and why, what it cost to move, and whether they are still doing it.",
   defaultMonthsBack: 12,
   columns: [
     { key: "party", label: "Party", type: "text", width: 34 },
@@ -271,10 +241,7 @@ export const partyAnalysis: ReportDefinition = {
     { key: "avg_return", label: "Avg return", type: "money", total: "avg", note: "Value divided by returns. The foot recomputes it across the file rather than adding the rows." },
     { key: "no_value", label: "With no value", type: "int", note: "Returns from this party where no figure was entered." },
     { key: "cost", label: "Cost of moving it", type: "money" },
-    { key: "bought_value", label: "Bought (Orders)", type: "money", note: "What this party bought over the SAME dates, from the Orders module. Blank where the name could not be matched." },
-    { key: "bought_orders", label: "Orders placed", type: "int" },
-    { key: "share_of_own", label: "Share of own", type: "percent", total: "none", note: "Value returned divided by value bought. Blank where the party could not be matched — a blank means “we could not tell”, not “nothing”. Not totalled: the file-wide figure is on the dashboard." },
-    { key: "matched_to_orders", label: "Matched to Orders", type: "boolean" },
+    { key: "cost_share", label: "Cost as % of value", type: "percent", total: "avg", avgWeightBy: "value", note: "What moving the cloth cost, against what the cloth was worth. The foot is weighted by value, not a plain average of the rows." },
     { key: "top_reason", label: "Usual reason", type: "text", width: 24, note: "The reason that appears most often on this party's returns." },
     { key: "reasons", label: "Reasons used", type: "int", total: "none" },
     { key: "top_quality", label: "Usual cloth", type: "text", width: 24 },
