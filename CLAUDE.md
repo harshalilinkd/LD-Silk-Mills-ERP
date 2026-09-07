@@ -958,6 +958,50 @@ figures against independently-written SQL and 10 figures the reports share with
 each other. It must come back with zero failures before any of this ships;
 these files go to the MD.
 
+**Reports has THREE views now, on one pill strip** (`reports-tabs.tsx`):
+**Export files** (`/reports`, the picker), **Sales dashboard** (`/reports/sales`)
+and **Production dashboard** (`/reports/production`). The owner asked for
+on-screen dashboards after showing three reference dashboards (a retail sales
+report, a garment-manufacturing KPI board, a production report); the two we
+built are those shapes drawn from our own data.
+
+**The dashboards do not query the database.** `lib/reports/dashboards/order-entry.ts`
+runs the REPORTS — `orderRegister.run()`, `qualityAnalysis.run()`,
+`productionStatus.run()` — and groups their already-verified rows. That is the
+whole design: a dashboard with its own `sum(line_total)` looks identical to the
+report's until one of them forgets to exclude cancelled lines, and then two
+screens in the same ERP disagree by lakhs with nothing on either to say which
+is wrong. It also means the `ReportAnalysis` the Excel dashboard draws (KPIs,
+trend, panels, the month grid, the written insights and the caveats) renders on
+the screen unchanged — the web dashboard and the workbook dashboard are the
+same dashboard twice. Sales costs two report runs plus two dropdown queries,
+Production one plus two, **all awaited in turn** (five-wide pool, transaction
+pooler).
+
+**The caveats print on the screen, not only in the file.** "Value excludes
+cancelled lines" is the difference between ₹8.34 cr and ₹8.47 cr, and a
+dashboard that omits it is one somebody reconciles against a printout and
+cannot make balance.
+
+**The slicers are a plain GET form** (`dashboard-filters.tsx`) — no client
+component, no router push on every keystroke. A dashboard that re-runs two
+reports on each change spends its life loading; a GET form gives back-button
+history, a shareable URL and a working screen without JavaScript for free.
+Every parameter is validated in `dashboard-common.ts`: a bad date would
+silently become "no filter" and show a wider period than the header claims.
+
+**`haste` is NOT an urgency field in the live data** and no chart may treat it
+as one. 312 of 325 orders have it empty and the other 13 hold party names. The
+card that tried to draw it now shows order-size bands instead, which answers
+the question that card was there for — is the book a few big orders or many
+small ones (68 under ₹50,000, 9 over ₹10 lakh).
+
+**Charts are Recharts with `var(--token)` colours**, the same recipe as
+`petty-cash/charts.tsx`, so they repaint on a theme flip with no JS. Six
+shapes, one per kind of question — combo (how much AND how many), share pie,
+ranked horizontal bars, labelled columns, an SVG ring gauge, and a CSS funnel.
+A dashboard that repeats one chart eight times is a table with extra steps.
+
 **Adding a report is one file and one line.** Write a `ReportDefinition`
 (`src/lib/reports/types.ts`) — id, module, columns, filters, and a `run` that
 returns rows plus an analysis — and add it to `REPORTS` in `registry.ts`.

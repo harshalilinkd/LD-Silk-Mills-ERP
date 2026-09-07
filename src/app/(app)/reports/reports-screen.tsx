@@ -31,6 +31,7 @@ import {
   TableCard,
   Toolbar,
 } from "@/components/ui/module-parts";
+import { ReportsTabs } from "./reports-tabs";
 
 export type FilterCard = {
   key: string;
@@ -159,6 +160,8 @@ export function ReportsScreen({
           ) : undefined
         }
       />
+
+      <ReportsTabs />
 
       <Toolbar
         search={
