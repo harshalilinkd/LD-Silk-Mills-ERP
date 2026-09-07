@@ -280,13 +280,19 @@ export const productionStatus: ReportDefinition = {
     { key: "qty_mtr", label: "Metres", type: "number" },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "reached", label: "Reached", type: "text", width: 17 },
-    { key: "stages_done", label: "Stages done", type: "int", note: "Out of seven." },
+    { key: "stages_done", label: "Stages done", type: "int", total: "avg", note: "Out of seven. The foot shows the average across the file." },
     ...STAGES.flatMap((s, i) => [
       { key: `s${i}_done`, label: `${s.label} — done`, type: "boolean" as const },
       { key: `s${i}_at`, label: `${s.label} — ticked`, type: "datetime" as const, note: "When somebody pressed the button, not necessarily when the work happened." },
-      { key: `s${i}_late`, label: `${s.label} — days late`, type: "number" as const, note: "Ticked date minus planned date, in days. Negative means early." },
+      {
+        key: `s${i}_late`,
+        label: `${s.label} — days late`,
+        type: "number" as const,
+        total: "avg" as const,
+        note: "Ticked date minus planned date, in days. Negative means early. The foot shows the average, since adding days together means nothing.",
+      },
     ]),
-    { key: "days_start_to_finish", label: "Days start to finish", type: "number", note: "Order Entry ticked to Received LR ticked. Zero means both were ticked the same day." },
+    { key: "days_start_to_finish", label: "Days start to finish", type: "number", total: "avg", note: "Order Entry ticked to Received LR ticked. Zero means both were ticked the same day. Averaged at the foot." },
   ],
   filters: [
     { key: "dateRange", label: "Order date", kind: "dateRange" },

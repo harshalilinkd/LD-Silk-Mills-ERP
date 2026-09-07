@@ -161,13 +161,18 @@ async function run(params: ReportParams): Promise<ReportResult> {
       headline: `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} designs across ${count(byQuality.size)} qualities.`,
       kpis: [
         { label: "Line value", value: inrShort(value), sub: "cancelled left out", deltaPct: monthDelta(byMonth) },
+        {
+          label: "All lines written",
+          value: inrShort(value + cancelledValue),
+          sub: "including cancelled — matches the sheet's Total row",
+        },
         { label: "Lines", value: count(live.length), tone: "good", sub: `${count(cancelled.length)} cancelled` },
-        { label: "Metres", value: qty(Math.round(metres)) },
+        { label: "Metres", value: qty(Math.round(metres)), sub: "cancelled left out" },
         { label: "Average rate", value: metres > 0 ? inr(value / metres) : "—", sub: "per metre" },
         { label: "Qualities", value: count(byQuality.size) },
         { label: "Designs", value: count(byDesign.size) },
-        { label: "Middle rate", value: inr(rateSpread.median), sub: "the median line" },
-        { label: "Rate range", value: `${inr(rateSpread.min)} – ${inr(rateSpread.max)}`, tone: "warn" },
+        { label: "Middle rate per line", value: inr(rateSpread.median), sub: "half the lines are above, half below" },
+        { label: "Cheapest to dearest", value: `${inr(rateSpread.min)} – ${inr(rateSpread.max)}`, tone: "warn", sub: "per metre" },
       ],
       trend: {
         title: "How much was sold each month",
@@ -209,7 +214,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       insights,
       caveats: [
         CANCELLED_CAVEAT,
-        "Cancelled lines ARE included as rows, flagged in their own column, so the file is a complete record of what was written.",
+        "Cancelled lines ARE included as rows, flagged in their own column, so the file is a complete record of what was written. That is why the Total row on the Data sheet adds to more than the Line value above — the dashboard shows both figures.",
         ...(raw.length > MAX_EXPORT_ROWS
           ? [`Only the first ${count(MAX_EXPORT_ROWS)} of ${count(raw.length)} lines are in the Data sheet. The figures above cover all of them.`]
           : []),
@@ -235,7 +240,7 @@ export const lineDetail: ReportDefinition = {
     { key: "quality", label: "Quality", type: "text", width: 26 },
     { key: "design_no", label: "Design no", type: "text", width: 16 },
     { key: "qty_mtr", label: "Metres", type: "number" },
-    { key: "rate", label: "Rate", type: "money", note: "Per metre, as written on the line." },
+    { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Per metre, as written on the line. The foot shows the rate across the whole file, weighted by metres." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },

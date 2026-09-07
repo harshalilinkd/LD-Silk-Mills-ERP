@@ -73,6 +73,35 @@ export type ReportColumn = {
   optional?: boolean;
   /** One line under the column name on the Notes sheet. */
   note?: string;
+  /**
+   * What the Total row at the foot of the Data sheet should do with it.
+   *
+   * ── THIS EXISTS BECAUSE THE FOOTER WAS PRINTING NONSENSE ────────────
+   *
+   * The first version summed every numeric column. That put "Share: 73.8%"
+   * under a column that must total 100, "Qualities: 734" under a count of
+   * distinct cloths, "Avg order: ₹3.85 crore" under a column of averages, and
+   * "Order Entry — days late: 45,665" under a column of days. Every one of
+   * those is arithmetic nobody asked for and none of them means anything —
+   * and a report going to the MD cannot carry a single figure like that.
+   *
+   *   · `sum`  — genuinely additive. Money, metres, counts of things that
+   *              belong to this row alone.
+   *   · `avg`  — an average, so the footer recomputes it across the whole
+   *              file rather than adding the rows up. Weighted by
+   *              `avgWeightBy` where that is the honest way (rate is value
+   *              over metres, not the mean of the rates).
+   *   · `none` — leave the cell empty. Distinct counts (a quality counted
+   *              once per order is not a quality counted once), percentages
+   *              that are already shares, ages, and anything else where a
+   *              total is a category error.
+   *
+   * Defaults by type when omitted: money / number / int / percent sum, and
+   * everything else is blank. Every column that must not sum says so.
+   */
+  total?: "sum" | "avg" | "none";
+  /** For `total: "avg"` — the column to weight by. Omit for a plain mean. */
+  avgWeightBy?: string;
 };
 
 export type FilterKind = "dateRange" | "select" | "text";

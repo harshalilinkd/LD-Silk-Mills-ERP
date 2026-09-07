@@ -198,7 +198,7 @@ export const workInProgress: ReportDefinition = {
   description:
     "Only what is still open — every line that has not reached Received LR, oldest first, with the stage it is waiting on and how long it has sat there.",
   columns: [
-    { key: "days_open", label: "Days open", type: "int", note: "From the order date to today." },
+    { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today. The foot shows the average wait, not a sum." },
     { key: "age_bucket", label: "Age", type: "text", width: 13 },
     { key: "order_no", label: "Order no", type: "text", width: 14 },
     { key: "order_date", label: "Order date", type: "date" },
@@ -212,7 +212,7 @@ export const workInProgress: ReportDefinition = {
     { key: "line_total", label: "Value", type: "money" },
     { key: "reached", label: "Reached", type: "text", width: 17 },
     { key: "waiting_on", label: "Waiting on", type: "text", width: 17, note: "The next stage that has not been ticked." },
-    { key: "days_since_move", label: "Days since move", type: "number", note: "Since the last stage was ticked. Blank means nothing has ever been ticked." },
+    { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank means nothing has ever been ticked. Averaged at the foot." },
     { key: "last_tick", label: "Last ticked", type: "datetime" },
     { key: "transport", label: "Transport", type: "text", width: 22 },
   ],

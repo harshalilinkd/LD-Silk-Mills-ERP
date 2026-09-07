@@ -56,8 +56,10 @@ const REGISTER_SQL = `
       coalesce(sum(li.qty_mtr)   filter (where not li.is_cancelled), 0)         as qty_mtr,
       coalesce(sum(li.line_total) filter (where not li.is_cancelled), 0)        as value,
       coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)            as cancelled_value,
-      count(distinct li.quality)                                                as qualities,
-      count(distinct li.design_no)                                              as designs
+      -- LIVE lines only. Counting cancelled ones made this report say 226
+      -- qualities where the line detail said 223 over the same period.
+      count(distinct li.quality)   filter (where not li.is_cancelled)           as qualities,
+      count(distinct li.design_no) filter (where not li.is_cancelled)           as designs
     from ld_order_entry.order_line_items li
     where not li.is_deleted
     group by li.order_id
@@ -330,7 +332,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
         },
         {
           label: "Customers",
-          value: count(conc.n),
+          // byParty, not conc.n — the concentration helper drops names with no
+          // live value, which made this read 199 while the customer ledger
+          // read 201 for the same period. Two reports must not disagree on how
+          // many customers there were.
+          value: count(byParty.size),
           tone: "neutral",
           sub: conc.top5Share !== null ? `top 5 = ${pct(conc.top5Share, 0)}` : undefined,
         },
@@ -431,11 +437,11 @@ export const orderRegister: ReportDefinition = {
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage every live line of this order has finished." },
     { key: "line_count", label: "Lines", type: "int" },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
-    { key: "qualities", label: "Qualities", type: "int" },
-    { key: "designs", label: "Designs", type: "int" },
+    { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
+    { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
     { key: "qty_mtr", label: "Metres", type: "number", note: "Cancelled lines excluded." },
     { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
-    { key: "avg_rate", label: "Avg rate", type: "money", note: "Value divided by metres, for this order." },
+    { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },
     { key: "cancelled_value", label: "Cancelled value", type: "money" },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },

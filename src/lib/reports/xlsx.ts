@@ -97,22 +97,74 @@ function buildData(
     ws.getRow(i).eachCell({ includeEmpty: true }, (cell) => fill(cell, C.paper));
   }
 
-  // A totals row for the money and quantity columns, formula-driven so it
-  // stays right if somebody deletes rows.
+  // ── the Total row ──────────────────────────────────────────────────────
+  //
+  // Only what is genuinely additive, and averages RECOMPUTED rather than
+  // added. See `ReportColumn.total` for why this needed spelling out.
+  //
+  // Every formula is SUBTOTAL, not SUM, so the footer follows the filter
+  // buttons: filter to one customer and the total becomes that customer's.
   if (rows.length) {
+    const last = rows.length + 1;
+    const letterOf = (key: string) => {
+      const i = columns.findIndex((c) => c.key === key);
+      return i < 0 ? null : ws.getColumn(i + 1).letter;
+    };
+
+    // The word "Total" goes in the first column that is NOT a figure. Putting
+    // it in column 1 regardless meant Work in Progress — whose first column is
+    // "Days open", so the oldest sorts to the top — printed the word "Total"
+    // over a numeric column and lost that column's average entirely.
+    const labelAt = Math.max(
+      0,
+      columns.findIndex((c) => !isNumeric(c.type)),
+    );
+
     const totalRow = ws.addRow({});
     totalRow.height = 20;
     columns.forEach((c, i) => {
       const cell = totalRow.getCell(i + 1);
       cell.font = { name: BODY, size: 9.5, bold: true, color: { argb: C.ink } };
       cell.border = { top: { style: "medium", color: { argb: C.indigo } } };
-      if (i === 0) cell.value = "Total";
-      else if (c.type === "money" || c.type === "number" || c.type === "int") {
-        const col = ws.getColumn(i + 1).letter;
-        cell.value = { formula: `SUBTOTAL(109,${col}2:${col}${rows.length + 1})` };
-        cell.numFmt = excelFormat(c.type) ?? "#,##0.00";
+      if (i === labelAt) {
+        cell.value = "Total";
+        return;
       }
+
+      const how = c.total ?? (isNumeric(c.type) ? "sum" : "none");
+      if (how === "none") return;
+
+      const col = ws.getColumn(i + 1).letter;
+      if (how === "sum") {
+        cell.value = { formula: `SUBTOTAL(109,${col}2:${col}${last})` };
+        cell.numFmt = excelFormat(c.type) ?? "#,##0.00";
+        return;
+      }
+
+      // An average across the whole file. Weighted where the weight column
+      // exists — a rate is total value over total metres, never the mean of
+      // the rates, which would let a 50-metre line count as much as a
+      // 5,000-metre one.
+      const w = c.avgWeightBy ? letterOf(c.avgWeightBy) : null;
+      cell.value = w
+        ? {
+            formula:
+              `IFERROR(SUMPRODUCT(SUBTOTAL(109,OFFSET(${col}2,ROW(${col}2:${col}${last})-ROW(${col}2),0)),` +
+              `${w}2:${w}${last})/SUBTOTAL(109,${w}2:${w}${last}),"")`,
+          }
+        : { formula: `IFERROR(SUBTOTAL(101,${col}2:${col}${last}),"")` };
+      cell.numFmt = excelFormat(c.type) ?? "#,##0.00";
     });
+
+    // Said out loud, because a blank cell under a column of numbers otherwise
+    // looks like something failed to calculate.
+    const noteRow = ws.addRow({});
+    const note = noteRow.getCell(1);
+    note.value =
+      "Blank cells above are columns that cannot be added up — percentages, averages already worked out, ages, and counts of distinct things. " +
+      "Totals follow the filter buttons.";
+    note.font = { name: BODY, size: 8.5, italic: true, color: { argb: C.ink3 } };
+    ws.mergeCells(noteRow.number, 1, noteRow.number, Math.min(columns.length, 12));
   }
 }
 
