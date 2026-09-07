@@ -112,14 +112,21 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const total = raw.length;
 
   const funnel: Panel = {
-    title: "How far the lines get",
+    title: "Where the work gets to",
     valueLabel: "Lines",
+    kind: "funnel",
     rows: STAGES.map((s, i) => ({
       label: s.label,
       value: reachedCount[i],
       display: count(reachedCount[i]),
       share: total ? (reachedCount[i] / total) * 100 : 0,
+      // The drop since the stage above is the useful number, and it has to be
+      // read off two rows otherwise.
+      meta: i > 0 && reachedCount[i - 1] - reachedCount[i] > 0
+        ? `−${count(reachedCount[i - 1] - reachedCount[i])}`
+        : undefined,
     })),
+    note: "How many lines have finished each stage, and how many fell away since the one above.",
   };
 
   // The biggest single fall between consecutive stages — where work piles up.
@@ -191,20 +198,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: total,
     analysis: {
+      headline:
+        total > 0
+          ? `${count(reachedCount[6])} of ${count(total)} lines are finished. The other ${count(total - reachedCount[6])} are still somewhere in the mill.`
+          : "No lines in this period.",
       kpis: [
-        { label: "Lines", value: count(total), sub: "cancelled excluded" },
+        { label: "Lines", value: count(total), sub: "cancelled left out" },
         { label: "Started", value: count(reachedCount[0]), tone: "good", sub: total ? pct((reachedCount[0] / total) * 100, 0) : undefined },
         { label: "Finished", value: count(reachedCount[6]), tone: reachedCount[6] < total / 2 ? "warn" : "good", sub: total ? pct((reachedCount[6] / total) * 100, 0) : undefined },
         { label: "Still open", value: count(total - reachedCount[6]), tone: "bad" },
         { label: "Middle cycle", value: real.median !== null ? `${real.median.toFixed(1)} d` : "—", sub: "ticked on different days" },
         { label: "Slowest tenth", value: real.p90 !== null ? `${real.p90.toFixed(1)} d` : "—", tone: "warn", sub: "90th percentile" },
-        { label: "Recorded on time", value: doneStages ? pct((onTimeStages / doneStages) * 100, 1) : "—", tone: "warn", sub: "see the caveat" },
+        { label: "Ticked on time", value: doneStages ? pct((onTimeStages / doneStages) * 100, 1) : "—", tone: "warn", sub: "read the note below" },
         { label: "Open value", value: inrShort(raw.filter((r) => n(r.s6_done as number) !== 1).reduce((s, r) => s + n(r.line_total as string), 0)), tone: "warn" },
       ],
       panels: [
         funnel,
         {
-          title: "Lines still open, by customer",
+          title: "Who is waiting on the most lines",
           valueLabel: "Lines",
           rows: rank(
             [...raw.filter((r) => n(r.s6_done as number) !== 1).reduce((m, r) => {
@@ -216,7 +227,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Open value by customer",
+          title: "Whose money is still in the mill",
           valueLabel: "Value",
           rows: rank(
             [...raw.filter((r) => n(r.s6_done as number) !== 1).reduce((m, r) => {
@@ -228,7 +239,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Open lines by quality",
+          title: "Which cloth is holding things up",
           valueLabel: "Lines",
           rows: rank(
             [...raw.filter((r) => n(r.s6_done as number) !== 1).reduce((m, r) => {

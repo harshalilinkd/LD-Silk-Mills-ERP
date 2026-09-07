@@ -34,8 +34,10 @@ const SQL = `
     coalesce(sum(li.qty_mtr)    filter (where not li.is_cancelled), 0) as qty_mtr,
     coalesce(sum(li.line_total) filter (where not li.is_cancelled), 0) as value,
     coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)     as cancelled_value,
-    count(distinct li.quality)                                      as qualities,
-    count(distinct li.design_no)                                    as designs,
+    -- Filtered to LIVE lines. Without it a party whose only two lines were
+    -- both cancelled reported "2 qualities" beside a value of zero.
+    count(distinct li.quality)   filter (where not li.is_cancelled) as qualities,
+    count(distinct li.design_no) filter (where not li.is_cancelled) as designs,
     count(distinct o.agent)                                         as agents,
     min(o.order_date)                                               as first_order,
     max(o.order_date)                                               as last_order,
@@ -118,6 +120,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline:
+        conc.topLabel && conc.top5Share !== null
+          ? `${count(raw.length)} customers, ${inrShort(total)} between them — but the top five are ${pct(conc.top5Share)} of it.`
+          : `${count(raw.length)} customers, ${inrShort(total)} between them.`,
       kpis: [
         { label: "Customers", value: count(raw.length), tone: "good" },
         { label: "Total value", value: inrShort(total) },
@@ -126,13 +132,29 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Top 5 share", value: conc.top5Share !== null ? pct(conc.top5Share) : "—", tone: "warn" },
         { label: "80% comes from", value: conc.paretoCount !== null ? `${count(conc.paretoCount)} names` : "—" },
         { label: "Ordered again", value: raw.length ? pct((repeat.length / raw.length) * 100, 0) : "—", tone: "good", sub: `${count(repeat.length)} customers` },
-        { label: "Quiet 45 days", value: count(dormant.length), tone: dormant.length ? "bad" : "good", sub: inrShort(dormantValue) },
+        { label: "Gone quiet", value: count(dormant.length), tone: dormant.length ? "bad" : "good", lowerIsBetter: true, sub: `over 45 days · ${inrShort(dormantValue)}` },
       ],
       panels: [
-        { title: "Largest customers", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value), meta: `${n(r.orders)} orders` })), inrShort) },
-        { title: "Most orders", valueLabel: "Orders", rows: rank(raw.map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.orders) })), count) },
-        { title: "Quiet longest, by value", valueLabel: "Value", rows: rank(dormant.map((r) => ({ label: `${r.party_name} · ${count(n(r.days_since_last))} d`, value: n(r.value) })), inrShort) },
-        { title: "Highest average rate", valueLabel: "Rate", rows: rank(raw.filter((r) => n(r.qty_mtr) > 100).map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value) / n(r.qty_mtr) })), inr) },
+        { title: "Who buys the most", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value), meta: `${n(r.orders)} orders` })), inrShort) },
+        {
+          title: "How much rests on a few names",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank(raw.map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value) })), inrShort, 5),
+          note: "A wide first block means losing one customer would be felt.",
+        },
+        {
+          title: "Gone quietest, biggest first",
+          valueLabel: "Value",
+          rows: rank(dormant.map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value), meta: `${count(n(r.days_since_last))} days` })), inrShort),
+          note: "Customers worth having who have not ordered in over 45 days.",
+        },
+        {
+          title: "Who pays the best rate",
+          valueLabel: "Rate",
+          rows: rank(raw.filter((r) => n(r.qty_mtr) > 100).map((r) => ({ label: r.party_name ?? "Not recorded", value: n(r.value) / n(r.qty_mtr) })), inr),
+          note: "Average rupees a metre. Only customers who took over 100 metres.",
+        },
       ],
       insights,
       caveats: [

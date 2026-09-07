@@ -55,11 +55,14 @@ export function reportsByModule(): { module: ReportModule; label: string; report
     "checklist",
     "cross",
   ];
-  return order
-    .map((module) => ({
-      module,
-      label: MODULE_META[module].label,
-      reports: REPORTS.filter((r) => r.module === module),
-    }))
-    .filter((g) => g.reports.length > 0);
+  // EVERY module, including the ones with nothing built yet. The picker draws
+  // those as "coming soon" cards rather than hiding them: the catalogue is
+  // thirty-seven reports across seven modules, and somebody looking for a
+  // Petty Cash figure should be able to see that it is on its way rather than
+  // conclude it was never planned.
+  return order.map((module) => ({
+    module,
+    label: MODULE_META[module].label,
+    reports: REPORTS.filter((r) => r.module === module),
+  }));
 }

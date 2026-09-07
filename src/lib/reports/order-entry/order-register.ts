@@ -4,6 +4,8 @@ import { sql as pg } from "@/db";
 import { todayIso } from "@/lib/dates";
 import {
   concentration,
+  matrixFrom,
+  monthDelta,
   concentrationInsight,
   contributorInsight,
   contributors,
@@ -139,6 +141,18 @@ type Raw = {
 };
 
 const n = (v: string | number | null | undefined) => (v == null ? 0 : Number(v));
+
+/** Not started, then the seven stages in order — so a funnel reads downwards. */
+const STAGE_ORDER = [
+  "Not started",
+  "Order Entry",
+  "Stock Checking",
+  "Rolling & Checking",
+  "Challan",
+  "Bill",
+  "Dispatch",
+  "Received LR",
+];
 
 async function distinctValues(column: string): Promise<{ value: string; label: string }[]> {
   // The column name is a literal from this file, never from a request.
@@ -285,8 +299,18 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows,
     analysis: {
+      headline:
+        conc.topShare !== null && conc.topLabel
+          ? `${inrShort(totalValue)} of orders from ${count(conc.n)} customers — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.`
+          : `${inrShort(totalValue)} of orders across ${count(raw.length)} orders.`,
       kpis: [
-        { label: "Order value", value: inrShort(totalValue), tone: "neutral", sub: "cancelled lines excluded" },
+        {
+          label: "Order value",
+          value: inrShort(totalValue),
+          tone: "neutral",
+          sub: "cancelled lines left out",
+          deltaPct: monthDelta(byMonth),
+        },
         { label: "Orders", value: count(raw.length), tone: "good", sub: `${count(lineCount)} lines` },
         { label: "Metres", value: qty(Math.round(totalQty)), tone: "neutral" },
         {
@@ -297,6 +321,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
         },
         {
           label: "Cancelled",
+          lowerIsBetter: true,
           value: totalValue + cancelledValue > 0
             ? pct((cancelledValue / (totalValue + cancelledValue)) * 100, 2)
             : "—",
@@ -321,11 +346,30 @@ async function run(params: ReportParams): Promise<ReportResult> {
           sub: conc.topLabel ?? undefined,
         },
       ],
-      trend: { title: "Order value by month", valueLabel: "Value", points: t.points },
+      trend: {
+        title: "How much was ordered each month",
+        valueLabel: "Order value",
+        points: t.points,
+        averageLabel: "Average month in this period",
+      },
+      matrix: matrixFrom(
+        raw.map((r) => ({
+          label: r.party_name?.trim() || "Not recorded",
+          month: (r.order_date ?? "").slice(0, 7),
+          value: n(r.value),
+        })),
+        {
+          title: "Which customers ordered, and when",
+          format: "money",
+          display: inrShort,
+          note: "A pale month is a quiet one.",
+        },
+      ),
       panels: [
         {
-          title: "Top customers by value",
+          title: "Where the money came from",
           valueLabel: "Value",
+          note: "The biggest customers in this period.",
           rows: rank(
             [...byParty].map(([label, value]) => ({
               label,
@@ -336,19 +380,31 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Top agents by value",
+          title: "How much of it is a few names",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank([...byParty].map(([label, value]) => ({ label, value })), inrShort, 5),
+          note: "A wide first block means the business leans on a few customers.",
+        },
+        {
+          title: "Which agents brought it in",
           valueLabel: "Value",
           rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort),
         },
         {
-          title: "Sales people by value",
-          valueLabel: "Value",
-          rows: rank([...bySales].map(([label, value]) => ({ label, value })), inrShort),
-        },
-        {
-          title: "Where the orders have reached",
+          title: "How far the orders have got",
           valueLabel: "Orders",
-          rows: rank([...byStage].map(([label, value]) => ({ label, value })), count),
+          kind: "funnel",
+          // In STAGE order, not by size. A funnel drawn from a ranked list
+          // indents Received LR above Challan and reads as a descent that goes
+          // backwards — these are resting places along a fixed path.
+          rows: STAGE_ORDER.map((label) => ({
+            label,
+            value: byStage.get(label) ?? 0,
+            display: count(byStage.get(label) ?? 0),
+            share: raw.length ? ((byStage.get(label) ?? 0) / raw.length) * 100 : 0,
+          })).filter((x) => x.value > 0),
+          note: "Where each order is resting. An order counts as past a stage only once every line of it is.",
         },
       ],
       insights,

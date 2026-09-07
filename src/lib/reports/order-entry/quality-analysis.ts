@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { concentration, concentrationInsight, rank, spread } from "../analysis";
-import { count, inr, inrShort, qty } from "../format";
+import { count, inr, inrShort, pct, qty } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 import { CANCELLED_CAVEAT, distinctLineValues, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
@@ -133,6 +133,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline: `${count(byQualityValue.size)} qualities and ${count(new Set(raw.map((r) => r.design_no)).size)} designs sold ${inrShort(total)} — the top five qualities are ${conc.top5Share !== null ? pct(conc.top5Share) : "most"} of it.`,
       kpis: [
         { label: "Qualities", value: count(byQualityValue.size), tone: "good" },
         { label: "Designs", value: count(new Set(raw.map((r) => r.design_no)).size) },
@@ -140,14 +141,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Total value", value: inrShort(total) },
         { label: "Metres", value: qty(Math.round(raw.reduce((s, r) => s + n(r.qty_mtr), 0))) },
         { label: "Middle rate", value: inr(rates.median), sub: "per metre" },
-        { label: "Wide price spread", value: count(wideSpread.length), tone: wideSpread.length ? "warn" : "good", sub: "50%+ apart" },
-        { label: "One customer only", value: count(singleCustomer.length), tone: "warn" },
+        { label: "Sold at very different prices", value: count(wideSpread.length), tone: wideSpread.length ? "warn" : "good", lowerIsBetter: true, sub: "dearest is 50%+ above cheapest" },
+        { label: "Only one buyer", value: count(singleCustomer.length), tone: "warn", lowerIsBetter: true },
       ],
       panels: [
-        { title: "Top qualities by value", valueLabel: "Value", rows: rank([...byQualityValue].map(([label, value]) => ({ label, value, meta: `${byQualityDesigns.get(label)?.size ?? 0} designs` })), inrShort) },
-        { title: "Top qualities by metres", valueLabel: "Metres", rows: rank([...byQualityQty].map(([label, value]) => ({ label, value })), (x) => qty(Math.round(x))) },
-        { title: "Top designs by value", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.value) })), inrShort) },
-        { title: "Widest price spread", valueLabel: "Range", rows: rank(wideSpread.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.max_rate) - n(r.min_rate), meta: `${inr(n(r.min_rate))}–${inr(n(r.max_rate))}` })), inr) },
+        { title: "Which cloth earns most", valueLabel: "Value", rows: rank([...byQualityValue].map(([label, value]) => ({ label, value, meta: `${byQualityDesigns.get(label)?.size ?? 0} designs` })), inrShort) },
+        {
+          title: "How much comes from a few cloths",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank([...byQualityValue].map(([label, value]) => ({ label, value })), inrShort, 5),
+        },
+        { title: "Which designs earn most", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.value) })), inrShort) },
+        {
+          title: "Same cloth, very different prices",
+          valueLabel: "Range",
+          rows: rank(wideSpread.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.max_rate) - n(r.min_rate), meta: `${inr(n(r.min_rate))}–${inr(n(r.max_rate))}` })), inr),
+          note: "The gap between the cheapest and dearest sale of the same design. Worth asking why.",
+        },
       ],
       insights,
       caveats: [

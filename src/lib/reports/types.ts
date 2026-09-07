@@ -105,6 +105,14 @@ export type Kpi = {
   tone?: Tone;
   /** A short line under the figure — its denominator, or what it is of. */
   sub?: string;
+  /**
+   * A movement against the period before, in percent. Drives an arrow beside
+   * the figure. Null when there is nothing to compare with, which prints
+   * nothing rather than a misleading 0%.
+   */
+  deltaPct?: number | null;
+  /** True when going DOWN is the good direction — cancellations, days late. */
+  lowerIsBetter?: boolean;
 };
 
 export type SeriesPoint = { label: string; value: number; display: string };
@@ -119,11 +127,49 @@ export type RankRow = {
   meta?: string;
 };
 
+/**
+ * How a panel is DRAWN, which is a different question from what it contains.
+ *
+ * A pro dashboard does not repeat one chart eight times. Each of these answers
+ * a different shape of question, and every one is native Excel — no images:
+ *
+ *   · `bar`    — ranking. "Who is biggest." Gradient data bars, live under a
+ *                filter, one colour per panel from a rotating palette.
+ *   · `share`  — composition. One 100%-wide row split into coloured segments,
+ *                so "the top three are most of it" reads without arithmetic.
+ *   · `funnel` — a sequence that only ever shrinks. Indented bars, each
+ *                labelled with what fell away since the one above.
+ *   · `split`  — a diverging measure. Bars run left for negative and right for
+ *                positive from a shared centre, red and green.
+ */
+export type PanelKind = "bar" | "share" | "funnel" | "split";
+
 export type Panel = {
   title: string;
   /** What the numbers are: "Value", "Returns", "Entries". */
   valueLabel: string;
   rows: RankRow[];
+  kind?: PanelKind;
+  /** One line under the panel saying what to take from it. */
+  note?: string;
+};
+
+/**
+ * A grid coloured by value — months across, categories down.
+ *
+ * The one shape that shows WHEN something happened as well as how much, and
+ * the reason a report can answer "did this customer stop in August" without
+ * anybody building a pivot. Drawn with Excel's own three-colour scale, so it
+ * stays live.
+ */
+export type Matrix = {
+  title: string;
+  /** Column headings — months, usually. */
+  columns: string[];
+  rows: { label: string; values: (number | null)[]; total: number; totalDisplay: string }[];
+  /** How a single cell is written out, for the legend line. */
+  format: "money" | "count";
+  note?: string;
 };
 
 /**
@@ -141,10 +187,25 @@ export type Panel = {
  */
 export type ReportAnalysis = {
   kpis: Kpi[];
-  trend?: { title: string; valueLabel: string; points: SeriesPoint[] };
+  /**
+   * The headline series. `compare` draws a second, lighter series behind the
+   * first — last year against this one, or metres behind value — which is how
+   * a trend stops being a shape and starts being a comparison.
+   */
+  trend?: {
+    title: string;
+    valueLabel: string;
+    points: SeriesPoint[];
+    compare?: { label: string; points: SeriesPoint[] };
+    /** Drawn as a dashed line across the columns. The period's own average. */
+    averageLabel?: string;
+  };
   panels: Panel[];
+  matrix?: Matrix;
   insights: string[];
   caveats: string[];
+  /** The one sentence somebody would repeat. Printed largest, at the top. */
+  headline?: string;
 };
 
 export type ReportResult = {

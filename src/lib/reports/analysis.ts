@@ -1,5 +1,5 @@
 import { inrShort, monthName, pct } from "./format";
-import type { Panel, RankRow, SeriesPoint } from "./types";
+import type { Matrix, Panel, RankRow, SeriesPoint } from "./types";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -306,4 +306,66 @@ export function contributorInsight(
     top.map((r) => `${r.label} ${r.change >= 0 ? "+" : "−"}${display(Math.abs(r.change))}`).join(", ") +
     "."
   );
+}
+
+// ─── 9. the heat grid ─────────────────────────────────────────────────────
+
+/**
+ * Months across, names down, coloured by how much happened in each cell.
+ *
+ * The only shape on the dashboard that answers WHEN and WHO at once. "Did this
+ * customer stop in August" needs both axes, and without it somebody builds a
+ * pivot table to find out — which is exactly the work this module exists to
+ * remove.
+ *
+ * Only the top `limit` names are drawn. A grid of 200 rows is not a grid, it
+ * is a table with colours, and the ranked panel beside it already covers the
+ * long tail.
+ */
+export function matrixFrom(
+  rows: { label: string; month: string; value: number }[],
+  opts: { title: string; format: "money" | "count"; display: (n: number) => string; limit?: number; note?: string },
+): Matrix | undefined {
+  const months = [...new Set(rows.map((r) => r.month))].filter(Boolean).sort();
+  if (months.length < 2) return undefined;
+
+  const byLabel = new Map<string, Map<string, number>>();
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    if (!byLabel.has(r.label)) byLabel.set(r.label, new Map());
+    const m = byLabel.get(r.label)!;
+    m.set(r.month, (m.get(r.month) ?? 0) + r.value);
+    totals.set(r.label, (totals.get(r.label) ?? 0) + r.value);
+  }
+
+  const top = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, opts.limit ?? 8);
+  if (!top.length) return undefined;
+
+  return {
+    title: opts.title,
+    columns: months.map(monthName),
+    // Money is shown in thousands so a five-figure sum fits a narrow cell; the
+    // legend under the grid says so rather than leaving it to be worked out.
+    rows: top.map(([label, total]) => ({
+      label,
+      values: months.map((m) => {
+        const v = byLabel.get(label)?.get(m) ?? 0;
+        return v === 0 ? null : opts.format === "money" ? v / 1000 : v;
+      }),
+      total,
+      totalDisplay: opts.display(total),
+    })),
+    format: opts.format,
+    note: opts.note,
+  };
+}
+
+/** The month-on-month movement of one series, for a KPI's arrow. */
+export function monthDelta(byMonth: Map<string, number>): number | null {
+  const keys = [...byMonth.keys()].sort();
+  if (keys.length < 2) return null;
+  const last = byMonth.get(keys[keys.length - 1]) ?? 0;
+  const prev = byMonth.get(keys[keys.length - 2]) ?? 0;
+  if (prev === 0) return null;
+  return ((last - prev) / Math.abs(prev)) * 100;
 }

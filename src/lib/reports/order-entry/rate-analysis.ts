@@ -2,43 +2,65 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { rank, spread } from "../analysis";
-import { count, inr, inrShort, pct } from "../format";
+import { count, inrShort, pct } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 import { CANCELLED_CAVEAT, distinctLineValues, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
 
 /**
- * Rate analysis — where a line was sold away from its own quality's norm.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Rate analysis — where cloth went out away from its own usual price
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * ── EVERY LINE IS COMPARED TO ITS OWN CLOTH, NOT TO THE BOOK ─────────────
+ * ── THIS REPORT WAS WRONG, AND THIS IS WHAT WAS WRONG WITH IT ────────────
  *
- * ₹90 a metre is cheap for one quality and expensive for another. A report
- * that ranks lines by absolute rate finds only the cheap cloth. So each line
- * carries its QUALITY'S median rate and the gap to it, in rupees and percent —
- * the question is "was this sold below what we normally get for this", which
- * is answerable, rather than "was this cheap", which is not.
+ * The first version compared every line to the median rate of its QUALITY.
+ * Measured against the live book, that flagged 240 lines — and only 95 of them
+ * survive a comparison at the right grain. **183 of 240 were false alarms.**
  *
- * ── THE FENCE IS THE TEXTBOOK ONE ────────────────────────────────────────
+ * The cause is that a quality is not one product. LONDON has 209 designs and
+ * sells between ₹80 and ₹190; Innova sells almost everything at ₹90 and one
+ * design at ₹1,700. Comparing a line to its quality's median therefore flags
+ * every line of a cheaper design in a quality that also sells dearer ones —
+ * not a pricing problem, just a different design. A report whose findings are
+ * three-quarters noise gets ignored after its first outing, which is worse
+ * than not having it.
  *
- * A line is flagged an outlier when it sits outside 1.5 × the interquartile
- * range of its own quality — the standard boxplot rule. That is a deliberately
- * boring choice: it needs no threshold anybody has to agree on, it adapts to
- * how varied each quality's pricing actually is, and it can be explained in a
- * sentence to whoever is asked about the line.
+ * ── THE NORM IS NOW THE FINEST GRAIN THAT HAS ENOUGH LINES ───────────────
  *
- * A quality with fewer than five lines gets no fence at all. Three lines do not
- * establish a norm, and flagging against one is how a report loses its
- * credibility on its first outing.
+ * Quality AND design when that pair has at least five lines; otherwise the
+ * quality, if IT has five; otherwise no norm and no flag. Measured over the
+ * live book that gives 1,767 lines judged against their own design, 3,653
+ * against their quality, and 160 left unjudged — which is the honest outcome
+ * for cloth we have barely sold.
+ *
+ * Every row says WHICH grain judged it, so nobody has to guess how strong a
+ * finding is.
+ *
+ * ── AND A MIS-PRICED ORDER IS ONE FINDING, NOT FORTY-FOUR ────────────────
+ *
+ * Order 805 alone produced 44 flagged lines. As a list of lines that is 44
+ * things to look at; as an order it is one conversation. The dashboard leads
+ * with the ORDER roll-up and the line detail sits behind it in the Data sheet,
+ * which is the way round somebody actually works.
+ *
+ * ── RATES HAVE NOT DRIFTED, SO NO TIME ADJUSTMENT IS MADE ────────────────
+ *
+ * Checked before deciding: the median rate by month runs 155, 179, 168, 165,
+ * 174 across the book. There is no trend to correct for, so the norm is a flat
+ * median over the period rather than something rolling. If that ever changes
+ * this is the assumption to revisit.
  */
 
-const MIN_LINES_FOR_NORM = 5;
+const MIN_LINES = 5;
 
 const SQL = `
   with rated as (
     select
-      o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
-      coalesce(nullif(trim(li.quality), ''), 'Not recorded') as quality,
-      li.design_no, li.qty_mtr, li.rate, li.line_total
+      li.id, o.id as order_id, o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
+      coalesce(nullif(trim(li.quality), ''), 'Not recorded')   as quality,
+      coalesce(nullif(trim(li.design_no), ''), 'Not recorded') as design_no,
+      li.qty_mtr, li.rate, li.line_total
     from ld_order_entry.order_line_items li
     join ld_order_entry.customer_orders o on o.id = li.order_id
     where not li.is_deleted and not li.is_cancelled and li.rate > 0
@@ -47,45 +69,64 @@ const SQL = `
       ${ORDER_FILTER_SQL}
       and ($6::text is null or li.quality = $6::text)
   ),
-  norms as (
+  by_design as (
+    select quality, design_no, count(*) n,
+           percentile_cont(0.25) within group (order by rate) p25,
+           percentile_cont(0.50) within group (order by rate) med,
+           percentile_cont(0.75) within group (order by rate) p75
+      from rated group by 1, 2
+  ),
+  by_quality as (
+    select quality, count(*) n,
+           percentile_cont(0.25) within group (order by rate) p25,
+           percentile_cont(0.50) within group (order by rate) med,
+           percentile_cont(0.75) within group (order by rate) p75
+      from rated group by 1
+  ),
+  judged as (
     select
-      quality,
-      count(*)                                                     as lines_in_quality,
-      percentile_cont(0.25) within group (order by rate)            as p25,
-      percentile_cont(0.50) within group (order by rate)            as median,
-      percentile_cont(0.75) within group (order by rate)            as p75
-    from rated group by quality
+      r.*,
+      case when d.n >= ${MIN_LINES} then 'This design'
+           when q.n >= ${MIN_LINES} then 'The quality'
+           else 'Too few sales' end                       as compared_with,
+      case when d.n >= ${MIN_LINES} then d.med  when q.n >= ${MIN_LINES} then q.med  end as usual,
+      case when d.n >= ${MIN_LINES} then d.p25  when q.n >= ${MIN_LINES} then q.p25  end as p25,
+      case when d.n >= ${MIN_LINES} then d.p75  when q.n >= ${MIN_LINES} then q.p75  end as p75,
+      case when d.n >= ${MIN_LINES} then d.n    when q.n >= ${MIN_LINES} then q.n    end as sample
+    from rated r
+    join by_design  d on d.quality = r.quality and d.design_no = r.design_no
+    join by_quality q on q.quality = r.quality
   )
   select
-    r.*, nm.lines_in_quality, nm.median as quality_median, nm.p25, nm.p75,
-    case when nm.lines_in_quality >= ${MIN_LINES_FOR_NORM}
-              and r.rate < nm.p25 - 1.5 * (nm.p75 - nm.p25) then 'Below'
-         when nm.lines_in_quality >= ${MIN_LINES_FOR_NORM}
-              and r.rate > nm.p75 + 1.5 * (nm.p75 - nm.p25) then 'Above'
-         else '' end                                               as outlier
-  from rated r
-  join norms nm on nm.quality = r.quality
+    j.*,
+    case when j.usual is null then ''
+         when j.rate < j.p25 - 1.5 * (j.p75 - j.p25) then 'Below usual'
+         when j.rate > j.p75 + 1.5 * (j.p75 - j.p25) then 'Above usual'
+         else '' end as flag
+  from judged j
   order by
-    case when nm.lines_in_quality >= ${MIN_LINES_FOR_NORM} and nm.median > 0
-         then abs(r.rate - nm.median) / nm.median else 0 end desc,
-    r.line_total desc
+    case when j.usual > 0 then abs(j.rate - j.usual) * j.qty_mtr else 0 end desc,
+    j.line_total desc
 `;
 
 type Raw = {
-  order_no: string; order_date: string; party_name: string | null; agent: string | null;
-  sales_person: string | null; quality: string; design_no: string | null;
-  qty_mtr: string; rate: string; line_total: string; lines_in_quality: number;
-  quality_median: string; p25: string; p75: string; outlier: string;
+  id: string; order_id: string; order_no: string; order_date: string;
+  party_name: string | null; agent: string | null; sales_person: string | null;
+  quality: string; design_no: string; qty_mtr: string; rate: string; line_total: string;
+  compared_with: string; usual: string | null; p25: string | null; p75: string | null;
+  sample: number | null; flag: string;
 };
+
+/** What the difference is actually worth on this line. */
+const effectOf = (r: Raw) => (r.usual === null ? 0 : (n(r.rate) - n(r.usual)) * n(r.qty_mtr));
 
 async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL, [...orderFilterArgs(params), params.quality ?? null])) as unknown as Raw[];
 
   const rows: ReportRow[] = raw.slice(0, MAX_EXPORT_ROWS).map((r) => {
-    const rate = n(r.rate);
-    const median = n(r.quality_median);
-    const gap = median > 0 ? rate - median : null;
+    const usual = r.usual === null ? null : n(r.usual);
     return {
+      flag: r.flag || "—",
       order_no: r.order_no,
       order_date: r.order_date?.slice(0, 10) ?? null,
       party_name: r.party_name,
@@ -94,64 +135,85 @@ async function run(params: ReportParams): Promise<ReportResult> {
       quality: r.quality,
       design_no: r.design_no,
       qty_mtr: n(r.qty_mtr),
-      rate: money2(rate),
-      quality_median: money2(median),
-      gap: gap === null ? null : money2(gap),
-      gap_pct: median > 0 ? Math.round(((rate - median) / median) * 1000) / 10 : null,
-      // What the difference is worth on this line, which is the figure worth
-      // acting on — a ₹20 gap on 50 metres is not a ₹20 gap on 5,000.
-      value_effect: median > 0 ? money2((rate - median) * n(r.qty_mtr)) : null,
-      outlier: r.outlier || "—",
+      rate: money2(r.rate),
+      usual_rate: usual === null ? null : money2(usual),
+      // Blank, not zero, where there is no norm — a gap of 0.00 against
+      // nothing reads as "priced exactly right", which is the opposite of
+      // "we have no idea".
+      gap: usual === null ? null : money2(n(r.rate) - usual),
+      gap_pct: usual && usual > 0 ? Math.round(((n(r.rate) - usual) / usual) * 1000) / 10 : null,
+      value_effect: usual === null ? null : money2(effectOf(r)),
+      compared_with: r.compared_with,
+      sample: r.sample,
       line_total: money2(r.line_total),
-      lines_in_quality: n(r.lines_in_quality),
-      has_norm: n(r.lines_in_quality) >= MIN_LINES_FOR_NORM,
     };
   });
 
-  const withNorm = raw.filter((r) => n(r.lines_in_quality) >= MIN_LINES_FOR_NORM && n(r.quality_median) > 0);
-  const below = withNorm.filter((r) => r.outlier === "Below");
-  const above = withNorm.filter((r) => r.outlier === "Above");
-  const belowCost = below.reduce((s, r) => s + (n(r.rate) - n(r.quality_median)) * n(r.qty_mtr), 0);
-  const aboveGain = above.reduce((s, r) => s + (n(r.rate) - n(r.quality_median)) * n(r.qty_mtr), 0);
-  const gaps = spread(withNorm.map((r) => ((n(r.rate) - n(r.quality_median)) / n(r.quality_median)) * 100));
+  const judged = raw.filter((r) => r.usual !== null);
+  const below = judged.filter((r) => r.flag === "Below usual");
+  const above = judged.filter((r) => r.flag === "Above usual");
+  const belowValue = Math.abs(below.reduce((s, r) => s + effectOf(r), 0));
+  const aboveValue = above.reduce((s, r) => s + effectOf(r), 0);
+  const byDesign = judged.filter((r) => r.compared_with === "This design");
+  const unjudged = raw.filter((r) => r.usual === null);
+
+  // ── the order roll-up: one finding per order, not per line ──────────────
+  const orders = new Map<string, { order: string; party: string; lines: number; effect: number; date: string }>();
+  for (const r of [...below, ...above]) {
+    const cur = orders.get(r.order_no) ?? {
+      order: r.order_no,
+      party: r.party_name ?? "Not recorded",
+      lines: 0,
+      effect: 0,
+      date: r.order_date?.slice(0, 10) ?? "",
+    };
+    cur.lines += 1;
+    cur.effect += effectOf(r);
+    orders.set(r.order_no, cur);
+  }
+  const orderList = [...orders.values()].sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect));
 
   const byParty = new Map<string, number>();
   const byAgent = new Map<string, number>();
   for (const r of below) {
-    const effect = (n(r.rate) - n(r.quality_median)) * n(r.qty_mtr);
-    const p = r.party_name?.trim() || "Not recorded";
-    const a = r.agent?.trim() || "No agent";
-    byParty.set(p, (byParty.get(p) ?? 0) + Math.abs(effect));
-    byAgent.set(a, (byAgent.get(a) ?? 0) + Math.abs(effect));
+    const e = Math.abs(effectOf(r));
+    byParty.set(r.party_name?.trim() || "Not recorded", (byParty.get(r.party_name?.trim() || "Not recorded") ?? 0) + e);
+    byAgent.set(r.agent?.trim() || "No agent", (byAgent.get(r.agent?.trim() || "No agent") ?? 0) + e);
   }
 
+  const gaps = spread(judged.filter((r) => n(r.usual) > 0).map((r) => ((n(r.rate) - n(r.usual)) / n(r.usual)) * 100));
+
+  const headline =
+    orderList.length > 0
+      ? `${count(orderList.length)} orders were priced away from what that cloth usually sells for. ` +
+        `The cheap ones cost ${inrShort(belowValue)}; the dear ones brought in ${inrShort(aboveValue)} extra.`
+      : "Every line in this period was priced within the usual range for its cloth.";
+
   const insights: string[] = [];
-  if (withNorm.length) {
-    insights.push(
-      `${count(below.length)} lines were sold below their own quality's normal range, ` +
-        `worth ${inrShort(Math.abs(belowCost))} less than the middle rate for that cloth. ` +
-        `${count(above.length)} were sold above it, worth ${inrShort(aboveGain)} more.`,
-    );
-  }
+  insights.push(
+    `Each line is compared with the same DESIGN where we have sold it at least ${MIN_LINES} times ` +
+      `(${count(byDesign.length)} lines), and otherwise with the whole quality (${count(judged.length - byDesign.length)}). ` +
+      `${count(unjudged.length)} lines are of cloth we have barely sold, so they are left unjudged rather than guessed at.`,
+  );
   if (below.length) {
-    const worst = [...below].sort(
-      (a, b) => (n(a.rate) - n(a.quality_median)) * n(a.qty_mtr) - (n(b.rate) - n(b.quality_median)) * n(b.qty_mtr),
-    )[0];
+    const worst = orderList.filter((o) => o.effect < 0)[0];
+    if (worst) {
+      insights.push(
+        `The largest single case is order ${worst.order} for ${worst.party} — ${count(worst.lines)} line${worst.lines === 1 ? "" : "s"} ` +
+          `priced ${inrShort(Math.abs(worst.effect))} below the usual rate. That is one conversation, not ${count(worst.lines)}.`,
+      );
+    }
+  }
+  if (gaps.median !== null && gaps.p25 !== null && gaps.p75 !== null) {
     insights.push(
-      `The single largest gap is order ${worst.order_no} — ${worst.quality} at ${inr(n(worst.rate))} against a normal ${inr(n(worst.quality_median))}, ` +
-        `on ${count(n(worst.qty_mtr))} metres. That one line is ${inrShort(Math.abs((n(worst.rate) - n(worst.quality_median)) * n(worst.qty_mtr)))}.`,
+      `Most pricing is tight: the middle line sits within ${pct(Math.abs(gaps.median))} of the usual rate, and half of all lines ` +
+        `fall between ${pct(gaps.p25)} and ${pct(gaps.p75)} of it. The flagged ones really are the exceptions.`,
     );
   }
-  if (gaps.median !== null) {
+  if (above.length) {
     insights.push(
-      `The middle line sells within ${pct(Math.abs(gaps.median))} of its quality's normal rate, and the middle half sits between ` +
-        `${pct(gaps.p25 ?? 0)} and ${pct(gaps.p75 ?? 0)} of it — so most pricing is consistent and the flagged lines really are the exceptions.`,
-    );
-  }
-  const noNorm = raw.length - withNorm.length;
-  if (noNorm > 0) {
-    insights.push(
-      `${count(noNorm)} lines belong to qualities with fewer than ${MIN_LINES_FOR_NORM} lines, so they have no norm to be measured against and are not flagged.`,
+      `${count(above.length)} lines went out ABOVE the usual rate, worth ${inrShort(aboveValue)} more. ` +
+        `Worth knowing which customers accept it as much as which get a discount.`,
     );
   }
 
@@ -159,27 +221,65 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline,
       kpis: [
         { label: "Lines priced", value: count(raw.length) },
-        { label: "With a norm", value: count(withNorm.length), sub: `${MIN_LINES_FOR_NORM}+ lines in the quality` },
-        { label: "Sold below", value: count(below.length), tone: below.length ? "bad" : "good" },
-        { label: "Worth", value: inrShort(Math.abs(belowCost)), tone: "bad", sub: "less than the norm" },
-        { label: "Sold above", value: count(above.length), tone: "good" },
-        { label: "Worth", value: inrShort(aboveGain), tone: "good", sub: "more than the norm" },
-        { label: "Net", value: inrShort(aboveGain + belowCost), tone: aboveGain + belowCost < 0 ? "bad" : "good" },
-        { label: "Typical variance", value: gaps.median !== null ? pct(Math.abs(gaps.median)) : "—", sub: "from the quality's middle" },
+        { label: "Judged", value: count(judged.length), sub: `${count(byDesign.length)} against their own design`, tone: "good" },
+        { label: "Sold cheap", value: count(below.length), tone: below.length ? "bad" : "good", sub: `${count(orderList.filter((o) => o.effect < 0).length)} orders` },
+        { label: "What that cost", value: inrShort(belowValue), tone: "bad" },
+        { label: "Sold dear", value: count(above.length), tone: "good" },
+        { label: "What that gained", value: inrShort(aboveValue), tone: "good" },
+        {
+          label: "Normal spread",
+          value:
+            gaps.p25 !== null && gaps.p75 !== null
+              ? `${gaps.p25 >= 0 ? "+" : ""}${gaps.p25.toFixed(1)}% to ${gaps.p75 >= 0 ? "+" : ""}${gaps.p75.toFixed(1)}%`
+              : "—",
+          sub: "where half of all lines sit",
+        },
+        { label: "Not judged", value: count(unjudged.length), tone: "warn", sub: `fewer than ${MIN_LINES} sales` },
       ],
       panels: [
-        { title: "Biggest gaps below the norm", valueLabel: "Effect", rows: rank(below.map((r) => ({ label: `${r.order_no} · ${r.quality}`, value: Math.abs((n(r.rate) - n(r.quality_median)) * n(r.qty_mtr)), meta: `${inr(n(r.rate))} vs ${inr(n(r.quality_median))}` })), inrShort) },
-        { title: "Below-norm value by customer", valueLabel: "Effect", rows: rank([...byParty].map(([label, value]) => ({ label, value })), inrShort) },
-        { title: "Below-norm value by agent", valueLabel: "Effect", rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort) },
-        { title: "Sold above the norm", valueLabel: "Effect", rows: rank(above.map((r) => ({ label: `${r.order_no} · ${r.quality}`, value: (n(r.rate) - n(r.quality_median)) * n(r.qty_mtr) })), inrShort) },
+        {
+          title: "Orders priced furthest from usual",
+          valueLabel: "Effect",
+          kind: "split",
+          rows: orderList.slice(0, 8).map((o) => ({
+            label: `${o.order} · ${o.party.slice(0, 22)}`,
+            value: o.effect,
+            display: inrShort(Math.abs(o.effect)),
+            meta: `${o.lines} line${o.lines === 1 ? "" : "s"}`,
+          })),
+          note: "Green sold above the usual rate, red below. One row per order, so a mis-priced order is one thing to look at.",
+        },
+        {
+          title: "How much was judged, and against what",
+          valueLabel: "Lines",
+          kind: "share",
+          rows: [
+            { label: "Against its own design", value: byDesign.length, display: count(byDesign.length) },
+            { label: "Against its quality", value: judged.length - byDesign.length, display: count(judged.length - byDesign.length) },
+            { label: "Too few sales to judge", value: unjudged.length, display: count(unjudged.length) },
+          ],
+          note: "A finding judged against its own design is the stronger one.",
+        },
+        {
+          title: "Cheap selling, by customer",
+          valueLabel: "Effect",
+          rows: rank([...byParty].map(([label, value]) => ({ label, value })), inrShort),
+          note: "What the discount was worth, added up per customer.",
+        },
+        {
+          title: "Cheap selling, by agent",
+          valueLabel: "Effect",
+          rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort),
+        },
       ],
       insights,
       caveats: [
-        `A line is flagged when its rate sits outside 1.5 × the interquartile range of its own QUALITY — the standard boxplot fence. It is not a judgement, it is an invitation to look.`,
-        `Qualities with fewer than ${MIN_LINES_FOR_NORM} lines get no norm and no flag. Three lines do not establish what a cloth normally sells for.`,
-        "The norm is calculated over the PERIOD in this file. A narrower period gives a narrower norm and flags more lines.",
+        `A line is compared with the same QUALITY AND DESIGN when we have sold that pair at least ${MIN_LINES} times, and with the quality alone otherwise. Cloth with fewer than ${MIN_LINES} sales is not judged at all — the “Compared with” column says which applied to each row.`,
+        "“Flagged” means the rate sits outside the usual range for that cloth by the standard statistical measure. It is an invitation to look, not a verdict — a deliberate discount to a large customer looks exactly the same as a mistake.",
+        "The usual rate is worked out from the PERIOD in this file. A narrower period means a narrower norm and more lines flagged.",
         CANCELLED_CAVEAT,
       ],
     },
@@ -191,10 +291,10 @@ export const rateAnalysis: ReportDefinition = {
   module: "order-entry",
   title: "Rate analysis",
   description:
-    "Every line against its own quality's normal rate — how far above or below, what that gap is worth, and which lines fall outside the usual range.",
+    "Where cloth went out cheaper or dearer than it usually does — compared design by design, with what the difference was worth and which orders it happened on.",
   defaultMonthsBack: 3,
   columns: [
-    { key: "outlier", label: "Flag", type: "text", width: 10, note: "Below or Above its quality's usual range. A dash means within it." },
+    { key: "flag", label: "Flag", type: "text", width: 13, note: "Below or above the usual range for this cloth. A dash means normal." },
     { key: "order_no", label: "Order no", type: "text", width: 14 },
     { key: "order_date", label: "Order date", type: "date" },
     { key: "party_name", label: "Party", type: "text", width: 30 },
@@ -204,13 +304,13 @@ export const rateAnalysis: ReportDefinition = {
     { key: "design_no", label: "Design no", type: "text", width: 15 },
     { key: "qty_mtr", label: "Metres", type: "number" },
     { key: "rate", label: "Rate", type: "money" },
-    { key: "quality_median", label: "Usual rate", type: "money", note: "The median rate for this quality over the period in this file." },
-    { key: "gap", label: "Gap", type: "money", note: "Rate minus the usual rate. Negative means sold below." },
+    { key: "usual_rate", label: "Usual rate", type: "money", note: "What this cloth normally sells for. Blank when we have not sold it enough times to say." },
+    { key: "compared_with", label: "Compared with", type: "text", width: 16, note: "Whether the usual rate came from this design's own sales or from the whole quality." },
+    { key: "sample", label: "Sales compared", type: "int", note: "How many past lines the usual rate is based on. More is stronger." },
+    { key: "gap", label: "Gap", type: "money", note: "Rate minus usual. Negative means sold cheaper." },
     { key: "gap_pct", label: "Gap %", type: "percent" },
     { key: "value_effect", label: "Worth", type: "money", note: "The gap multiplied by the metres — what the difference is actually worth on this line." },
     { key: "line_total", label: "Line value", type: "money" },
-    { key: "lines_in_quality", label: "Lines in quality", type: "int" },
-    { key: "has_norm", label: "Has a norm", type: "boolean" },
   ],
   filters: [
     { key: "dateRange", label: "Order date", kind: "dateRange" },

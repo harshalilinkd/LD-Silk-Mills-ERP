@@ -93,6 +93,9 @@ type Raw = {
 };
 
 const LAST = STAGES.length; // sort_order of Received LR
+
+/** Not started, then the seven stages in order — so a funnel reads downwards. */
+const STAGE_ORDER = ["Not started", ...STAGES.map((s) => s.label)];
 const bucketOf = (d: number) => AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "Over 60 days";
 
 async function run(params: ReportParams): Promise<ReportResult> {
@@ -182,21 +185,41 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline:
+        raw.length > 0
+          ? `${count(open.length)} of ${count(raw.length)} orders are still open, carrying ${inrShort(openValue)}.`
+          : "No orders in this period.",
       kpis: [
         { label: "Orders", value: count(raw.length) },
         { label: "Complete", value: count(complete.length), tone: "good", sub: raw.length ? pct((complete.length / raw.length) * 100, 0) : undefined },
         { label: "Still open", value: count(open.length), tone: open.length ? "warn" : "good" },
         { label: "Open value", value: inrShort(openValue), tone: "warn", sub: value > 0 ? `${pct((openValue / value) * 100, 0)} of the book` : undefined },
         { label: "Never started", value: count(notStarted.length), tone: notStarted.length ? "bad" : "good" },
-        { label: "Open over 30 days", value: count(openOver30.length), tone: openOver30.length ? "bad" : "good" },
+        { label: "Open over 30 days", value: count(openOver30.length), tone: openOver30.length ? "bad" : "good", lowerIsBetter: true },
         { label: "Part-finished", value: count(partlyDone.length), sub: "some lines through" },
         { label: "Open metres", value: qty(Math.round(open.reduce((s, r) => s + n(r.qty_mtr), 0))) },
       ],
       panels: [
-        { title: "Orders by where they reached", valueLabel: "Orders", rows: rank([...byStage].map(([label, value]) => ({ label, value })), count, STAGES.length + 1) },
-        { title: "Value by where they reached", valueLabel: "Value", rows: rank([...valueByStage].map(([label, value]) => ({ label, value })), inrShort, STAGES.length + 1) },
-        ageing(open.map((r) => n(r.days_open))),
-        { title: "Open value by customer", valueLabel: "Value", rows: rank([...openByParty].map(([label, value]) => ({ label, value })), inrShort) },
+        {
+          title: "How far the orders have got",
+          valueLabel: "Orders",
+          kind: "funnel",
+          rows: STAGE_ORDER.map((label) => ({
+            label,
+            value: byStage.get(label) ?? 0,
+            display: count(byStage.get(label) ?? 0),
+            share: raw.length ? ((byStage.get(label) ?? 0) / raw.length) * 100 : 0,
+          })).filter((x) => x.value > 0),
+          note: "Where each order is resting. An order counts as past a stage only when every one of its lines is.",
+        },
+        {
+          ...ageing(open.map((r) => n(r.days_open))),
+          title: "How long the open ones have waited",
+          valueLabel: "Orders",
+          note: "Counted from the order date, which is what the customer is experiencing.",
+        },
+        { title: "Money sitting at each stage", valueLabel: "Value", rows: rank([...valueByStage].map(([label, value]) => ({ label, value })), inrShort, STAGES.length + 1) },
+        { title: "Who is waiting on the most", valueLabel: "Value", rows: rank([...openByParty].map(([label, value]) => ({ label, value })), inrShort) },
       ],
       insights,
       caveats: [

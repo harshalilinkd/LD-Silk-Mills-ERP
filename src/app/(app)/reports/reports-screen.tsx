@@ -2,13 +2,22 @@
 
 import * as React from "react";
 import {
+  IconArrowLeft,
+  IconChartHistogram,
+  IconChecklist,
+  IconClipboardList,
   IconDownload,
   IconFileSpreadsheet,
   IconFileText,
+  IconLifebuoy,
   IconLock,
   IconTable,
+  IconTruckReturn,
+  IconUsersGroup,
+  IconWallet,
 } from "@tabler/icons-react";
 
+import { cn } from "@/lib/utils";
 import {
   EmptyState,
   ErrorNote,
@@ -43,62 +52,121 @@ export type ReportCard = {
   filters: FilterCard[];
 };
 
+export type ModuleGroup = {
+  module: string;
+  label: string;
+  reports: ReportCard[];
+};
+
 /**
- * The report picker.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  The report picker — modules first, then the reports inside one
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * ── THE FORMAT IS A CHOICE, NOT A SETTING ────────────────────────────────
+ * ── WHY TWO STEPS AND NOT ONE LONG LIST ──────────────────────────────────
  *
- * Two buttons, both visible, each saying what it is for — because they are
- * genuinely different jobs. CSV is the rows for another system to eat; Excel
- * is the same rows plus a dashboard for a person to read. Hiding one behind a
- * dropdown would make the choice feel like a preference to be got right rather
- * than a fork with an obvious answer either way.
+ * The catalogue is heading for thirty-seven reports across seven modules. As a
+ * single scrolling list that is a wall: somebody looking for a Petty Cash
+ * figure reads past nine Order Entry cards to find it, and the count of what
+ * they can actually reach is never visible at a glance.
  *
- * ── DOWNLOADING IS A NAVIGATION, NOT A FETCH ─────────────────────────────
+ * So the front of this screen is one card per MODULE — how many reports it has,
+ * how many of them this person may run, and whether it is locked. Opening one
+ * shows only its reports. It is the shape the owner asked for and it is also
+ * the shape the sidebar already uses, so the ERP reads the same way twice.
  *
- * The export opens the API route directly rather than fetching the bytes into
- * JavaScript and building a blob. A 50,000-row workbook held in browser memory
- * to be handed straight back to the browser is pure cost, and the download
- * survives the tab being navigated away from.
+ * Searching cuts across the whole catalogue rather than the open module,
+ * because somebody who types "returns" wants the report, not the module.
  */
+
+const MODULE_ICON: Record<string, React.ReactNode> = {
+  "order-entry": <IconClipboardList className="size-5" />,
+  crm: <IconUsersGroup className="size-5" />,
+  "goods-return": <IconTruckReturn className="size-5" />,
+  "petty-cash": <IconWallet className="size-5" />,
+  "help-slip": <IconLifebuoy className="size-5" />,
+  checklist: <IconChecklist className="size-5" />,
+  cross: <IconChartHistogram className="size-5" />,
+};
+
+const MODULE_BLURB: Record<string, string> = {
+  "order-entry": "What was ordered, what it is worth, and how far through the mill it has got.",
+  crm: "Follow-up calls, what customers said, and the complaints behind them.",
+  "goods-return": "Cloth coming back — why, from whom, and what it costs to handle.",
+  "petty-cash": "Money in and out of the cash box, and what it was spent on.",
+  "help-slip": "Concerns raised by staff, and how quickly they were answered.",
+  checklist: "Recurring duties, and whether they were done on time.",
+  cross: "The whole business on one page, and one customer across every module.",
+};
+
 export function ReportsScreen({
   groups,
   today,
 }: {
-  groups: { module: string; label: string; reports: ReportCard[] }[];
+  groups: ModuleGroup[];
   today: string;
 }) {
   const [search, setSearch] = React.useState("");
-  const [open, setOpen] = React.useState<string | null>(null);
+  const [openModule, setOpenModule] = React.useState<string | null>(null);
+  const [openReport, setOpenReport] = React.useState<string | null>(null);
 
   const q = search.trim().toLowerCase();
-  const shown = groups
-    .map((g) => ({
-      ...g,
-      reports: g.reports.filter(
-        (r) =>
-          !q ||
-          r.title.toLowerCase().includes(q) ||
-          r.description.toLowerCase().includes(q) ||
-          g.label.toLowerCase().includes(q),
-      ),
-    }))
-    .filter((g) => g.reports.length > 0);
+  const searching = q.length > 0;
+
+  const matches = (r: ReportCard, moduleLabel: string) =>
+    !q ||
+    r.title.toLowerCase().includes(q) ||
+    r.description.toLowerCase().includes(q) ||
+    moduleLabel.toLowerCase().includes(q);
 
   const total = groups.reduce((s, g) => s + g.reports.length, 0);
   const usable = groups.reduce((s, g) => s + g.reports.filter((r) => r.allowed).length, 0);
+
+  // While searching, every match is shown wherever it lives. Otherwise the
+  // screen is either the module cards or one module's reports.
+  const shownGroups = searching
+    ? groups
+        .map((g) => ({ ...g, reports: g.reports.filter((r) => matches(r, g.label)) }))
+        .filter((g) => g.reports.length > 0)
+    : openModule
+      ? groups.filter((g) => g.module === openModule)
+      : [];
+
+  const current = openModule ? groups.find((g) => g.module === openModule) : null;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHead
         eyebrow="Reporting"
-        title="Reports"
-        lede="Every module's reports, in one place. Take the rows on their own, or a workbook with the analysis already done."
+        title={!searching && current ? current.label : "Reports"}
+        lede={
+          !searching && current
+            ? MODULE_BLURB[current.module] ?? "Every report for this module."
+            : "Every module's reports, in one place. Take the rows on their own, or a workbook with the analysis already done."
+        }
+        action={
+          !searching && current ? (
+            <QuietButton
+              className="h-9"
+              onClick={() => {
+                setOpenModule(null);
+                setOpenReport(null);
+              }}
+            >
+              <IconArrowLeft className="size-3.5" />
+              All modules
+            </QuietButton>
+          ) : undefined
+        }
       />
 
       <Toolbar
         search={
-          <SearchBox value={search} onChange={setSearch} placeholder="Search reports…" />
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Search every report…"
+          />
         }
       >
         <span className="text-[12.5px] whitespace-nowrap text-text-3">
@@ -106,36 +174,112 @@ export function ReportsScreen({
         </span>
       </Toolbar>
 
-      {shown.length === 0 ? (
-        <TableCard
-          empty={
-            <EmptyState
-              icon={<IconTable className="size-5" />}
-              title="Nothing matches that"
-              body="Try part of a report or module name, or clear the search."
-            />
-          }
-        />
-      ) : (
-        shown.map((g) => (
-          <section key={g.module} className="flex flex-col gap-2.5">
-            <h2 className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-              {g.label}
-            </h2>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {g.reports.map((r) => (
-                <Report
-                  key={r.id}
-                  report={r}
-                  today={today}
-                  open={open === r.id}
-                  onToggle={() => setOpen(open === r.id ? null : r.id)}
-                />
-              ))}
-            </div>
-          </section>
-        ))
+      {/* ── the module cards ─────────────────────────────────────────── */}
+      {!searching && !openModule && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {groups.map((g) => {
+            const open = g.reports.filter((r) => r.allowed).length;
+            const soon = g.reports.length === 0;
+            const locked = !soon && open === 0;
+            const dim = soon || locked;
+            return (
+              <button
+                key={g.module}
+                type="button"
+                disabled={soon}
+                onClick={() => !soon && setOpenModule(g.module)}
+                className={cn(
+                  "flex flex-col gap-2.5 rounded-card border border-border bg-surface p-4 text-left transition-colors",
+                  soon
+                    ? "cursor-default"
+                    : "cursor-pointer hover:border-primary/40 hover:bg-surface-2",
+                  dim && "opacity-70",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={cn(
+                      "grid size-9 shrink-0 place-items-center rounded-field",
+                      dim ? "bg-chip text-text-3" : "bg-accent text-accent-text",
+                    )}
+                  >
+                    {MODULE_ICON[g.module] ?? <IconTable className="size-5" />}
+                  </span>
+                  <span
+                    className={cn(
+                      "num rounded-pill px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap",
+                      dim ? "bg-chip text-text-3" : "bg-accent text-accent-text",
+                    )}
+                  >
+                    {soon
+                      ? "Coming soon"
+                      : locked
+                        ? "Locked"
+                        : `${open} report${open === 1 ? "" : "s"}`}
+                  </span>
+                </div>
+
+                <div>
+                  <h2 className="text-[15px] font-bold text-text-1">{g.label}</h2>
+                  <p className="mt-0.5 text-[12.5px] leading-snug text-text-3">
+                    {MODULE_BLURB[g.module] ?? `${g.reports.length} reports.`}
+                  </p>
+                </div>
+
+                <p className="mt-auto pt-1 text-[11.5px] text-text-3">
+                  {soon ? (
+                    "Being built — the data is there, the reports are not yet."
+                  ) : locked ? (
+                    <>
+                      <IconLock className="mr-1 inline size-3" />
+                      Needs access to {g.reports[0]?.lockedBy ?? g.label}
+                    </>
+                  ) : open < g.reports.length ? (
+                    `${open} of ${g.reports.length} you can run`
+                  ) : (
+                    "Open to see them all"
+                  )}
+                </p>
+              </button>
+            );
+          })}
+        </div>
       )}
+
+      {/* ── the reports inside a module, or the search results ────────── */}
+      {(searching || openModule) &&
+        (shownGroups.length === 0 ? (
+          <TableCard
+            empty={
+              <EmptyState
+                icon={<IconTable className="size-5" />}
+                title="Nothing matches that"
+                body="Try part of a report or module name, or clear the search."
+              />
+            }
+          />
+        ) : (
+          shownGroups.map((g) => (
+            <section key={g.module} className="flex flex-col gap-2.5">
+              {searching && (
+                <h2 className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+                  {g.label}
+                </h2>
+              )}
+              <div className="grid gap-3 lg:grid-cols-2">
+                {g.reports.map((r) => (
+                  <Report
+                    key={r.id}
+                    report={r}
+                    today={today}
+                    open={openReport === r.id}
+                    onToggle={() => setOpenReport(openReport === r.id ? null : r.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))
+        ))}
     </div>
   );
 }
@@ -169,11 +313,12 @@ function Report({
     for (const [k, v] of Object.entries(values)) if (v) p.set(k, v);
 
     setBusy(format);
-    // A navigation, not a fetch — see the header. The browser handles the
-    // download and the page stays where it is.
+    // A navigation, not a fetch: a 50,000-row workbook held in browser memory
+    // to be handed straight back to the browser is pure cost, and the download
+    // survives the tab being navigated away from.
     window.location.href = `/api/reports/${report.id}?${p}`;
-    // There is no completion event for a navigation download, so the button
-    // un-busies on a timer rather than pretending to know.
+    // A navigation download fires no completion event, so the button un-busies
+    // on a timer rather than pretending to know.
     window.setTimeout(() => setBusy(null), 2500);
   };
 
@@ -236,7 +381,12 @@ function Report({
             {report.filters
               .filter((f) => f.kind !== "dateRange")
               .map((f) => (
-                <Field key={f.key} label={f.label} htmlFor={`${report.id}-${f.key}`} hint="Optional">
+                <Field
+                  key={f.key}
+                  label={f.label}
+                  htmlFor={`${report.id}-${f.key}`}
+                  hint="Optional"
+                >
                   {f.kind === "select" ? (
                     <Select
                       id={`${report.id}-${f.key}`}

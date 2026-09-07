@@ -1,7 +1,16 @@
 import "server-only";
 
 import { sql as pg } from "@/db";
-import { concentration, concentrationInsight, rank, spread, trend, trendInsight } from "../analysis";
+import {
+  concentration,
+  concentrationInsight,
+  matrixFrom,
+  monthDelta,
+  rank,
+  spread,
+  trend,
+  trendInsight,
+} from "../analysis";
 import { count, inr, inrShort, pct, qty } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
@@ -46,8 +55,11 @@ const SQL = `
   from ld_order_entry.order_line_items li
   join ld_order_entry.customer_orders o on o.id = li.order_id
   left join lateral (
-    select max(p2.stage_key) filter (where p2.is_done) as k,
-           max(w2.sort_order) filter (where p2.is_done) as reached
+    -- Only reached is used. An earlier version also selected
+    -- max(stage_key), which is a MAX over TEXT and sorts stock_checking
+    -- above bill — meaningless, and exactly the sort of thing that survives
+    -- because nothing reads it.
+    select max(w2.sort_order) filter (where p2.is_done) as reached
     from ld_order_entry.line_stage_progress p2
     join ld_order_entry.workflow_stages w2 on w2.stage_key = p2.stage_key
     where p2.order_line_item_id = li.id
@@ -146,8 +158,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline: `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} designs across ${count(byQuality.size)} qualities.`,
       kpis: [
-        { label: "Line value", value: inrShort(value), sub: "cancelled excluded" },
+        { label: "Line value", value: inrShort(value), sub: "cancelled left out", deltaPct: monthDelta(byMonth) },
         { label: "Lines", value: count(live.length), tone: "good", sub: `${count(cancelled.length)} cancelled` },
         { label: "Metres", value: qty(Math.round(metres)) },
         { label: "Average rate", value: metres > 0 ? inr(value / metres) : "—", sub: "per metre" },
@@ -156,10 +169,23 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Middle rate", value: inr(rateSpread.median), sub: "the median line" },
         { label: "Rate range", value: `${inr(rateSpread.min)} – ${inr(rateSpread.max)}`, tone: "warn" },
       ],
-      trend: { title: "Line value by month", valueLabel: "Value", points: t.points },
+      trend: {
+        title: "How much was sold each month",
+        valueLabel: "Line value",
+        points: t.points,
+        averageLabel: "Average month in this period",
+      },
+      matrix: matrixFrom(
+        live.map((r) => ({
+          label: r.quality?.trim() || "Not recorded",
+          month: (r.order_date ?? "").slice(0, 7),
+          value: n(r.line_total),
+        })),
+        { title: "Which cloth sold, and when", format: "money", display: inrShort },
+      ),
       panels: [
         {
-          title: "Top qualities by value",
+          title: "Which cloth earns most",
           valueLabel: "Value",
           rows: rank(
             [...byQuality].map(([label, v]) => ({
@@ -170,9 +196,15 @@ async function run(params: ReportParams): Promise<ReportResult> {
             inrShort,
           ),
         },
-        { title: "Top designs by value", valueLabel: "Value", rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort) },
-        { title: "Top qualities by metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
-        { title: "Top customers by value", valueLabel: "Value", rows: rank([...byParty].map(([label, v]) => ({ label, value: v })), inrShort) },
+        {
+          title: "Is it a few cloths or many",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank([...byQuality].map(([label, v]) => ({ label, value: v })), inrShort, 5),
+          note: "How much of the money comes from the top few qualities.",
+        },
+        { title: "Which designs earn most", valueLabel: "Value", rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort) },
+        { title: "Which cloth moves most metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
       ],
       insights,
       caveats: [

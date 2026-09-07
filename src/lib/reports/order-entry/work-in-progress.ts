@@ -146,21 +146,40 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline:
+        raw.length > 0
+          ? `${count(raw.length)} lines worth ${inrShort(value)} are still open, and ${count(over30.length)} of them have waited over a month.`
+          : "Nothing is open — every line has reached the end.",
       kpis: [
         { label: "Open lines", value: count(raw.length), tone: "warn" },
         { label: "Open value", value: inrShort(value), tone: "warn" },
         { label: "Open metres", value: qty(Math.round(metres)) },
-        { label: "Over 30 days", value: count(over30.length), tone: over30.length ? "bad" : "good", sub: raw.length ? pct((over30.length / raw.length) * 100, 0) : undefined },
-        { label: "Never started", value: count(notStarted.length), tone: notStarted.length ? "bad" : "good" },
+        { label: "Waiting over a month", value: count(over30.length), tone: over30.length ? "bad" : "good", lowerIsBetter: true, sub: raw.length ? pct((over30.length / raw.length) * 100, 0) : undefined },
+        { label: "Never started", value: count(notStarted.length), tone: notStarted.length ? "bad" : "good", lowerIsBetter: true },
         { label: "Oldest", value: raw.length ? `${count(Math.max(...days))} d` : "—", tone: "bad" },
         { label: "Middle age", value: raw.length ? `${count(days.sort((a, b) => a - b)[Math.floor(days.length / 2)])} d` : "—" },
         { label: "Customers waiting", value: count(byParty.size) },
       ],
       panels: [
-        { title: "What they are waiting on", valueLabel: "Lines", rows: rank([...byWaiting].map(([label, v]) => ({ label, value: v })), count, STAGES.length) },
-        ageing(raw.map((r) => n(r.days_open))),
-        { title: "Open value by customer", valueLabel: "Value", rows: rank([...byParty].map(([label, v]) => ({ label, value: v })), inrShort) },
-        { title: "Open lines by transporter", valueLabel: "Lines", rows: rank([...byTransport].map(([label, v]) => ({ label, value: v })), count) },
+        {
+          title: "What each one is waiting for",
+          valueLabel: "Lines",
+          rows: rank([...byWaiting].map(([label, v]) => ({ label, value: v })), count, STAGES.length),
+          note: "The next stage that has not been ticked. The biggest bar is the bottleneck.",
+        },
+        {
+          ...ageing(raw.map((r) => n(r.days_open))),
+          title: "How long they have been waiting",
+          valueLabel: "Lines",
+          note: "Counted from the day the order was placed.",
+        },
+        {
+          title: "How much of the wait is a few customers",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank([...byParty].map(([label, v]) => ({ label, value: v })), inrShort, 5),
+        },
+        { title: "Which transporters have the most", valueLabel: "Lines", rows: rank([...byTransport].map(([label, v]) => ({ label, value: v })), count) },
       ],
       insights,
       caveats: [

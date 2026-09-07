@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { addMonths, startOfMonth, todayIso } from "@/lib/dates";
 import { canRunReport, resolveReportViewer } from "@/lib/reports/authz";
 import { reportsByModule } from "@/lib/reports/registry";
-import { MODULE_META, type ReportModule } from "@/lib/reports/types";
-import { ReportsScreen, type ReportCard } from "./reports-screen";
+import { MODULE_META } from "@/lib/reports/types";
+import { ReportsScreen, type ModuleGroup, type ReportCard } from "./reports-screen";
 
 export const metadata: Metadata = { title: "Reports — LD Silk Mills ERP" };
 
@@ -36,7 +36,7 @@ export default async function ReportsPage() {
   if (!viewer) redirect("/login");
 
   const groups = reportsByModule();
-  const cards: { module: ReportModule; label: string; reports: ReportCard[] }[] = [];
+  const cards: ModuleGroup[] = [];
 
   for (const g of groups) {
     const reports: ReportCard[] = [];

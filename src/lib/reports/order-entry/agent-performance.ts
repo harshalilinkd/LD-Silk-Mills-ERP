@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { concentration, concentrationInsight, rank } from "../analysis";
-import { count, inr, inrShort, pct, qty } from "../format";
+import { count, inr, inrShort, pct } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { CANCELLED_CAVEAT, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
 
@@ -39,6 +39,27 @@ const SQL = (dim: "agent" | "sales_person") => `
       and ($2::date is null or o.order_date <= $2::date)
       ${ORDER_FILTER_SQL}
     group by 1, 2
+  ),
+  -- The totals CTE repeats the SAME filters as per_customer above. It used to
+  -- be a lateral carrying only the date bounds, so filtering by party gave a
+  -- customer count for that party and a metres figure for the agent's whole
+  -- book — two numbers on one row describing different things.
+  totals as (
+    select
+      coalesce(nullif(trim(o.${dim}), ''), 'Not recorded')                as who,
+      coalesce(sum(li.qty_mtr)    filter (where not li.is_cancelled), 0)  as qty_mtr,
+      count(li.id) filter (where not li.is_cancelled)                     as lines,
+      coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)      as cancelled_value,
+      min(o.order_date)                                                   as first_order,
+      max(o.order_date)                                                   as last_order,
+      (current_date - max(o.order_date))                                  as days_since_last
+    from ld_order_entry.customer_orders o
+    left join ld_order_entry.order_line_items li
+           on li.order_id = o.id and not li.is_deleted
+    where ($1::date is null or o.order_date >= $1::date)
+      and ($2::date is null or o.order_date <= $2::date)
+      ${ORDER_FILTER_SQL}
+    group by 1
   )
   select
     pc.who,
@@ -49,20 +70,7 @@ const SQL = (dim: "agent" | "sales_person") => `
     (array_agg(pc.party_name order by pc.value desc))[1] as top_customer,
     t.qty_mtr, t.lines, t.cancelled_value, t.first_order, t.last_order, t.days_since_last
   from per_customer pc
-  join lateral (
-    select
-      coalesce(sum(li.qty_mtr)    filter (where not li.is_cancelled), 0) as qty_mtr,
-      count(li.id) filter (where not li.is_cancelled)                    as lines,
-      coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)     as cancelled_value,
-      min(o2.order_date)                                                 as first_order,
-      max(o2.order_date)                                                 as last_order,
-      (current_date - max(o2.order_date))                                as days_since_last
-    from ld_order_entry.customer_orders o2
-    left join ld_order_entry.order_line_items li on li.order_id = o2.id and not li.is_deleted
-    where coalesce(nullif(trim(o2.${dim}), ''), 'Not recorded') = pc.who
-      and ($1::date is null or o2.order_date >= $1::date)
-      and ($2::date is null or o2.order_date <= $2::date)
-  ) t on true
+  join totals t on t.who = pc.who
   group by pc.who, t.qty_mtr, t.lines, t.cancelled_value, t.first_order, t.last_order, t.days_since_last
   order by 4 desc
 `;
@@ -136,6 +144,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
+      headline:
+        raw.length > 0
+          ? `${count(raw.length)} ${noun} brought in ${inrShort(total)}. The top five are ${conc.top5Share !== null ? pct(conc.top5Share) : "most"} of it.`
+          : `No ${noun} in this period.`,
       kpis: [
         { label: Noun === "Agent" ? "Agents" : "Sales people", value: count(raw.length), tone: "good" },
         { label: "Total value", value: inrShort(total) },
@@ -143,14 +155,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Top share", value: conc.topShare !== null ? pct(conc.topShare) : "—", tone: "warn", sub: conc.topLabel ?? undefined },
         { label: "Top 5 share", value: conc.top5Share !== null ? pct(conc.top5Share) : "—" },
         { label: "Customers covered", value: count(raw.reduce((s, r) => s + n(r.customers), 0)), sub: "counted per person" },
-        { label: "Single-customer risk", value: count(reliant.length), tone: reliant.length ? "bad" : "good", sub: "over 60% from one name" },
-        { label: "Quiet 45 days", value: count(quiet.length), tone: quiet.length ? "warn" : "good" },
+        { label: "Leaning on one name", value: count(reliant.length), tone: reliant.length ? "bad" : "good", lowerIsBetter: true, sub: "over 60% from one customer" },
+        { label: "Gone quiet", value: count(quiet.length), tone: quiet.length ? "warn" : "good", lowerIsBetter: true, sub: "over 45 days" },
       ],
       panels: [
-        { title: `${Noun} by value`, valueLabel: "Value", rows: rank(raw.map((r) => ({ label: r.who, value: n(r.value), meta: `${n(r.customers)} customers` })), inrShort) },
-        { title: "By customers held", valueLabel: "Customers", rows: rank(raw.map((r) => ({ label: r.who, value: n(r.customers) })), count) },
-        { title: "By average order size", valueLabel: "Avg order", rows: rank(raw.filter((r) => n(r.orders) >= 2).map((r) => ({ label: r.who, value: n(r.value) / n(r.orders) })), inrShort) },
-        { title: "By metres sold", valueLabel: "Metres", rows: rank(raw.map((r) => ({ label: r.who, value: n(r.qty_mtr) })), (x) => qty(Math.round(x))) },
+        { title: "Who brought in the most", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: r.who, value: n(r.value), meta: `${n(r.customers)} customers` })), inrShort) },
+        {
+          title: "How much rests on a few people",
+          valueLabel: "Value",
+          kind: "share",
+          rows: rank(raw.map((r) => ({ label: r.who, value: n(r.value) })), inrShort, 5),
+        },
+        { title: "Who holds the most customers", valueLabel: "Customers", rows: rank(raw.map((r) => ({ label: r.who, value: n(r.customers) })), count) },
+        {
+          title: "Who writes the biggest orders",
+          valueLabel: "Avg order",
+          rows: rank(raw.filter((r) => n(r.orders) >= 2).map((r) => ({ label: r.who, value: n(r.value) / n(r.orders) })), inrShort),
+          note: "Only people with two or more orders — one order is not an average.",
+        },
       ],
       insights,
       caveats: [
