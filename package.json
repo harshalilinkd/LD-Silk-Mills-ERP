@@ -22,6 +22,7 @@
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.38.0",
     "next": "^15.5.25",
     "next-auth": "^5.0.0-beta.32",

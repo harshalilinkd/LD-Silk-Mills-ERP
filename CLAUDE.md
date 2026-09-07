@@ -907,6 +907,86 @@ already hold `system_access` for it, so all six can READ the ledger the moment
 it goes live and only the ERP admin can record anything — worth a look before
 the first real entry.
 
+## Reports — one engine, thirty-seven definitions
+
+`/reports`, and it is the shell's own screen rather than a module: it is where
+every module's reports come out of. Built Sep 2026 after a full profile of all
+46 tables; the analysis behind it — what each module holds, the 37 reports the
+data can honestly produce, and three findings that change what those reports
+should say — was published to the owner as an artifact and is the spec.
+
+**Adding a report is one file and one line.** Write a `ReportDefinition`
+(`src/lib/reports/types.ts`) — id, module, columns, filters, and a `run` that
+returns rows plus an analysis — and add it to `REPORTS` in `registry.ts`.
+It then appears on the picker, inherits its module's permission, and exports
+as both CSV and a full workbook with no further code. `order-entry/order-register.ts`
+is the worked example; copy its shape.
+
+**Permission is the module's, and that is the owner's rule**, in their words:
+*"all persons who have access to a particular module will be able to export
+their module's reports."* So `lib/reports/authz.ts` reads
+`ld_erp_core.system_access` and nothing else. Two exceptions they did not
+overrule: cross-module reports show only the modules the viewer already holds,
+and the audit-trail and users-and-access reports are ERP-admin only. **Help
+Slip reports must go through `withHelpSlip`** under the caller's own profile —
+a bulk export bypassing its RLS would be the worst thing this module could do.
+
+**A report is offered on demand only.** The owner chose that over scheduling;
+there is no cron, no `CRON_SECRET`, no emailed workbook. Do not add one without
+asking.
+
+**The two formats are genuinely different jobs.**
+- **CSV** is the rows and nothing else — one header, ISO dates, bare numbers,
+  no totals row. It carries a UTF-8 BOM (or Indian names arrive as mojibake in
+  Excel on Windows) and prefixes any cell starting `=`, `+`, `-` or `@` with a
+  quote. That last one is not theoretical: party names come from a shared list
+  anybody with Masters can edit, and a name beginning `=` is a live formula the
+  moment the file opens.
+- **XLSX** is three sheets — Dashboard, Data, Notes. The Notes sheet records
+  who ran it, when, with which filters, what every column means, and the
+  caveats. A caveat nobody reads is a caveat that did not happen, so they also
+  print under the dashboard.
+
+**There are no images in the workbook, deliberately.** ExcelJS has no
+`addChart`, so the choice was embedded PNGs or visuals built from cells. Cells
+won: a native data bar is LIVE and redraws when the table is filtered, a PNG is
+a photograph that starts lying the moment anybody touches a filter; an image
+needs a rasteriser (a heavy native dep on a serverless function, for
+decoration); and cells survive Google Sheets, LibreOffice and Excel on a phone.
+The trend is a column chart made of filled cells; every ranked list is a
+gradient data bar. **A `dataBar` rule REQUIRES `cfvo`** — undocumented, and
+without it the workbook builds fine and then dies inside `writeBuffer()` on
+`rule.cfvo.forEach`, a long way from the cause.
+
+**Three arithmetic traps this module already fell into**, all recorded in the
+code that avoids them:
+- **The join that inflates every count.** `customer_orders` joined to its lines
+  returns one row per LINE; `count(*)` reported 2,900 orders in July against a
+  true 161. Every order count is `count(distinct o.id)` and the roll-up happens
+  in a subquery.
+- **A direction word plus a signed figure.** "fell −68.3%" reads as a double
+  negative. The word carries the direction; the figure carries no sign.
+- **A rate is money.** `190.58064516129033` is rounded where the row is built,
+  not left to a cell format — the CSV has no format to hide behind.
+
+**Analysis lives in `lib/reports/analysis.ts`** — ten families (concentration,
+trend, contribution to change, spread and outliers, ageing, ranking, run rate
+and the sentence writers), pure functions, written once so every report gets
+the same arithmetic AND the same honesty: a figure prints its denominator, a
+figure that cannot be computed returns null rather than 0, and the median comes
+before the mean.
+
+**`MAX_EXPORT_ROWS` is 50,000** and truncation is LOUD — the file name gains
+`_PARTIAL`, the Notes sheet says how many were left out, and the dashboard
+figures still cover every matching row. Silently returning the first 50,000 of
+200,000 is how somebody reconciles a year and comes up short.
+
+**`exceljs` is the one dependency this added.** It pulls an old `uuid` with a
+moderate advisory about a missing bounds check when a caller supplies `buf` —
+neither we nor ExcelJS ever does. Note that `npm install` PRUNES Playwright,
+which lives here extraneous on purpose; reinstall it with
+`npm install playwright --no-save` and check `git diff package.json` afterwards.
+
 ## Known gotchas (hit these once already — don't re-discover them)
 - **A Server Component's `new Date()` is the SERVER's clock, which on Vercel
   is UTC.** The topbar greeting and date were computed that way, so 5pm in

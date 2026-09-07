@@ -42,3 +42,6 @@ next-env.d.ts
 
 # throwaway probe scripts, never committed
 .scratch*/
+
+# dev server log, written by npm run dev > .dev.log
+.dev.log
