@@ -1080,13 +1080,28 @@ does. **A `dataBar`/`colorScale` rule REQUIRES `cfvo`** — undocumented, and
 without it the workbook builds fine and then dies inside `writeBuffer()` on
 `rule.cfvo.forEach`, a long way from the cause.
 
-**Validation is a script, not a hope** (`.scratch/validate.py` while it
-lasts). It opens every produced workbook, parses every XML part, checks the
-chart/drawing/relationship/content-type parts all reference each other, checks
-`<drawing>` sits after `<sheetData>`, and then re-reads the whole file with
-**openpyxl** — a completely different library from the one that wrote it — and
-counts the charts it finds. All six workbooks must come back valid before any
-of this ships.
+**VALIDATE WITH REAL EXCEL, NOT WITH A LIBRARY.** This cost a shipped
+release. `.scratch/validate.py` parsed every XML part, checked every
+relationship, and re-read all six workbooks with **openpyxl** — a completely
+different library from the one that wrote them — and reported every chart
+present. Excel then refused five of the six with *"we found a problem with some
+content"* and repaired them by deleting the drawing, so the owner opened a
+dashboard that was KPI tiles and eighty blank rows.
+
+A library round-trip proves the XML parses. It does not prove Excel accepts it.
+`.scratch/excel-check.ps1` drives real Excel over COM, opens each workbook
+read-only with alerts suppressed, and counts `ChartObjects` per sheet — **zero
+charts on a file written with six is the repair having happened**. Run it
+before shipping anything that touches `xlsx-charts.ts`; Excel is installed on
+the owner's machine and the whole pass takes under a minute.
+
+The bug it caught, and the shape of the lesson: **`c:dLblPos` is illegal on a
+DOUGHNUT chart.** A pie accepts `bestFit`; a doughnut accepts no position
+element at all. One shared `pieSer` builder emitted it for both. The tell was
+that production-status — the only report with no share panel, so the only one
+with no doughnut — opened perfectly while the other five did not. Also fixed:
+negative `xdr:colOff`/`rowOff` in the anchor, which is schema-legal and which
+Excel treats as damage; offsets must be >= 0.
 
 **Three arithmetic traps this module already fell into**, all recorded in the
 code that avoids them:

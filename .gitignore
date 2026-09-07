@@ -45,3 +45,4 @@ next-env.d.ts
 
 # dev server log, written by npm run dev > .dev.log
 .dev.log
+sample-reports/

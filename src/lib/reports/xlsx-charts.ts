@@ -243,7 +243,16 @@ function pieSer(s: ChartSeries, idx: number, spec: ChartSpec, fmt: string): stri
     `<c:ser><c:idx val="${idx}"/><c:order val="${idx}"/>${txXml(s.name)}` +
     `<c:spPr><a:ln w="12700">${solidFill("FFFFFF")}</a:ln></c:spPr>` +
     dPts(s.pointColours ?? [s.colour ?? INK], s.values.length) +
-    dLbls(s.labels ?? "percent", fmt, "bestFit") +
+    // ── NO dLblPos ON A DOUGHNUT. THIS IS THE ONE THAT BROKE EXCEL ───────
+    //
+    // A pie accepts `bestFit`; a DOUGHNUT accepts no `c:dLblPos` at all, and
+    // Excel does not warn about it — it refuses the whole workbook with "we
+    // found a problem with some content" and names no part. openpyxl read the
+    // same file back happily, which is why this got shipped: a library
+    // round-trip proves the XML parses, not that Excel accepts it. The five
+    // workbooks with a share panel were rejected; production-status, the one
+    // with no doughnut in it, opened fine. That was the tell.
+    dLbls(s.labels ?? "percent", fmt, spec.kind === "pie" ? "bestFit" : undefined) +
     catXml(spec.catRef, spec.categories) +
     valXml(s.ref, s.values, fmt) +
     `</c:ser>`
@@ -343,7 +352,9 @@ function drawingXml(specs: ChartSpec[]): string {
       return (
         `<xdr:twoCellAnchor>` +
         `<xdr:from><xdr:col>${a.fromCol}</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>${a.fromRow}</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from>` +
-        `<xdr:to><xdr:col>${a.toCol}</xdr:col><xdr:colOff>-38100</xdr:colOff><xdr:row>${a.toRow}</xdr:row><xdr:rowOff>-19050</xdr:rowOff></xdr:to>` +
+        // Offsets must be >= 0. A negative one is schema-legal and Excel
+        // treats it as a damaged anchor, so the inset lives on the FROM corner.
+        `<xdr:to><xdr:col>${a.toCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
         `<xdr:graphicFrame macro="">` +
         `<xdr:nvGraphicFramePr><xdr:cNvPr id="${i + 2}" name="Chart ${i + 1}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
         `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>` +

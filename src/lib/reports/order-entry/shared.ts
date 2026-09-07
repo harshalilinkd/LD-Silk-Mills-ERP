@@ -18,12 +18,11 @@ import { sql as pg } from "@/db";
  * made one dashboard print two different numbers of open lines.
  */
 
-/** Postgres `numeric` arrives as a string; nulls become 0, never NaN. */
-export const n = (v: string | number | null | undefined) => (v == null ? 0 : Number(v));
-
-/** Two decimals, applied where the ROW is built — the CSV has no cell format. */
-export const money2 = (v: string | number | null | undefined) =>
-  v == null ? null : Math.round(Number(v) * 100) / 100;
+// `n` and `money2` moved to `../num` when the second module needed them, and
+// are re-exported here so the six Order Entry reports import unchanged. Two
+// modules with their own copy of "how a numeric becomes a number" is exactly
+// how two reports end up disagreeing about a null.
+export { money2, n } from "../num";
 
 /**
  * A LIVE line: not deleted, not cancelled.
