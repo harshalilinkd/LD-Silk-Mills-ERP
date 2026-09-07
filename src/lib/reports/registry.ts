@@ -1,6 +1,14 @@
 import "server-only";
 
+import { agentPerformance } from "./order-entry/agent-performance";
+import { customerLedger } from "./order-entry/customer-ledger";
+import { lineDetail } from "./order-entry/line-detail";
 import { orderRegister } from "./order-entry/order-register";
+import { productionStatus } from "./order-entry/production-status";
+import { qualityAnalysis } from "./order-entry/quality-analysis";
+import { rateAnalysis } from "./order-entry/rate-analysis";
+import { statusSummary } from "./order-entry/status-summary";
+import { workInProgress } from "./order-entry/work-in-progress";
 import type { ReportDefinition, ReportModule } from "./types";
 import { MODULE_META } from "./types";
 
@@ -20,7 +28,17 @@ import { MODULE_META } from "./types";
  */
 
 export const REPORTS: ReportDefinition[] = [
+  // Order Entry, in the order somebody works through them: the record first,
+  // then the detail, then the process, then the analysis.
   orderRegister,
+  lineDetail,
+  statusSummary,
+  productionStatus,
+  workInProgress,
+  customerLedger,
+  agentPerformance,
+  qualityAnalysis,
+  rateAnalysis,
 ];
 
 export function getReport(id: string): ReportDefinition | null {
