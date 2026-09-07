@@ -10,6 +10,7 @@ import type {
   ReportParams,
   ReportRow,
 } from "./types";
+import { injectCharts } from "./xlsx-charts";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -273,7 +274,7 @@ export async function toWorkbook(
     (rows.length < meta.totalRows ? ` of ${meta.totalRows.toLocaleString("en-IN")} (truncated)` : "") +
     `  ·  run ${isoToKolkata(meta.runAt.toISOString())}`;
 
-  buildDashboard(wb, report.title, subtitle, analysis);
+  const charts = buildDashboard(wb, report.title, subtitle, analysis);
   buildData(wb, columns, rows);
   buildNotes(wb, report, params, analysis, {
     runBy: meta.runBy,
@@ -282,6 +283,11 @@ export async function toWorkbook(
     totalRows: meta.totalRows,
   });
 
+  // The charts are written into the FINISHED zip. ExcelJS has no chart API, so
+  // the four OOXML parts a native chart needs are added afterwards - see
+  // `xlsx-charts.ts`. Nothing else in the workbook is touched, which is the
+  // point: a post-processing step that rewrote cells is exactly how a total
+  // ends up disagreeing between the Data sheet and the Dashboard.
   const out = await wb.xlsx.writeBuffer();
-  return Buffer.from(out);
+  return injectCharts(out, "Dashboard", charts);
 }

@@ -1034,16 +1034,59 @@ asking.
   caveats. A caveat nobody reads is a caveat that did not happen, so they also
   print under the dashboard.
 
-**There are no images in the workbook, deliberately.** ExcelJS has no
-`addChart`, so the choice was embedded PNGs or visuals built from cells. Cells
-won: a native data bar is LIVE and redraws when the table is filtered, a PNG is
-a photograph that starts lying the moment anybody touches a filter; an image
-needs a rasteriser (a heavy native dep on a serverless function, for
-decoration); and cells survive Google Sheets, LibreOffice and Excel on a phone.
-The trend is a column chart made of filled cells; every ranked list is a
-gradient data bar. **A `dataBar` rule REQUIRES `cfvo`** — undocumented, and
+**The workbook carries REAL Excel charts, written into the zip by hand**
+(`src/lib/reports/xlsx-charts.ts`, Sep 2026). ExcelJS has no `addChart` and
+never has, so every visual used to be built out of cells — honest, but not what
+a dashboard looks like, and the owner asked for the exported sheet to carry
+what the screen carries. An .xlsx is a ZIP of XML parts and a chart is four of
+them, so the workbook is built with ExcelJS exactly as before and then the
+finished zip is opened with `jszip` and the chart, drawing, relationship and
+content-type parts are added. The result is native: right-click → Edit Data
+works, it redraws when the numbers change, it prints, and it opens in Google
+Sheets and LibreOffice. **Still no images** — a PNG is a photograph that starts
+lying the moment anybody touches a filter, and it would need a rasteriser on a
+serverless function for decoration.
+
+Three things must be right or Excel refuses the whole file with "we found a
+problem with some content" and names no part:
+- **Child order is fixed by the schema.** `c:barChart` is barDir, grouping,
+  varyColors, ser…, dLbls, gapWidth, overlap, axId, axId — in that order, and
+  `c:ser` orders its children DIFFERENTLY for bar, line and pie. That is why
+  there are three series builders and not one with flags.
+- **Every `c:dLbls` must carry all five `show*` flags.** A missing
+  `showBubbleSize` is a broken part, not a default.
+- **`<drawing>` goes near the END of a worksheet part**, after pageSetup and
+  before tableParts/extLst.
+
+**The charts point at a hidden "Chart data" sheet**, not at the Data sheet. A
+chart bound to the filtered table would change shape under a filter while the
+KPIs and the headline beside it still described the whole period — half the
+sheet answering a different question from the other half. The dashboard
+describes the period as a whole, always, and a footnote on the sheet says so
+and names the hidden sheet, because a hidden sheet nobody was told about is one
+somebody finds and distrusts.
+
+**Money is plotted in LAKHS.** An axis reading 20,000,000 is unreadable and
+Excel's comma scaling only does powers of a thousand, so it cannot produce lakh
+or crore. Money series are divided by 100,000 and the chart title says
+"(₹ lakh)" — except on pies and doughnuts, which are labelled in percentages
+and where the unit would read as a contradiction. Exact rupees stay on the Data
+sheet, to the paisa.
+
+**The KPI band and the heat grid stay as cells.** A figure with its own
+movement arrow and denominator reads better as a tile than as a bar of length
+one, and no chart type shows WHO and WHEN at once the way a colour-scaled grid
+does. **A `dataBar`/`colorScale` rule REQUIRES `cfvo`** — undocumented, and
 without it the workbook builds fine and then dies inside `writeBuffer()` on
 `rule.cfvo.forEach`, a long way from the cause.
+
+**Validation is a script, not a hope** (`.scratch/validate.py` while it
+lasts). It opens every produced workbook, parses every XML part, checks the
+chart/drawing/relationship/content-type parts all reference each other, checks
+`<drawing>` sits after `<sheetData>`, and then re-reads the whole file with
+**openpyxl** — a completely different library from the one that wrote it — and
+counts the charts it finds. All six workbooks must come back valid before any
+of this ships.
 
 **Three arithmetic traps this module already fell into**, all recorded in the
 code that avoids them:

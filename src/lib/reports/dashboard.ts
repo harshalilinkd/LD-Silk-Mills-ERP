@@ -1,41 +1,49 @@
 import ExcelJS from "exceljs";
 
 import type { Kpi, Matrix, Panel, ReportAnalysis } from "./types";
+import type { ChartSpec } from "./xlsx-charts";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  *  The dashboard sheet
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Split out of the workbook builder because it grew into the part that decides
- * whether anybody reads the file.
+ * ── IT DRAWS REAL EXCEL CHARTS NOW ───────────────────────────────────────
  *
- * ── SIX VISUALS, NOT ONE REPEATED SIX TIMES ──────────────────────────────
+ * Every visual here used to be built out of cells and conditional formatting,
+ * because ExcelJS has no `addChart`. It was honest and it printed, but it did
+ * not look like a dashboard, and the owner asked for the exported sheet to
+ * carry what the screen carries.
  *
- * The first version drew the same teal ranked bar for every panel on every
- * report, which is how a dashboard ends up looking busy and saying nothing.
- * Each shape here answers a different kind of question:
+ * So this file lays the sheet out and DESCRIBES the charts; `xlsx-charts.ts`
+ * writes them into the finished workbook as native chart parts. They are real
+ * Excel charts: right-click → Edit Data works, they redraw when the numbers
+ * change, and they open in Google Sheets and LibreOffice. That is the thing an
+ * embedded PNG could never be, and the reason images were refused.
  *
- *   KPI band      how much, and which way is it moving
- *   column chart  when — the shape over time, with the average marked
- *   share bar     composition — is this a few names or many
- *   ranked bars   who is biggest
- *   funnel        where a sequence loses its people, with the drop labelled
- *   split bars    who moved a number, up and down from a centre line
- *   heat grid     when AND who at once — the only one that shows both
+ * Two things stay as cells on purpose:
  *
- * ── STILL NO IMAGES, AND STILL FOR THE SAME REASONS ──────────────────────
+ *   · **The KPI band.** Tiles, not a chart — the reference dashboards the
+ *     owner shared use tiles too, and a figure with its own movement arrow and
+ *     denominator reads better as a card than as a bar of length one.
+ *   · **The heat grid.** No chart type shows WHO and WHEN at once. Excel's own
+ *     three-colour scale over a grid does, and it stays live.
  *
- * Every one is Excel's own cells and conditional formatting: live under a
- * filter, printable, and opens correctly in Google Sheets, LibreOffice and the
- * Excel app on a phone. A PNG is a photograph that starts lying the moment
- * somebody filters the table.
+ * ── WHERE THE CHARTS GET THEIR NUMBERS ───────────────────────────────────
  *
- * ── THE WORDS ARE FOR THE PERSON, NOT THE ANALYST ────────────────────────
+ * A hidden sheet, "Chart data". A native chart must point at cells to be
+ * editable, and pointing it at the Data sheet would mean a chart that changes
+ * shape when somebody filters the table — which sounds clever and is not: the
+ * KPIs and the headline describe the whole period, so half the sheet would
+ * then be answering a different question from the other half. The dashboard
+ * describes the period as a whole, always, and says so.
  *
- * "Where the money came from", not "Revenue distribution by counterparty".
- * The one sentence somebody would repeat in a meeting is printed at the top,
- * larger than anything else, before a single number.
+ * ── MONEY IS PLOTTED IN LAKHS ────────────────────────────────────────────
+ *
+ * An axis reading 20,000,000 is unreadable and Excel's own scaling only does
+ * powers of a thousand, so it cannot produce lakh or crore. Money series are
+ * therefore divided by 100,000 and the chart title says "(₹ lakh)". The exact
+ * rupee figures are on the Data sheet, to the paisa.
  */
 
 // ─── palette ──────────────────────────────────────────────────────────────
@@ -61,14 +69,13 @@ export const C = {
   slate: "FF4A5568",  slateDim: "FFEDEFF2",
 } as const;
 
-/** One colour per panel, in order. */
-const SERIES = [
-  { solid: C.indigo, dim: C.indigoDim },
-  { solid: C.teal, dim: C.tealDim },
-  { solid: C.violet, dim: C.violetDim },
-  { solid: C.amber, dim: C.amberDim },
-  { solid: C.rose, dim: C.roseDim },
-  { solid: C.slate, dim: C.slateDim },
+/** One colour per chart, in order. */
+const SERIES = [C.indigo, C.teal, C.violet, C.amber, C.rose, C.slate] as const;
+
+/** For pies and doughnuts, where every slice needs its own. */
+const WHEEL = [
+  C.indigo, C.teal, C.amber, C.violet, C.green, C.rose, C.slate, C.red,
+  "FF7C93D8", "FF63C3BB", "FFD3A24A", "FFA98BD1",
 ] as const;
 
 const TONE: Record<string, { fg: string; bg: string }> = {
@@ -81,6 +88,11 @@ const TONE: Record<string, { fg: string; bg: string }> = {
 const HEAD = "Aptos Display";
 const BODY = "Aptos Narrow";
 const GRID = 12; // columns B..M
+
+/** How many sheet rows one chart occupies. 22 × 15px ≈ 330px tall. */
+const CHART_ROWS = 22;
+/** How many columns. Two charts across the twelve-column grid. */
+const CHART_COLS = 6;
 
 function fill(cell: ExcelJS.Cell, argb: string) {
   cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb } };
@@ -116,6 +128,91 @@ function caption(
   ws.getRow(row).height = 14;
 }
 
+// ─── the hidden sheet the charts point at ─────────────────────────────────
+
+const CHART_SHEET = "Chart data";
+
+/** `1 → A`, `27 → AA`. Needed to build the absolute references by hand. */
+function colLetter(n: number): string {
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/**
+ * Writes one block of chart source data and hands back the absolute references
+ * to it. Blocks run left to right with a blank column between them, so a
+ * person who unhides the sheet sees each chart's numbers in its own little
+ * table under its own heading.
+ */
+type Block = { catRef: string; valRefs: string[] };
+
+function writeBlock(
+  ws: ExcelJS.Worksheet,
+  col: number,
+  title: string,
+  categories: string[],
+  series: { name: string; values: number[] }[],
+): Block {
+  const q = `'${CHART_SHEET}'!`;
+  ws.getCell(1, col).value = title;
+  ws.getCell(1, col).font = { name: BODY, size: 9, bold: true, color: { argb: C.ink } };
+
+  ws.getCell(2, col).value = "Label";
+  series.forEach((s, i) => {
+    ws.getCell(2, col + 1 + i).value = s.name;
+  });
+  for (let c = col; c <= col + series.length; c++) {
+    ws.getCell(2, c).font = { name: BODY, size: 8.5, bold: true, color: { argb: C.ink3 } };
+  }
+
+  categories.forEach((label, i) => {
+    ws.getCell(3 + i, col).value = label;
+    series.forEach((s, j) => {
+      ws.getCell(3 + i, col + 1 + j).value = s.values[i] ?? 0;
+    });
+  });
+
+  const first = 3;
+  const last = 3 + categories.length - 1;
+  const L = colLetter(col);
+  return {
+    catRef: `${q}$${L}$${first}:$${L}$${last}`,
+    valRefs: series.map((_, j) => {
+      const V = colLetter(col + 1 + j);
+      return `${q}$${V}$${first}:$${V}$${last}`;
+    }),
+  };
+}
+
+// ─── money, in a unit a person can read ───────────────────────────────────
+
+/**
+ * Panels do not say whether they carry money — their `display` strings do, and
+ * they are the same strings the workbook prints elsewhere. So the ₹ sign is
+ * what decides, which is exactly the fact being relied on.
+ */
+function isMoneyPanel(p: Panel): boolean {
+  return p.rows.some((r) => r.display.includes("₹"));
+}
+
+function scale(values: number[], money: boolean): { values: number[]; fmt: string; suffix: string } {
+  if (!money) return { values, fmt: "#,##0", suffix: "" };
+  const peak = Math.max(0, ...values.map((v) => Math.abs(v)));
+  if (peak >= 100_000) {
+    return {
+      values: values.map((v) => Math.round((v / 100_000) * 100) / 100),
+      fmt: "#,##0.0",
+      suffix: " (₹ lakh)",
+    };
+  }
+  return { values, fmt: "₹#,##0", suffix: "" };
+}
+
 // ─── the sheet ────────────────────────────────────────────────────────────
 
 export function buildDashboard(
@@ -123,13 +220,18 @@ export function buildDashboard(
   title: string,
   subtitle: string,
   a: ReportAnalysis,
-) {
+): ChartSpec[] {
   const ws = wb.addWorksheet("Dashboard", {
     views: [{ showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
   for (let c = 1; c <= GRID + 1; c++) ws.getColumn(c).width = 12.6;
   ws.getColumn(1).width = 2;
+
+  const data = wb.addWorksheet(CHART_SHEET, { state: "hidden" });
+  data.getColumn(1).width = 30;
+  let dataCol = 1;
+  const specs: ChartSpec[] = [];
 
   let r = 2;
 
@@ -166,20 +268,127 @@ export function buildDashboard(
   r = drawKpis(ws, r, a.kpis);
   r += 1;
 
-  // ── the trend ──────────────────────────────────────────────────────────
-  if (a.trend && a.trend.points.length > 1) r = drawTrend(ws, r, a.trend);
+  // ── the charts, two across ─────────────────────────────────────────────
+  //
+  // Built as a flat list first, then laid out, so the pairing does not have to
+  // know what each one is.
+  type Pending = Omit<ChartSpec, "anchor">;
+  const pending: Pending[] = [];
 
-  // ── panels, two across ─────────────────────────────────────────────────
-  const panels = a.panels.slice(0, 6);
-  for (let i = 0; i < panels.length; i += 2) {
-    const pair = panels.slice(i, i + 2);
-    let deepest = r;
-    pair.forEach((panel, k) => {
-      const c1 = 2 + k * 6;
-      const end = drawPanel(ws, r, c1, c1 + 5, panel, SERIES[(i + k) % SERIES.length]);
-      deepest = Math.max(deepest, end);
+  if (a.trend && a.trend.points.length > 1) {
+    const pts = a.trend.points.slice(-14);
+    const money = pts.some((p) => p.display.includes("₹"));
+    const main = scale(pts.map((p) => p.value), money);
+    const avg = main.values.reduce((s, v) => s + v, 0) / Math.max(1, main.values.length);
+
+    const series: { name: string; values: number[] }[] = [
+      { name: a.trend.valueLabel, values: main.values },
+    ];
+    // The period's own average, drawn as a flat dashed line across the columns
+    // — the thing that turns a shape into "above or below what is normal".
+    series.push({ name: a.trend.averageLabel ?? "Average for the period", values: main.values.map(() => avg) });
+    const cmp = a.trend.compare?.points.slice(-14);
+    if (cmp?.length === pts.length) {
+      series.push({ name: a.trend.compare!.label, values: scale(cmp.map((p) => p.value), money).values });
+    }
+
+    const block = writeBlock(data, dataCol, a.trend.title, pts.map((p) => p.label), series);
+    dataCol += series.length + 2;
+
+    pending.push({
+      kind: "column",
+      title: a.trend.title + main.suffix,
+      catRef: block.catRef,
+      categories: pts.map((p) => p.label),
+      numFmt: main.fmt,
+      gapWidth: 45,
+      series: [
+        {
+          name: series[0].name,
+          ref: block.valRefs[0],
+          values: series[0].values,
+          colour: C.indigo,
+          labels: "none",
+        },
+        {
+          name: series[1].name,
+          ref: block.valRefs[1],
+          values: series[1].values,
+          colour: C.amber,
+          kind: "line",
+          dashed: true,
+          labels: "none",
+        },
+        ...(series[2]
+          ? [
+              {
+                name: series[2].name,
+                ref: block.valRefs[2],
+                values: series[2].values,
+                colour: C.slate,
+                kind: "line" as const,
+                labels: "none" as const,
+              },
+            ]
+          : []),
+      ],
     });
-    r = deepest + 1;
+  }
+
+  a.panels.slice(0, 5).forEach((panel, i) => {
+    if (!panel.rows.length) return;
+    const rows = panel.rows.slice(0, 12);
+    const labels = rows.map((x) => x.label);
+    const money = isMoneyPanel(panel);
+    const sc = scale(rows.map((x) => x.value), money);
+
+    const block = writeBlock(data, dataCol, panel.title, labels, [
+      { name: panel.valueLabel, values: sc.values },
+    ]);
+    dataCol += 3;
+
+    const kind = chartKindFor(panel, labels);
+    const colour = SERIES[(i + 1) % SERIES.length];
+
+    const showsUnits = kind !== "pie" && kind !== "doughnut";
+    pending.push({
+      kind,
+      title: panel.title + (showsUnits ? sc.suffix : ""),
+      catRef: block.catRef,
+      categories: labels,
+      numFmt: sc.fmt,
+      gapWidth: kind === "bar" ? 40 : 60,
+      holeSize: 58,
+      legend: kind === "pie" || kind === "doughnut" ? "b" : "none",
+      series: [
+        {
+          name: panel.valueLabel,
+          ref: block.valRefs[0],
+          values: sc.values,
+          colour,
+          pointColours: kind === "pie" || kind === "doughnut" ? [...WHEEL] : undefined,
+          labels: kind === "pie" || kind === "doughnut" ? "percent" : "value",
+        },
+      ],
+    });
+  });
+
+  for (let i = 0; i < pending.length; i += 2) {
+    for (let rr = r; rr < r + CHART_ROWS; rr++) ws.getRow(rr).height = 15;
+    pending.slice(i, i + 2).forEach((p, k) => {
+      const c1 = 2 + k * CHART_COLS;
+      specs.push({
+        ...p,
+        // OOXML anchors are zero-based and the "to" edge is exclusive.
+        anchor: {
+          fromCol: c1 - 1,
+          fromRow: r - 1,
+          toCol: c1 - 1 + CHART_COLS,
+          toRow: r - 1 + CHART_ROWS,
+        },
+      });
+    });
+    r += CHART_ROWS + 1;
   }
 
   // ── the heat grid ──────────────────────────────────────────────────────
@@ -218,7 +427,36 @@ export function buildDashboard(
       ws.getCell(r, 2).border = { left: { style: "medium", color: { argb: C.amber } } };
       r++;
     }
+    r += 1;
   }
+
+  // A hidden sheet that nobody was told about is a hidden sheet somebody finds
+  // and distrusts.
+  ws.mergeCells(r, 2, r, GRID + 1);
+  const src = ws.getCell(r, 2);
+  src.value =
+    'The charts above are real Excel charts. The numbers behind them are on the hidden "Chart data" sheet — right-click any chart and choose Edit Data to see it. They describe the whole period, so they do not change when the Data sheet is filtered.';
+  src.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
+  src.alignment = { wrapText: true, vertical: "middle", indent: 2 };
+  ws.getRow(r).height = 22;
+
+  return specs;
+}
+
+/**
+ * Which shape suits this panel.
+ *
+ * Composition is a doughnut; a sequence that only shrinks and a ranking of
+ * long names are horizontal bars, because "BRANDS AND BOOTS PVT LTD" does not
+ * fit under a column. A ranking of SHORT labels becomes a column chart — the
+ * variety is the point, and it is the shape the owner's reference dashboards
+ * use for exactly this case.
+ */
+function chartKindFor(panel: Panel, labels: string[]): ChartSpec["kind"] {
+  if (panel.kind === "share") return "doughnut";
+  if (panel.kind === "funnel" || panel.kind === "split") return "bar";
+  const longest = Math.max(0, ...labels.map((l) => l.length));
+  return labels.length <= 8 && longest <= 14 ? "column" : "bar";
 }
 
 // ─── KPI cards ────────────────────────────────────────────────────────────
@@ -286,268 +524,6 @@ function drawKpis(ws: ExcelJS.Worksheet, top: number, kpis: Kpi[]): number {
     r += 4;
   }
   return r;
-}
-
-// ─── the column chart ─────────────────────────────────────────────────────
-
-function drawTrend(
-  ws: ExcelJS.Worksheet,
-  top: number,
-  trend: NonNullable<ReportAnalysis["trend"]>,
-): number {
-  let r = top;
-  caption(ws, r, 2, GRID + 1, trend.title);
-  r++;
-
-  const pts = trend.points.slice(-12);
-  const cmp = trend.compare?.points.slice(-12);
-  const peak = Math.max(...pts.map((p) => Math.abs(p.value)), ...(cmp ?? []).map((p) => Math.abs(p.value)), 1);
-  const avg = pts.reduce((s, p) => s + p.value, 0) / Math.max(1, pts.length);
-  const HEIGHT = 9;
-  const chartTop = r;
-
-  // Two columns per month when there is a comparison series, one otherwise.
-  const perPoint = cmp ? 1 : 1;
-  const width = Math.min(pts.length * perPoint, GRID);
-
-  for (let level = 0; level < HEIGHT; level++) {
-    const row = chartTop + level;
-    ws.getRow(row).height = 9;
-    const hi = (HEIGHT - level) / HEIGHT;
-    const lo = (HEIGHT - level - 1) / HEIGHT;
-
-    pts.forEach((p, i) => {
-      if (i >= width) return;
-      const cell = ws.getCell(row, 2 + i);
-      const frac = Math.abs(p.value) / peak;
-      const cmpFrac = cmp?.[i] ? Math.abs(cmp[i].value) / peak : 0;
-
-      if (frac >= hi) {
-        // Solid body of the column.
-        fill(cell, p.value < 0 ? C.redDim : C.indigoDim);
-        cell.border = {
-          left: { style: "thin", color: { argb: p.value < 0 ? C.red : C.indigo } },
-          right: { style: "thin", color: { argb: p.value < 0 ? C.red : C.indigo } },
-          top: frac < (HEIGHT - level + 1) / HEIGHT ? { style: "medium", color: { argb: p.value < 0 ? C.red : C.indigo } } : undefined,
-        };
-      } else if (cmpFrac >= hi) {
-        // The comparison series shows only where the main one does not reach.
-        fill(cell, C.slateDim);
-      }
-
-      // The average, drawn as a rule across whichever band contains it.
-      const avgFrac = Math.abs(avg) / peak;
-      if (avgFrac > lo && avgFrac <= hi) {
-        const c = ws.getCell(row, 2 + i);
-        c.border = { ...(c.border ?? {}), bottom: { style: "dashed", color: { argb: C.amber } } };
-      }
-    });
-  }
-  r = chartTop + HEIGHT;
-
-  // figures, then labels
-  ws.getRow(r).height = 14;
-  pts.forEach((p, i) => {
-    if (i >= width) return;
-    const c = ws.getCell(r, 2 + i);
-    c.value = p.display;
-    c.font = { name: BODY, size: 8.5, bold: true, color: { argb: C.ink } };
-    c.alignment = { horizontal: "center" };
-    c.border = { top: { style: "thin", color: { argb: C.ink3 } } };
-  });
-  r++;
-  ws.getRow(r).height = 13;
-  pts.forEach((p, i) => {
-    if (i >= width) return;
-    const c = ws.getCell(r, 2 + i);
-    c.value = p.label;
-    c.font = { name: BODY, size: 8, color: { argb: C.ink3 } };
-    c.alignment = { horizontal: "center" };
-  });
-  r++;
-
-  const legend: string[] = [`▬ ${trend.valueLabel}`];
-  if (trend.compare) legend.push(`▬ ${trend.compare.label}`);
-  legend.push(`- - - ${trend.averageLabel ?? "Average for the period"}`);
-  ws.mergeCells(r, 2, r, GRID + 1);
-  const lg = ws.getCell(r, 2);
-  lg.value = legend.join("      ");
-  lg.font = { name: BODY, size: 8, color: { argb: C.ink3 } };
-  ws.getRow(r).height = 13;
-  return r + 2;
-}
-
-// ─── panels ───────────────────────────────────────────────────────────────
-
-function drawPanel(
-  ws: ExcelJS.Worksheet,
-  top: number,
-  c1: number,
-  c2: number,
-  panel: Panel,
-  series: { solid: string; dim: string },
-): number {
-  let r = top;
-  caption(ws, r, c1, c2, panel.title);
-  r++;
-
-  if (!panel.rows.length) {
-    ws.mergeCells(r, c1, r, c2);
-    const c = ws.getCell(r, c1);
-    c.value = "Nothing to show for this period.";
-    c.font = { name: BODY, size: 9.5, italic: true, color: { argb: C.ink3 } };
-    return r + 2;
-  }
-
-  if (panel.kind === "share") return drawShare(ws, r, c1, c2, panel);
-
-  const rows = panel.rows.slice(0, 8);
-  const first = r;
-  const max = Math.max(...rows.map((x) => Math.abs(x.value)), 1);
-
-  rows.forEach((row, i) => {
-    ws.getRow(r).height = 15;
-
-    ws.mergeCells(r, c1, r, c1 + 1);
-    const label = ws.getCell(r, c1);
-    // A funnel indents each step, so the sequence reads as a descent.
-    label.value = panel.kind === "funnel" ? `${"  ".repeat(Math.min(i, 4))}${row.label}` : row.label;
-    label.font = { name: BODY, size: 9.5, color: { argb: C.ink } };
-    label.alignment = { vertical: "middle" };
-
-    const bar = ws.getCell(r, c1 + 2);
-    bar.value = Math.abs(row.value);
-    bar.numFmt = ";;;"; // the bar is the point; the digits sit to its right
-
-    ws.mergeCells(r, c1 + 3, r, c2);
-    const val = ws.getCell(r, c1 + 3);
-    const parts: string[] = [row.display];
-    if (row.share !== undefined) parts.push(`${row.share.toFixed(1)}%`);
-    if (row.meta) parts.push(row.meta);
-    val.value = parts.join("   ");
-    val.font = {
-      name: BODY,
-      size: 9.5,
-      bold: true,
-      color: { argb: panel.kind === "split" ? (row.value < 0 ? C.red : C.green) : C.ink },
-    };
-    val.alignment = { horizontal: "right", vertical: "middle" };
-    r++;
-  });
-
-  // A diverging panel gets red and green rules so a fall reads as a fall.
-  const col = ws.getColumn(c1 + 2).letter;
-  if (panel.kind === "split") {
-    const neg = rows.map((x, i) => ({ x, i })).filter(({ x }) => x.value < 0);
-    const pos = rows.map((x, i) => ({ x, i })).filter(({ x }) => x.value >= 0);
-    for (const [set, colour] of [[neg, C.red] as const, [pos, C.green] as const]) {
-      for (const { i } of set) {
-        ws.addConditionalFormatting({
-          ref: `${col}${first + i}:${col}${first + i}`,
-          rules: [dataBar(colour, max)],
-        });
-      }
-    }
-  } else {
-    ws.addConditionalFormatting({
-      ref: `${col}${first}:${col}${r - 1}`,
-      rules: [dataBar(series.solid, max)],
-    });
-  }
-
-  if (panel.note) {
-    ws.mergeCells(r, c1, r, c2);
-    const nc = ws.getCell(r, c1);
-    nc.value = panel.note;
-    nc.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
-    nc.alignment = { wrapText: true, vertical: "top" };
-    ws.getRow(r).height = Math.max(13, Math.ceil(panel.note.length / 58) * 11);
-    r++;
-  }
-  return r + 1;
-}
-
-/** A fixed maximum, so two panels side by side are on the same scale. */
-function dataBar(argb: string, max: number): ExcelJS.ConditionalFormattingRule {
-  return {
-    type: "dataBar",
-    priority: 1,
-    gradient: true,
-    minLength: 0,
-    maxLength: 100,
-    color: { argb },
-    // `cfvo` is REQUIRED and undocumented as such — without it the workbook
-    // builds and then dies inside writeBuffer() on `rule.cfvo.forEach`.
-    cfvo: [
-      { type: "num", value: 0 },
-      { type: "num", value: max },
-    ],
-  } as unknown as ExcelJS.ConditionalFormattingRule;
-}
-
-/**
- * Composition, as one 100%-wide bar split into coloured segments.
- *
- * The question is not "who is biggest" — the ranked panel answers that — it is
- * "is this a handful of names or a long tail", which a list of numbers makes
- * you work out and a single bar shows instantly.
- */
-function drawShare(ws: ExcelJS.Worksheet, top: number, c1: number, c2: number, panel: Panel): number {
-  let r = top;
-  const width = c2 - c1 + 1;
-  const rows = panel.rows.slice(0, 5);
-  const shown = rows.reduce((s, x) => s + x.value, 0);
-  const total = panel.rows.reduce((s, x) => s + x.value, 0);
-  const rest = Math.max(0, total - shown);
-  const segments = [
-    ...rows.map((x, i) => ({ label: x.label, value: x.value, colour: SERIES[i % SERIES.length].solid, display: x.display })),
-    ...(rest > 0 ? [{ label: "Everyone else", value: rest, colour: C.rule, display: "" }] : []),
-  ];
-
-  // The bar itself: one row of cells, each coloured by whichever segment it
-  // falls into. Twelve cells is coarse, so a segment under ~8% still gets one
-  // cell rather than vanishing — which is the honest failure.
-  ws.getRow(r).height = 20;
-  let acc = 0;
-  const cuts = segments.map((s) => {
-    acc += s.value;
-    return total > 0 ? acc / total : 0;
-  });
-  for (let i = 0; i < width; i++) {
-    const at = (i + 0.5) / width;
-    const idx = Math.max(0, cuts.findIndex((c) => at <= c));
-    fill(ws.getCell(r, c1 + i), segments[idx]?.colour ?? C.rule);
-  }
-  outline(ws, r, c1, r, c2, C.rule);
-  r++;
-
-  // Legend, two per line.
-  for (let i = 0; i < segments.length; i += 2) {
-    ws.getRow(r).height = 13;
-    segments.slice(i, i + 2).forEach((s, k) => {
-      const cc = c1 + k * 3;
-      const dot = ws.getCell(r, cc);
-      dot.value = "■";
-      dot.font = { name: BODY, size: 10, color: { argb: s.colour } };
-      dot.alignment = { horizontal: "right" };
-      ws.mergeCells(r, cc + 1, r, cc + 2);
-      const lab = ws.getCell(r, cc + 1);
-      const share = total > 0 ? ((s.value / total) * 100).toFixed(1) : "0.0";
-      lab.value = `${s.label}  ${share}%`;
-      lab.font = { name: BODY, size: 8.5, color: { argb: C.ink2 } };
-    });
-    r++;
-  }
-
-  if (panel.note) {
-    ws.mergeCells(r, c1, r, c2);
-    const nc = ws.getCell(r, c1);
-    nc.value = panel.note;
-    nc.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
-    ws.getRow(r).height = 13;
-    r++;
-  }
-  return r + 1;
 }
 
 // ─── the heat grid ────────────────────────────────────────────────────────
