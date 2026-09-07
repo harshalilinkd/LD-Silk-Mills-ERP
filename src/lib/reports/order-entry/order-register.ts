@@ -59,7 +59,12 @@ const REGISTER_SQL = `
       -- LIVE lines only. Counting cancelled ones made this report say 226
       -- qualities where the line detail said 223 over the same period.
       count(distinct li.quality)   filter (where not li.is_cancelled)           as qualities,
-      count(distinct li.design_no) filter (where not li.is_cancelled)           as designs
+      count(distinct li.design_no) filter (where not li.is_cancelled)           as designs,
+      -- Lines whose quality AND design already appear on this order. The
+      -- order's totals stay right either way; this is here so a reader
+      -- comparing the sheet against a printout knows the repeat is real.
+      count(*) filter (where not li.is_cancelled)
+        - count(distinct (li.quality, li.design_no)) filter (where not li.is_cancelled) as repeated_lines
     from ld_order_entry.order_line_items li
     where not li.is_deleted
     group by li.order_id
@@ -95,6 +100,7 @@ const REGISTER_SQL = `
     coalesce(l.cancelled_lines, 0)  as cancelled_lines,
     coalesce(l.qualities, 0)        as qualities,
     coalesce(l.designs, 0)          as designs,
+    coalesce(l.repeated_lines, 0)   as repeated_lines,
     coalesce(l.qty_mtr, 0)          as qty_mtr,
     coalesce(l.value, 0)            as value,
     coalesce(l.cancelled_value, 0)  as cancelled_value,
@@ -114,7 +120,10 @@ const REGISTER_SQL = `
     and ($3::text is null or o.party_name   = $3::text)
     and ($4::text is null or o.agent        = $4::text)
     and ($5::text is null or o.sales_person = $5::text)
-  order by o.order_date desc, o.order_no desc
+  -- Ends in the row's own id. Without a unique tiebreak Postgres is free to
+  -- return equal rows in a different order every run, and the same report
+  -- run twice would produce two differently-ordered files.
+  order by o.order_date desc, o.order_no desc, o.id
 `;
 
 type Raw = {
@@ -131,6 +140,7 @@ type Raw = {
   cancelled_lines: number;
   qualities: number;
   designs: number;
+  repeated_lines: number;
   qty_mtr: string;
   value: string;
   cancelled_value: string;
@@ -190,6 +200,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     cancelled_lines: n(r.cancelled_lines),
     qualities: n(r.qualities),
     designs: n(r.designs),
+    repeated_lines: n(r.repeated_lines),
     qty_mtr: n(r.qty_mtr),
     value: n(r.value),
     // Rounded here, not left to the cell format: the CSV has no format to
@@ -229,6 +240,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     bySales.set(r.sales_person?.trim() || "Not recorded", (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v);
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
+
+  const repeatedLines = raw.reduce((s, r) => s + n(r.repeated_lines), 0);
+  const repeatedOrders = raw.filter((r) => n(r.repeated_lines) > 0).length;
 
   const conc = concentration([...byParty].map(([label, value]) => ({ label, value })));
   const t = trend(byMonth, inrShort);
@@ -284,6 +298,13 @@ async function run(params: ReportParams): Promise<ReportResult> {
     insights.push(
       `${monthName(thisMonth!)} stands at ${inrShort(byMonth.get(thisMonth!) ?? 0)} after ${day} days — ` +
         `on track for roughly ${inrShort(projected)} if the rest of the month looks like the start.`,
+    );
+  }
+
+  if (repeatedLines > 0) {
+    insights.push(
+      `${count(repeatedOrders)} orders list the same cloth and design more than once — ${count(repeatedLines)} extra lines in all. ` +
+        `The totals are right either way, but it is usually a slip during entry and worth checking before an order is quoted.`,
     );
   }
 
@@ -344,6 +365,13 @@ async function run(params: ReportParams): Promise<ReportResult> {
           label: "Agents",
           value: count(byAgent.size),
           tone: "neutral",
+        },
+        {
+          label: "Lines listed twice",
+          value: count(repeatedLines),
+          tone: repeatedLines > 0 ? "warn" : "good",
+          lowerIsBetter: true,
+          sub: repeatedOrders > 0 ? `across ${count(repeatedOrders)} orders` : "none to check",
         },
         {
           label: "Largest customer",
@@ -439,6 +467,7 @@ export const orderRegister: ReportDefinition = {
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
+    { key: "repeated_lines", label: "Listed twice", type: "int", note: "How many lines repeat a quality and design already on this order. Usually a slip during entry. The order's totals are correct either way." },
     { key: "qty_mtr", label: "Metres", type: "number", note: "Cancelled lines excluded." },
     { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },

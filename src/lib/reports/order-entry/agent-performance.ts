@@ -72,7 +72,7 @@ const SQL = (dim: "agent" | "sales_person") => `
   from per_customer pc
   join totals t on t.who = pc.who
   group by pc.who, t.qty_mtr, t.lines, t.cancelled_value, t.first_order, t.last_order, t.days_since_last
-  order by 4 desc
+  order by 4 desc, pc.who
 `;
 
 type Raw = {

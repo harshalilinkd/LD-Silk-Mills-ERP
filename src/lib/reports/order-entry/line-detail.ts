@@ -49,6 +49,12 @@ const SQL = `
     li.line_total,
     li.is_cancelled,
     coalesce(ws.label, 'Not started') as stage,
+    -- The same quality AND design appearing more than once inside one order.
+    -- Almost always a slip during entry, and every report was reproducing it
+    -- silently: the order's totals are right, but a reader comparing the sheet
+    -- with the order sees the same cloth twice and cannot tell whether it is a
+    -- real split delivery or a mistake.
+    (count(*) over (partition by li.order_id, li.quality, li.design_no) > 1) as repeated,
     li.remarks,
     o.lot_no,
     o.challan_no
@@ -71,14 +77,14 @@ const SQL = `
     ${ORDER_FILTER_SQL}
     and ($6::text is null or li.quality   = $6::text)
     and ($7::text is null or li.design_no = $7::text)
-  order by o.order_date desc, o.order_no desc, li.quality, li.design_no
+  order by o.order_date desc, o.order_no desc, li.quality, li.design_no, li.id
 `;
 
 type Raw = {
   order_no: string; order_date: string; party_name: string | null; agent: string | null;
   sales_person: string | null; transport: string | null; quality: string | null;
   design_no: string | null; qty_mtr: string; rate: string; line_total: string;
-  is_cancelled: boolean; stage: string; remarks: string | null;
+  is_cancelled: boolean; stage: string; repeated: boolean; remarks: string | null;
   lot_no: string | null; challan_no: string | null;
 };
 
@@ -102,6 +108,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rate: money2(r.rate),
     line_total: money2(r.line_total),
     is_cancelled: r.is_cancelled,
+    repeated: r.repeated,
     stage: r.stage,
     lot_no: r.lot_no,
     challan_no: r.challan_no,
@@ -243,6 +250,7 @@ export const lineDetail: ReportDefinition = {
     { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Per metre, as written on the line. The foot shows the rate across the whole file, weighted by metres." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
+    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same quality and design appears more than once on this order. Usually a slip during entry — worth checking before quoting the order." },
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },

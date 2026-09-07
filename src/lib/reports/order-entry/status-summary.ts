@@ -81,7 +81,7 @@ const SQL = `
   where ($1::date is null or o.order_date >= $1::date)
     and ($2::date is null or o.order_date <= $2::date)
     ${ORDER_FILTER_SQL}
-  order by coalesce(r.slowest, 0), o.order_date desc
+  order by coalesce(r.slowest, 0), o.order_date desc, o.order_no, o.id
 `;
 
 type Raw = {

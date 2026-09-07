@@ -60,7 +60,7 @@ const SIZE_FACTOR = 3;
 const SQL = `
   with rated as (
     select
-      o.id as order_id, o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
+      li.id, o.id as order_id, o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
       coalesce(nullif(trim(li.quality), ''), 'Not recorded')   as quality,
       coalesce(nullif(trim(li.design_no), ''), 'Not recorded') as design_no,
       li.qty_mtr, li.rate, li.line_total
@@ -140,11 +140,11 @@ const SQL = `
   from judged j
   order by
     case when j.usual > 0 then abs(j.rate - j.usual) * j.qty_mtr else 0 end desc,
-    j.line_total desc
+    j.line_total desc, j.order_no, j.quality, j.design_no, j.id
 `;
 
 type Raw = {
-  order_id: string; order_no: string; order_date: string;
+  id: string; order_id: string; order_no: string; order_date: string;
   party_name: string | null; agent: string | null; sales_person: string | null;
   quality: string; design_no: string; qty_mtr: string; rate: string; line_total: string;
   compared_with: string; usual: string | null; p25: string | null; p75: string | null;

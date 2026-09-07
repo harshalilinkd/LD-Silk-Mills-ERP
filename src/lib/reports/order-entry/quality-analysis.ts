@@ -49,7 +49,7 @@ const SQL = `
     ${ORDER_FILTER_SQL}
     and ($6::text is null or li.quality = $6::text)
   group by 1, 2
-  order by 7 desc
+  order by 7 desc, 1, 2
 `;
 
 type Raw = {

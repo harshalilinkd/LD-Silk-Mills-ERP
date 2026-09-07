@@ -52,7 +52,7 @@ const SQL = `
     and ($2::date is null or o.order_date <= $2::date)
     ${ORDER_FILTER_SQL}
   group by o.party_name
-  order by 6 desc
+  order by 6 desc, o.party_name
 `;
 
 type Raw = {

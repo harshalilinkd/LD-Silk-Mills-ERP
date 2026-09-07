@@ -56,7 +56,7 @@ const SQL = `
     and ($1::date is null or o.order_date >= $1::date)
     and ($2::date is null or o.order_date <= $2::date)
     ${ORDER_FILTER_SQL}
-  order by (current_date - o.order_date) desc, o.order_no
+  order by (current_date - o.order_date) desc, o.order_no, li.quality, li.design_no, li.id
 `;
 
 type Raw = {

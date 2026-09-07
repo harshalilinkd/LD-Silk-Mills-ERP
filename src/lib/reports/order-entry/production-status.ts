@@ -60,7 +60,9 @@ const SQL = `
     ${ORDER_FILTER_SQL}
   group by o.order_no, o.order_date, o.party_name, o.agent,
            li.id, li.quality, li.design_no, li.qty_mtr, li.line_total
-  order by o.order_date desc, o.order_no desc
+  -- Quality then design then the line's own id, so the lines inside one
+  -- order always come out in the same, readable order.
+  order by o.order_date desc, o.order_no desc, li.quality, li.design_no, li.id
 `;
 
 type Raw = Record<string, string | number | boolean | null>;
