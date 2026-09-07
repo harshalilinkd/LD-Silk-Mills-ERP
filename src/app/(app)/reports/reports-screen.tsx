@@ -67,7 +67,7 @@ export type ModuleGroup = {
  *
  * The catalogue is heading for thirty-seven reports across seven modules. As a
  * single scrolling list that is a wall: somebody looking for a Petty Cash
- * figure reads past nine Order Entry cards to find it, and the count of what
+ * figure reads past every Order Entry card to find it, and the count of what
  * they can actually reach is never visible at a glance.
  *
  * So the front of this screen is one card per MODULE — how many reports it has,

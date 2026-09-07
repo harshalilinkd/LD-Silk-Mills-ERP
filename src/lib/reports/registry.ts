@@ -6,9 +6,6 @@ import { lineDetail } from "./order-entry/line-detail";
 import { orderRegister } from "./order-entry/order-register";
 import { productionStatus } from "./order-entry/production-status";
 import { qualityAnalysis } from "./order-entry/quality-analysis";
-import { rateAnalysis } from "./order-entry/rate-analysis";
-import { statusSummary } from "./order-entry/status-summary";
-import { workInProgress } from "./order-entry/work-in-progress";
 import type { ReportDefinition, ReportModule } from "./types";
 import { MODULE_META } from "./types";
 
@@ -27,18 +24,34 @@ import { MODULE_META } from "./types";
  * them. They arrive module by module, with the richest data first.
  */
 
+/**
+ * ── SIX, NOT NINE ────────────────────────────────────────────────────────
+ *
+ * Cut on the owner's instruction, and the cut was right. Three of the nine
+ * were the same sheet twice:
+ *
+ *   · Order status summary was the order register with progress columns —
+ *     both one row per order, both carrying party, agent, transport, metres
+ *     and value. Those columns now live on the register.
+ *   · Work in progress was production status filtered to the unfinished lines.
+ *     Its useful parts — what each line is waiting on, how long it has been
+ *     open — are columns on production status now, and "Still open" filters
+ *     to exactly the old report.
+ *   · Rate analysis is gone at the owner's request. Quality & design analysis
+ *     still carries the lowest and highest rate each cloth went out at, which
+ *     is the part of it that was never in doubt.
+ *
+ * What is left answers six genuinely different questions, one each: by order,
+ * by line, by process, by customer, by agent, by product. Nothing here repeats
+ * anything else.
+ */
 export const REPORTS: ReportDefinition[] = [
-  // Order Entry, in the order somebody works through them: the record first,
-  // then the detail, then the process, then the analysis.
-  orderRegister,
-  lineDetail,
-  statusSummary,
-  productionStatus,
-  workInProgress,
-  customerLedger,
-  agentPerformance,
-  qualityAnalysis,
-  rateAnalysis,
+  orderRegister,     // by order
+  lineDetail,        // by line
+  productionStatus,  // by process
+  customerLedger,    // by customer
+  agentPerformance,  // by agent
+  qualityAnalysis,   // by product
 ];
 
 export function getReport(id: string): ReportDefinition | null {

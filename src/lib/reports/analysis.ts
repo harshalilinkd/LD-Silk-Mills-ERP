@@ -277,7 +277,7 @@ export function concentrationInsight(c: Concentration, noun = "customers", money
   return (
     `The top five ${noun} are ${pct(c.top5Share)} of ${fmt(c.total)}, ` +
     `and ${c.topLabel} alone is ${pct(c.topShare)}. ` +
-    `${c.paretoCount} of ${c.n} ${noun} account for 80%.`
+    `Just ${c.paretoCount} ${noun} make up 80% of it.`
   );
 }
 

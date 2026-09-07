@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sql as pg } from "@/db";
-import { rank, spread } from "../analysis";
+import { AGE_BUCKETS, ageing, rank, spread } from "../analysis";
 import { count, inrShort, pct } from "../format";
 import type { Panel, ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
@@ -40,6 +40,8 @@ const SQL = `
     o.order_date,
     o.party_name,
     o.agent,
+    o.transport,
+    o.haste,
     li.quality,
     li.design_no,
     li.qty_mtr,
@@ -50,7 +52,9 @@ const SQL = `
     max(p.actual_at)         filter (where p.stage_key = '${s.key}') as s${i}_at,
     max(p.planned_at)        filter (where p.stage_key = '${s.key}') as s${i}_plan,
     max(p.delay_minutes)     filter (where p.stage_key = '${s.key}') as s${i}_delay`,
-    ).join(",")}
+    ).join(",")},
+    max(p.actual_at) filter (where p.is_done)                            as last_tick,
+    (current_date - o.order_date)                                        as days_open
   from ld_order_entry.order_line_items li
   join ld_order_entry.customer_orders o on o.id = li.order_id
   left join ld_order_entry.line_stage_progress p on p.order_line_item_id = li.id
@@ -58,7 +62,7 @@ const SQL = `
     and ($1::date is null or o.order_date >= $1::date)
     and ($2::date is null or o.order_date <= $2::date)
     ${ORDER_FILTER_SQL}
-  group by o.order_no, o.order_date, o.party_name, o.agent,
+  group by o.order_no, o.order_date, o.party_name, o.agent, o.transport, o.haste,
            li.id, li.quality, li.design_no, li.qty_mtr, li.line_total
   -- Quality then design then the line's own id, so the lines inside one
   -- order always come out in the same, readable order.
@@ -66,6 +70,8 @@ const SQL = `
 `;
 
 type Raw = Record<string, string | number | boolean | null>;
+
+const bucketOf = (d: number) => AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "Over 60 days";
 
 async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL, orderFilterArgs(params))) as unknown as Raw[];
@@ -99,6 +105,31 @@ async function run(params: ReportParams): Promise<ReportResult> {
     }
     out.reached = reached;
     out.stages_done = doneCount;
+    out.transport = r.transport as string | null;
+    out.haste = r.haste as string | null;
+
+    // What WIP used to say. `open` is the flag somebody filters on to get the
+    // action list that used to be its own report.
+    // ── FINISHED MEANS THE LAST STAGE IS TICKED, NOT ALL SEVEN ─────────
+    //
+    // 33 lines have Dispatch ticked with an earlier stage never ticked.
+    // Judging "finished" by the COUNT of ticks called those 33 open while
+    // the funnel and the headline called them finished, so one sheet
+    // carried both 3,678 and 3,711 as the number of lines still open. A
+    // dispatched line has left the mill; a missed tick behind it is a data
+    // gap, and "Stages done" beside this column is where that shows.
+    const isOpen = out[`s${STAGES.length - 1}_done`] !== true;
+    // The first stage NOT ticked, which is not the same as the one after
+    // the last tick once a stage has been skipped.
+    const firstOpen = STAGES.findIndex((_, i) => out[`s${i}_done`] !== true);
+    out.open = isOpen;
+    out.waiting_on = isOpen ? (STAGES[firstOpen]?.label ?? "\u2014") : "\u2014";
+    out.days_open = n(r.days_open as number);
+    out.age_bucket = isOpen ? bucketOf(n(r.days_open as number)) : "Finished";
+    const tick = r.last_tick as string | null;
+    out.days_since_move = tick
+      ? Math.round(((Date.now() - new Date(tick).getTime()) / 86_400_000) * 10) / 10
+      : null;
 
     const first = r.s0_at as string | null;
     const last = r.s6_at as string | null;
@@ -155,6 +186,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const all = spread(allDays);
   const real = spread(realDays);
 
+  // The same definition the rows use: the last stage is not ticked.
+  const openRows = raw.filter((r) => n(r[`s${STAGES.length - 1}_done`] as number) !== 1);
+  const openOver30 = openRows.filter((r) => n(r.days_open as number) > 30).length;
+
   const doneStages = raw.reduce((s, r) => s + STAGES.filter((_, i) => n(r[`s${i}_done`] as number) === 1).length, 0);
   const onTimeStages = raw.reduce(
     (s, r) =>
@@ -169,8 +204,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const insights: string[] = [];
   if (total) {
     insights.push(
-      `${count(reachedCount[0])} of ${count(total)} lines have started and ${count(reachedCount[6])} have finished — ` +
-        `${pct((reachedCount[6] / total) * 100, 0)} all the way through.`,
+      `${count(reachedCount[0])} of ${count(total)} lines have started and ${count(total - openRows.length)} have finished — ` +
+        `${pct(((total - openRows.length) / total) * 100, 0)} all the way through.`,
     );
   }
   if (worstDrop.lost > 0) {
@@ -202,13 +237,20 @@ async function run(params: ReportParams): Promise<ReportResult> {
     analysis: {
       headline:
         total > 0
-          ? `${count(reachedCount[6])} of ${count(total)} lines are finished. The other ${count(total - reachedCount[6])} are still somewhere in the mill.`
+          ? `${count(total - openRows.length)} of ${count(total)} lines are finished. The other ${count(openRows.length)} are still somewhere in the mill.`
           : "No lines in this period.",
       kpis: [
         { label: "Lines", value: count(total), sub: "cancelled left out" },
         { label: "Started", value: count(reachedCount[0]), tone: "good", sub: total ? pct((reachedCount[0] / total) * 100, 0) : undefined },
-        { label: "Finished", value: count(reachedCount[6]), tone: reachedCount[6] < total / 2 ? "warn" : "good", sub: total ? pct((reachedCount[6] / total) * 100, 0) : undefined },
-        { label: "Still open", value: count(total - reachedCount[6]), tone: "bad" },
+        { label: "Finished", value: count(total - openRows.length), tone: total - openRows.length < total / 2 ? "warn" : "good", sub: total ? pct(((total - openRows.length) / total) * 100, 0) : undefined },
+        { label: "Still open", value: count(openRows.length), tone: "bad" },
+        {
+          label: "Open over a month",
+          value: count(openOver30),
+          tone: openOver30 ? "bad" : "good",
+          lowerIsBetter: true,
+          sub: openRows.length > 0 ? pct((openOver30 / openRows.length) * 100, 0) : undefined,
+        },
         { label: "Middle cycle", value: real.median !== null ? `${real.median.toFixed(1)} d` : "—", sub: "ticked on different days" },
         { label: "Slowest tenth", value: real.p90 !== null ? `${real.p90.toFixed(1)} d` : "—", tone: "warn", sub: "90th percentile" },
         { label: "Ticked on time", value: doneStages ? pct((onTimeStages / doneStages) * 100, 1) : "—", tone: "warn", sub: "read the note below" },
@@ -216,6 +258,27 @@ async function run(params: ReportParams): Promise<ReportResult> {
       ],
       panels: [
         funnel,
+        {
+          title: "What each open line is waiting for",
+          valueLabel: "Lines",
+          rows: rank(
+            [...openRows.reduce((m, r) => {
+              const next = STAGES.findIndex((_, i) => n(r[`s${i}_done`] as number) !== 1);
+              const k = STAGES[next]?.label ?? "Finished";
+              m.set(k, (m.get(k) ?? 0) + 1);
+              return m;
+            }, new Map<string, number>())].map(([label, value]) => ({ label, value })),
+            count,
+            STAGES.length,
+          ),
+          note: "The next stage that has not been ticked. The biggest bar is the bottleneck.",
+        },
+        {
+          ...ageing(openRows.map((r) => n(r.days_open as number))),
+          title: "How long the open lines have waited",
+          valueLabel: "Lines",
+          note: "Counted from the day the order was placed.",
+        },
         {
           title: "Who is waiting on the most lines",
           valueLabel: "Lines",
@@ -270,18 +333,25 @@ export const productionStatus: ReportDefinition = {
   module: "order-entry",
   title: "Production status",
   description:
-    "Every live line against all seven stages — what is ticked, when, and how far past its planned date. Carries the funnel and the honest cycle time.",
+    "Every live line against all seven stages — what is ticked, when, and how far past its planned date. how far past its planned date, and what each unfinished line is waiting on. Filter Still open to Yes for the action list.",
   defaultMonthsBack: 2,
   columns: [
     { key: "order_no", label: "Order no", type: "text", width: 14 },
     { key: "order_date", label: "Order date", type: "date" },
     { key: "party_name", label: "Party", type: "text", width: 30 },
     { key: "agent", label: "Agent", type: "text", width: 20 },
+    { key: "transport", label: "Transport", type: "text", width: 22 },
+    { key: "haste", label: "Haste", type: "text", width: 12 },
     { key: "quality", label: "Quality", type: "text", width: 24 },
     { key: "design_no", label: "Design no", type: "text", width: 15 },
     { key: "qty_mtr", label: "Metres", type: "number" },
     { key: "line_total", label: "Line value", type: "money" },
+    { key: "open", label: "Still open", type: "boolean", note: "Filter this to Yes for the day's action list — the lines that have not finished." },
     { key: "reached", label: "Reached", type: "text", width: 17 },
+    { key: "waiting_on", label: "Waiting on", type: "text", width: 17, note: "The next stage that has not been ticked. A dash means it has finished." },
+    { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today \u2014 what the customer is experiencing. Averaged at the foot." },
+    { key: "age_bucket", label: "Age", type: "text", width: 13 },
+    { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
     { key: "stages_done", label: "Stages done", type: "int", total: "avg", note: "Out of seven. The foot shows the average across the file." },
     ...STAGES.flatMap((s, i) => [
       { key: `s${i}_done`, label: `${s.label} — done`, type: "boolean" as const },

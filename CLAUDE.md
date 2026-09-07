@@ -907,13 +907,56 @@ already hold `system_access` for it, so all six can READ the ledger the moment
 it goes live and only the ERP admin can record anything — worth a look before
 the first real entry.
 
-## Reports — one engine, thirty-seven definitions
+## Reports — one engine, six definitions built
 
 `/reports`, and it is the shell's own screen rather than a module: it is where
 every module's reports come out of. Built Sep 2026 after a full profile of all
 46 tables; the analysis behind it — what each module holds, the 37 reports the
 data can honestly produce, and three findings that change what those reports
 should say — was published to the owner as an artifact and is the spec.
+
+**SIX Order Entry reports, not nine, and the cut was the owner's** (Sep 2026):
+*"keep only 6 reports which are important and 100% right, remove reports
+showing same repetitive information."* Three of the nine were the same sheet
+twice, so their useful columns were folded into the survivors rather than
+thrown away:
+
+| Gone | Where it went |
+|---|---|
+| Order status summary | **Order register** — it was already one row per order with the same party/agent/transport/metres/value. It gained `Reached`, `Furthest line`, `Complete`, `Days open`, `Age`, `Lines finished`, `Lines through`, `Days since move`, `Last ticked`, an ageing panel and three KPIs. |
+| Work in progress | **Production status** — it was production status filtered to the unfinished lines. That report gained `Still open`, `Waiting on`, `Days open`, `Age`, `Days since move`, `Transport`, `Haste`, a bottleneck panel and an ageing panel. Filtering `Still open = Yes` reproduces the old report exactly. |
+| Rate analysis | Deleted outright at the owner's instruction. Quality & design analysis still carries each cloth's lowest, middle and highest rate, which was the part of it that was never in doubt. |
+
+The six that remain answer six different questions — **by order, by line, by
+process, by customer, by agent, by product** — and nothing in one repeats
+anything in another.
+
+**One word must mean one thing on one sheet.** Two figures had drifted and both
+were caught by running every report against SQL written separately:
+
+- **"Finished" is the LAST STAGE being ticked, not all seven being ticked.**
+  33 live lines have Dispatch ticked with an earlier stage never ticked, so the
+  count-of-ticks reading called them open while the funnel called them
+  finished — the same production-status dashboard printed both 3,678 and 3,711
+  as the number of lines still open. A dispatched line has left the mill; the
+  missed tick behind it is a data gap, and `Stages done` beside the flag is
+  where that shows. `Waiting on` is therefore the FIRST un-ticked stage, not
+  the one after the last tick.
+- **Two "Lines" columns on the register** — `line_count` (all lines) sat beside
+  the merged-in `live_lines` (cancelled excluded). One column now, cancelled
+  excluded, matching Metres and Value beside it; the cancelled ones keep their
+  own column.
+- The order register counts every customer who placed an order (204); line
+  detail counts those with a line still standing (202). Both are right, so the
+  line-detail insight now says so in a clause rather than leaving two reports
+  quietly printing different numbers.
+
+**Verification is a script, not a screenshot** (`.scratch/verify.ts` while it
+lasts). It runs each report twice and requires the rows to be byte-identical —
+non-deterministic ordering inside an order was a real defect — then checks 14
+figures against independently-written SQL and 10 figures the reports share with
+each other. It must come back with zero failures before any of this ships;
+these files go to the MD.
 
 **Adding a report is one file and one line.** Write a `ReportDefinition`
 (`src/lib/reports/types.ts`) — id, module, columns, filters, and a `run` that

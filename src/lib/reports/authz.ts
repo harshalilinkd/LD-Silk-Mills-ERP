@@ -20,8 +20,8 @@ import { MODULE_META, type ReportDefinition, type ReportModule } from "./types";
  * So there is no second permission system here. A report inherits the
  * permission of the module it reports on, read from `ld_erp_core.system_access`
  * — the same tick box in Settings → Access that decides whether the module
- * appears in the sidebar at all. Grant somebody Orders and they get all nine
- * Order Entry reports; take it away and they get none.
+ * appears in the sidebar at all. Grant somebody Orders and they get every
+ * Order Entry report; take it away and they get none.
  *
  * ── WHY THAT IS SAFE, AND WHERE IT ISN'T QUITE ───────────────────────────
  *

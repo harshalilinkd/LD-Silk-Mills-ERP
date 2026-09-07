@@ -126,6 +126,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const byQuality = new Map<string, number>();
   const byDesign = new Map<string, number>();
   const byParty = new Map<string, number>();
+  // Every party in the file, cancelled lines included — the count the order
+  // register reports.
+  const allParties = new Set(raw.map((r) => (r.party_name as string | null)?.trim() || "Not recorded")).size;
   const qtyByQuality = new Map<string, number>();
   for (const r of live) {
     add(byMonth, (r.order_date ?? "").slice(0, 7), n(r.line_total));
@@ -158,7 +161,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
     );
   }
   insights.push(
-    `${count(byDesign.size)} designs across ${count(byQuality.size)} qualities went to ${count(byParty.size)} customers.`,
+    `${count(byDesign.size)} designs across ${count(byQuality.size)} qualities went to ${count(byParty.size)} customers.` +
+      // The order register counts every customer who placed an order; this
+      // counts the ones with a line still standing. Where they differ, say so
+      // — two reports quietly printing 202 and 204 is a question nobody
+      // should have to ask.
+      (allParties > byParty.size
+        ? ` ${count(allParties - byParty.size)} more appear in the file with every line cancelled.`
+        : ""),
   );
 
   return {

@@ -7,10 +7,15 @@ import { sql as pg } from "@/db";
  *  The pieces every Order Entry report needs
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Nine reports over the same three tables. What is shared here is not just
+ * Six reports over the same three tables. What is shared here is not just
  * convenience — it is the definitions that must not drift. "Live line",
  * "reached", and what the delay column actually measures have to mean the same
- * thing on all nine, or two reports disagree and nobody knows which to believe.
+ * thing on all six, or two reports disagree and nobody knows which to believe.
+ *
+ * "Finished" is the one that got away for a while and it is worth naming: it
+ * means THE LAST STAGE IS TICKED, never "all seven are ticked". 33 lines have
+ * Dispatch ticked with an earlier stage skipped, and counting ticks instead
+ * made one dashboard print two different numbers of open lines.
  */
 
 /** Postgres `numeric` arrives as a string; nulls become 0, never NaN. */

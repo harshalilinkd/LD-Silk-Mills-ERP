@@ -3,6 +3,8 @@ import "server-only";
 import { sql as pg } from "@/db";
 import { todayIso } from "@/lib/dates";
 import {
+  AGE_BUCKETS,
+  ageing,
   concentration,
   matrixFrom,
   monthDelta,
@@ -24,7 +26,7 @@ import { MAX_EXPORT_ROWS } from "../types";
  *  Order register — one row per order
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * The biggest and most demanding of the thirty-seven, which is why it is the
+ * The biggest and most demanding of them, which is why it is the
  * one the engine was proved on. It joins the order header to its lines, rolls
  * up quantity and value, and works out where the order has reached without
  * fetching forty thousand stage rows into JavaScript.
@@ -69,22 +71,33 @@ const REGISTER_SQL = `
     where not li.is_deleted
     group by li.order_id
   ),
-  progress as (
-    -- Where the order has reached: the furthest stage every one of its live
-    -- lines has finished. "Furthest stage ANY line reached" would call an
-    -- order dispatched because one line of forty was.
+  per_line as (
     select
       li.order_id,
-      min(done.reached) as reached
+      li.id as line_id,
+      coalesce(max(w.sort_order) filter (where p.is_done), 0) as reached,
+      max(p.actual_at) filter (where p.is_done)               as last_tick
     from ld_order_entry.order_line_items li
-    join lateral (
-      select coalesce(max(ws.sort_order), 0) as reached
-      from ld_order_entry.line_stage_progress p
-      join ld_order_entry.workflow_stages ws on ws.stage_key = p.stage_key
-      where p.order_line_item_id = li.id and p.is_done
-    ) done on true
+    left join ld_order_entry.line_stage_progress p on p.order_line_item_id = li.id
+    left join ld_order_entry.workflow_stages w on w.stage_key = p.stage_key
     where not li.is_deleted and not li.is_cancelled
-    group by li.order_id
+    group by li.order_id, li.id
+  ),
+  progress as (
+    -- Where the order has reached: the furthest stage EVERY one of its live
+    -- lines has finished. "Furthest stage ANY line reached" would call an
+    -- order dispatched because one line of forty was, which is how a customer
+    -- gets told the wrong thing on the phone. The other reading is carried
+    -- beside it as the furthest column.
+    select
+      order_id,
+      min(reached)   as reached,
+      max(reached)   as furthest,
+      max(last_tick) as last_tick,
+      count(*)       as live_lines,
+      count(*) filter (where reached = (select max(sort_order) from ld_order_entry.workflow_stages))
+                     as finished_lines
+    from per_line group by order_id
   )
   select
     o.order_no,
@@ -106,15 +119,22 @@ const REGISTER_SQL = `
     coalesce(l.cancelled_value, 0)  as cancelled_value,
     case when coalesce(l.qty_mtr, 0) > 0
          then coalesce(l.value, 0) / l.qty_mtr end as avg_rate,
-    coalesce(ws.label, 'Not started') as stage,
-    (o.crr_customer_id is not null)   as in_crr,
+    coalesce(ws.label, 'Not started')  as stage,
+    coalesce(far.label, 'Not started') as furthest_line,
+    coalesce(pr.reached, 0)            as reached_no,
+    coalesce(pr.live_lines, 0)         as live_lines,
+    coalesce(pr.finished_lines, 0)     as finished_lines,
+    pr.last_tick,
+    (current_date - o.order_date)      as days_open,
+    (o.crr_customer_id is not null)    as in_crr,
     o.remarks,
     o.created_by,
     o.created_at
   from ld_order_entry.customer_orders o
   left join lines    l  on l.order_id = o.id
   left join progress pr on pr.order_id = o.id
-  left join ld_order_entry.workflow_stages ws on ws.sort_order = pr.reached
+  left join ld_order_entry.workflow_stages ws  on ws.sort_order  = pr.reached
+  left join ld_order_entry.workflow_stages far on far.sort_order = pr.furthest
   where ($1::date is null or o.order_date >= $1::date)
     and ($2::date is null or o.order_date <= $2::date)
     and ($3::text is null or o.party_name   = $3::text)
@@ -146,6 +166,12 @@ type Raw = {
   cancelled_value: string;
   avg_rate: string | null;
   stage: string;
+  furthest_line: string;
+  reached_no: number;
+  live_lines: number;
+  finished_lines: number;
+  last_tick: string | null;
+  days_open: number;
   in_crr: boolean;
   remarks: string | null;
   created_by: string | null;
@@ -153,6 +179,8 @@ type Raw = {
 };
 
 const n = (v: string | number | null | undefined) => (v == null ? 0 : Number(v));
+
+const bucketOf = (d: number) => AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "Over 60 days";
 
 /** Not started, then the seven stages in order — so a funnel reads downwards. */
 const STAGE_ORDER = [
@@ -196,6 +224,18 @@ async function run(params: ReportParams): Promise<ReportResult> {
     transport: r.transport,
     haste: r.haste,
     stage: r.stage,
+    furthest_line: r.furthest_line,
+    is_complete: n(r.reached_no) >= 7,
+    days_open: n(r.days_open),
+    age_bucket: bucketOf(n(r.days_open)),
+    live_lines: n(r.live_lines),
+    finished_lines: n(r.finished_lines),
+    lines_through:
+      n(r.live_lines) > 0 ? (n(r.finished_lines) / n(r.live_lines)) * 100 : null,
+    days_since_move: r.last_tick
+      ? Math.round(((Date.now() - new Date(r.last_tick).getTime()) / 86_400_000) * 10) / 10
+      : null,
+    last_tick: r.last_tick,
     line_count: n(r.line_count),
     cancelled_lines: n(r.cancelled_lines),
     qualities: n(r.qualities),
@@ -240,6 +280,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
     bySales.set(r.sales_person?.trim() || "Not recorded", (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v);
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
+
+  const complete = raw.filter((r) => n(r.reached_no) >= 7);
+  const open = raw.filter((r) => n(r.reached_no) < 7);
+  const openValue = open.reduce((s, r) => s + n(r.value), 0);
+  const openOver30 = open.filter((r) => n(r.days_open) > 30);
+  const partlyDone = open.filter(
+    (r) => n(r.finished_lines) > 0 && n(r.finished_lines) < n(r.live_lines),
+  );
 
   const repeatedLines = raw.reduce((s, r) => s + n(r.repeated_lines), 0);
   const repeatedOrders = raw.filter((r) => n(r.repeated_lines) > 0).length;
@@ -308,6 +356,15 @@ async function run(params: ReportParams): Promise<ReportResult> {
     );
   }
 
+  if (raw.length) {
+    insights.push(
+      `${count(complete.length)} of ${count(raw.length)} orders are finished. The other ${count(open.length)} carry ${inrShort(openValue)}` +
+        (partlyDone.length
+          ? `, and ${count(partlyDone.length)} of those are part done — some lines through, some not.`
+          : "."),
+    );
+  }
+
   const caveats: string[] = [
     "Order value excludes cancelled lines, so it is what should actually be delivered. Cancelled value is reported separately.",
     "Stage is the furthest point EVERY live line of the order has passed. One line still at stock checking holds the whole order there.",
@@ -324,7 +381,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     analysis: {
       headline:
         conc.topShare !== null && conc.topLabel
-          ? `${inrShort(totalValue)} of orders from ${count(conc.n)} customers — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.`
+          ? `${inrShort(totalValue)} of orders from ${count(byParty.size)} customers — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.`
           : `${inrShort(totalValue)} of orders across ${count(raw.length)} orders.`,
       kpis: [
         {
@@ -334,7 +391,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           sub: "cancelled lines left out",
           deltaPct: monthDelta(byMonth),
         },
-        { label: "Orders", value: count(raw.length), tone: "good", sub: `${count(lineCount)} lines` },
+        { label: "Orders", value: count(raw.length), tone: "good", sub: `${count(lineCount - cancelledLines)} lines` },
         { label: "Metres", value: qty(Math.round(totalQty)), tone: "neutral" },
         {
           label: "Average rate",
@@ -365,6 +422,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
           label: "Agents",
           value: count(byAgent.size),
           tone: "neutral",
+        },
+        {
+          label: "Still open",
+          value: count(open.length),
+          tone: open.length ? "warn" : "good",
+          sub: raw.length ? `${pct((complete.length / raw.length) * 100, 0)} complete` : undefined,
+        },
+        {
+          label: "Money still owed to us",
+          value: inrShort(openValue),
+          tone: "warn",
+          sub: totalValue > 0 ? `${pct((openValue / totalValue) * 100, 0)} of the book` : undefined,
+        },
+        {
+          label: "Open over a month",
+          value: count(openOver30.length),
+          tone: openOver30.length ? "bad" : "good",
+          lowerIsBetter: true,
         },
         {
           label: "Lines listed twice",
@@ -426,6 +501,12 @@ async function run(params: ReportParams): Promise<ReportResult> {
           rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort),
         },
         {
+          ...ageing(open.map((r) => n(r.days_open))),
+          title: "How long the open orders have waited",
+          valueLabel: "Orders",
+          note: "Counted from the order date, which is what the customer is experiencing.",
+        },
+        {
           title: "How far the orders have got",
           valueLabel: "Orders",
           kind: "funnel",
@@ -462,8 +543,16 @@ export const orderRegister: ReportDefinition = {
     { key: "sales_person", label: "Sales person", type: "text", width: 18 },
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "haste", label: "Haste", type: "text", width: 12 },
-    { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage every live line of this order has finished." },
-    { key: "line_count", label: "Lines", type: "int" },
+    { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences." },
+    { key: "furthest_line", label: "Furthest line", type: "text", width: 17, note: "The furthest stage ANY line has finished, for the other reading." },
+    { key: "is_complete", label: "Complete", type: "boolean" },
+    { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today. The foot shows the average age, not a sum." },
+    { key: "age_bucket", label: "Age", type: "text", width: 13 },
+    { key: "live_lines", label: "Lines", type: "int", note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column." },
+    { key: "finished_lines", label: "Lines finished", type: "int" },
+    { key: "lines_through", label: "Lines through", type: "percent", total: "avg", note: "How much of this order has finished." },
+    { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
+    { key: "last_tick", label: "Last ticked", type: "datetime" },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
