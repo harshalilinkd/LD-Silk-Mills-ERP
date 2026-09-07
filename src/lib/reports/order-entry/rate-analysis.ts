@@ -2,107 +2,141 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { rank, spread } from "../analysis";
-import { count, inrShort, pct } from "../format";
+import { count, inrShort, pct, qty } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 import { CANCELLED_CAVEAT, distinctLineValues, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  Rate analysis — where cloth went out away from its own usual price
+ *  Rate analysis — where cloth went out cheaper or dearer than usual
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * ── THIS REPORT WAS WRONG, AND THIS IS WHAT WAS WRONG WITH IT ────────────
+ * ── THREE THINGS WERE WRONG WITH THIS REPORT, ALL FOUND BY THE OWNER ─────
  *
- * The first version compared every line to the median rate of its QUALITY.
- * Measured against the live book, that flagged 240 lines — and only 95 of them
- * survive a comparison at the right grain. **183 of 240 were false alarms.**
+ * They entered a test order — AMAZE, 200 metres at ₹50 — and the report said
+ * the usual rate was ₹300, the gap was ₹250, and it was worth −₹50,000. Every
+ * one of those numbers was arithmetically correct and the finding was still
+ * wrong. Here is why, and what each fix is.
  *
- * The cause is that a quality is not one product. LONDON has 209 designs and
- * sells between ₹80 and ₹190; Innova sells almost everything at ₹90 and one
- * design at ₹1,700. Comparing a line to its quality's median therefore flags
- * every line of a cheaper design in a quality that also sells dearer ones —
- * not a pricing problem, just a different design. A report whose findings are
- * three-quarters noise gets ignored after its first outing, which is worse
- * than not having it.
+ * **1. A single order was setting its own benchmark.**
+ * AMAZE had nine lines in the period: six real ones and the three from that
+ * test order. A third of the evidence was the thing being judged. Worse, order
+ * 805 alone contributed 42 identical lines to its cloth's median — one order,
+ * forty-two votes.
+ *   → The norm now takes ONE observation per ORDER, not per line. Forty-two
+ *     identical lines are one order's decision, and count once.
  *
- * ── THE NORM IS NOW THE FINEST GRAIN THAT HAS ENOUGH LINES ───────────────
+ * **2. The comparison ignored order size.** AMAZE's "usual ₹300" came from
+ * lines of 1.6 metres — samples. The test line was 200 metres. Bigger orders
+ * get better rates in every business on earth, so comparing a 200-metre line
+ * with a 1.6-metre sample is not a pricing finding, it is a category error.
+ *   → Every row now carries the size range the norm was built from, and a line
+ *     far outside that range (three times larger or a third the size) is
+ *     marked "Different size" and kept out of the totals entirely.
  *
- * Quality AND design when that pair has at least five lines; otherwise the
- * quality, if IT has five; otherwise no norm and no flag. Measured over the
- * live book that gives 1,767 lines judged against their own design, 3,653
- * against their quality, and 160 left unjudged — which is the honest outcome
- * for cloth we have barely sold.
+ * **3. "Worth −₹50,000" on a line that earned ₹10,000.** Mathematically the
+ * gap times the metres; to anybody reading it, a claim that ₹50,000 went
+ * missing from a ₹10,000 sale. 143 lines carried a figure larger than the line
+ * itself, the worst five times over.
+ *   → Gone. The sheet now shows what the line ACTUALLY earned beside what it
+ *     WOULD have earned at the usual rate, and the difference between the two.
+ *     Same arithmetic, and it reads as the comparison it always was.
  *
- * Every row says WHICH grain judged it, so nobody has to guess how strong a
- * finding is.
+ * ── AND THE HONEST CONSEQUENCE ───────────────────────────────────────────
  *
- * ── AND A MIS-PRICED ORDER IS ONE FINDING, NOT FORTY-FOUR ────────────────
- *
- * Order 805 alone produced 44 flagged lines. As a list of lines that is 44
- * things to look at; as an order it is one conversation. The dashboard leads
- * with the ORDER roll-up and the line detail sits behind it in the Data sheet,
- * which is the way round somebody actually works.
- *
- * ── RATES HAVE NOT DRIFTED, SO NO TIME ADJUSTMENT IS MADE ────────────────
- *
- * Checked before deciding: the median rate by month runs 155, 179, 168, 165,
- * 174 across the book. There is no trend to correct for, so the norm is a flat
- * median over the period rather than something rolling. If that ever changes
- * this is the assumption to revisit.
+ * Requiring five different orders judges 70% of lines rather than 97%. That is
+ * the point: for AMAZE, sold in four orders ever, the truthful answer to "is
+ * ₹50 wrong" is that we have not sold it enough times to know. The report now
+ * says "Too few orders" instead of inventing a benchmark from three samples.
  */
 
-const MIN_LINES = 5;
+/** Different ORDERS needed before this cloth has a usual price at all. */
+const MIN_ORDERS = 5;
+
+/** A line this many times outside the compared sizes is not comparable. */
+const SIZE_FACTOR = 3;
 
 const SQL = `
   with rated as (
     select
-      li.id, o.id as order_id, o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
+      o.id as order_id, o.order_no, o.order_date, o.party_name, o.agent, o.sales_person,
       coalesce(nullif(trim(li.quality), ''), 'Not recorded')   as quality,
       coalesce(nullif(trim(li.design_no), ''), 'Not recorded') as design_no,
       li.qty_mtr, li.rate, li.line_total
     from ld_order_entry.order_line_items li
     join ld_order_entry.customer_orders o on o.id = li.order_id
-    where not li.is_deleted and not li.is_cancelled and li.rate > 0
+    where not li.is_deleted and not li.is_cancelled and li.rate > 0 and li.qty_mtr > 0
       and ($1::date is null or o.order_date >= $1::date)
       and ($2::date is null or o.order_date <= $2::date)
       ${ORDER_FILTER_SQL}
       and ($6::text is null or li.quality = $6::text)
   ),
-  by_design as (
-    select quality, design_no, count(*) n,
-           percentile_cont(0.25) within group (order by rate) p25,
-           percentile_cont(0.50) within group (order by rate) med,
-           percentile_cont(0.75) within group (order by rate) p75
+  -- ONE observation per order per cloth. The rate an order paid is its own
+  -- value over its own metres, so a line repeated forty-two times inside one
+  -- order counts once rather than forty-two times.
+  per_order_design as (
+    select quality, design_no, order_id,
+           sum(line_total) / nullif(sum(qty_mtr), 0) as rate
+      from rated group by 1, 2, 3
+  ),
+  per_order_quality as (
+    select quality, order_id,
+           sum(line_total) / nullif(sum(qty_mtr), 0) as rate
       from rated group by 1, 2
   ),
-  by_quality as (
-    select quality, count(*) n,
+  -- The size range of the LINES behind each norm, so the report can say what
+  -- it compared against and refuse a comparison across very different sizes.
+  sizes_design as (
+    select quality, design_no, min(qty_mtr) lo_m, max(qty_mtr) hi_m
+      from rated group by 1, 2
+  ),
+  sizes_quality as (
+    select quality, min(qty_mtr) lo_m, max(qty_mtr) hi_m
+      from rated group by 1
+  ),
+  norm_design as (
+    select quality, design_no, count(*) as orders,
            percentile_cont(0.25) within group (order by rate) p25,
            percentile_cont(0.50) within group (order by rate) med,
            percentile_cont(0.75) within group (order by rate) p75
-      from rated group by 1
+      from per_order_design group by 1, 2
+  ),
+  norm_quality as (
+    select quality, count(*) as orders,
+           percentile_cont(0.25) within group (order by rate) p25,
+           percentile_cont(0.50) within group (order by rate) med,
+           percentile_cont(0.75) within group (order by rate) p75
+      from per_order_quality group by 1
   ),
   judged as (
     select
       r.*,
-      case when d.n >= ${MIN_LINES} then 'This design'
-           when q.n >= ${MIN_LINES} then 'The quality'
-           else 'Too few sales' end                       as compared_with,
-      case when d.n >= ${MIN_LINES} then d.med  when q.n >= ${MIN_LINES} then q.med  end as usual,
-      case when d.n >= ${MIN_LINES} then d.p25  when q.n >= ${MIN_LINES} then q.p25  end as p25,
-      case when d.n >= ${MIN_LINES} then d.p75  when q.n >= ${MIN_LINES} then q.p75  end as p75,
-      case when d.n >= ${MIN_LINES} then d.n    when q.n >= ${MIN_LINES} then q.n    end as sample
+      case when nd.orders >= ${MIN_ORDERS} then 'This design'
+           when nq.orders >= ${MIN_ORDERS} then 'The quality'
+           else 'Too few orders' end                                              as compared_with,
+      case when nd.orders >= ${MIN_ORDERS} then nd.med when nq.orders >= ${MIN_ORDERS} then nq.med end as usual,
+      case when nd.orders >= ${MIN_ORDERS} then nd.p25 when nq.orders >= ${MIN_ORDERS} then nq.p25 end as p25,
+      case when nd.orders >= ${MIN_ORDERS} then nd.p75 when nq.orders >= ${MIN_ORDERS} then nq.p75 end as p75,
+      case when nd.orders >= ${MIN_ORDERS} then nd.orders when nq.orders >= ${MIN_ORDERS} then nq.orders end as sample_orders,
+      case when nd.orders >= ${MIN_ORDERS} then sd.lo_m when nq.orders >= ${MIN_ORDERS} then sq.lo_m end as lo_m,
+      case when nd.orders >= ${MIN_ORDERS} then sd.hi_m when nq.orders >= ${MIN_ORDERS} then sq.hi_m end as hi_m
     from rated r
-    join by_design  d on d.quality = r.quality and d.design_no = r.design_no
-    join by_quality q on q.quality = r.quality
+    join norm_design   nd on nd.quality = r.quality and nd.design_no = r.design_no
+    join norm_quality  nq on nq.quality = r.quality
+    join sizes_design  sd on sd.quality = r.quality and sd.design_no = r.design_no
+    join sizes_quality sq on sq.quality = r.quality
   )
   select
     j.*,
-    case when j.usual is null then ''
-         when j.rate < j.p25 - 1.5 * (j.p75 - j.p25) then 'Below usual'
-         when j.rate > j.p75 + 1.5 * (j.p75 - j.p25) then 'Above usual'
-         else '' end as flag
+    case
+      when j.usual is null then 'Too few orders'
+      -- A 200-metre line against 1.6-metre samples is not a pricing finding.
+      when j.qty_mtr > ${SIZE_FACTOR} * j.hi_m or j.qty_mtr * ${SIZE_FACTOR} < j.lo_m
+        then 'Different size'
+      when j.rate < j.p25 - 1.5 * (j.p75 - j.p25) then 'Sold cheaper'
+      when j.rate > j.p75 + 1.5 * (j.p75 - j.p25) then 'Sold dearer'
+      else 'Normal' end as flag
   from judged j
   order by
     case when j.usual > 0 then abs(j.rate - j.usual) * j.qty_mtr else 0 end desc,
@@ -110,23 +144,28 @@ const SQL = `
 `;
 
 type Raw = {
-  id: string; order_id: string; order_no: string; order_date: string;
+  order_id: string; order_no: string; order_date: string;
   party_name: string | null; agent: string | null; sales_person: string | null;
   quality: string; design_no: string; qty_mtr: string; rate: string; line_total: string;
   compared_with: string; usual: string | null; p25: string | null; p75: string | null;
-  sample: number | null; flag: string;
+  sample_orders: number | null; lo_m: string | null; hi_m: string | null; flag: string;
 };
 
-/** What the difference is actually worth on this line. */
-const effectOf = (r: Raw) => (r.usual === null ? 0 : (n(r.rate) - n(r.usual)) * n(r.qty_mtr));
+/** What this line would have earned at the usual rate. */
+const atUsual = (r: Raw) => (r.usual === null ? null : n(r.usual) * n(r.qty_mtr));
+const difference = (r: Raw) => {
+  const a = atUsual(r);
+  return a === null ? 0 : n(r.line_total) - a;
+};
 
 async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL, [...orderFilterArgs(params), params.quality ?? null])) as unknown as Raw[];
 
   const rows: ReportRow[] = raw.slice(0, MAX_EXPORT_ROWS).map((r) => {
     const usual = r.usual === null ? null : n(r.usual);
+    const would = atUsual(r);
     return {
-      flag: r.flag || "—",
+      flag: r.flag,
       order_no: r.order_no,
       order_date: r.order_date?.slice(0, 10) ?? null,
       party_name: r.party_name,
@@ -137,83 +176,95 @@ async function run(params: ReportParams): Promise<ReportResult> {
       qty_mtr: n(r.qty_mtr),
       rate: money2(r.rate),
       usual_rate: usual === null ? null : money2(usual),
-      // Blank, not zero, where there is no norm — a gap of 0.00 against
-      // nothing reads as "priced exactly right", which is the opposite of
-      // "we have no idea".
+      compared_with: r.compared_with,
+      sample_orders: r.sample_orders,
+      compared_sizes:
+        r.lo_m === null || r.hi_m === null
+          ? null
+          : `${qty(Math.round(n(r.lo_m) * 10) / 10)} – ${qty(Math.round(n(r.hi_m) * 10) / 10)} m`,
       gap: usual === null ? null : money2(n(r.rate) - usual),
       gap_pct: usual && usual > 0 ? ((n(r.rate) - usual) / usual) * 100 : null,
-      value_effect: usual === null ? null : money2(effectOf(r)),
-      compared_with: r.compared_with,
-      sample: r.sample,
       line_total: money2(r.line_total),
+      // The two figures that replaced "Worth". Side by side they read as the
+      // comparison they are, rather than as money missing from the till.
+      at_usual_rate: would === null ? null : money2(would),
+      difference: would === null ? null : money2(n(r.line_total) - would),
     };
   });
 
-  const judged = raw.filter((r) => r.usual !== null);
-  const below = judged.filter((r) => r.flag === "Below usual");
-  const above = judged.filter((r) => r.flag === "Above usual");
-  const belowValue = Math.abs(below.reduce((s, r) => s + effectOf(r), 0));
-  const aboveValue = above.reduce((s, r) => s + effectOf(r), 0);
+  const judged = raw.filter((r) => r.usual !== null && r.flag !== "Different size");
+  const cheap = raw.filter((r) => r.flag === "Sold cheaper");
+  const dear = raw.filter((r) => r.flag === "Sold dearer");
+  const wrongSize = raw.filter((r) => r.flag === "Different size");
+  const tooFew = raw.filter((r) => r.flag === "Too few orders");
   const byDesign = judged.filter((r) => r.compared_with === "This design");
-  const unjudged = raw.filter((r) => r.usual === null);
 
-  // ── the order roll-up: one finding per order, not per line ──────────────
-  const orders = new Map<string, { order: string; party: string; lines: number; effect: number; date: string }>();
-  for (const r of [...below, ...above]) {
+  const cheapEarned = cheap.reduce((s, r) => s + n(r.line_total), 0);
+  const cheapWould = cheap.reduce((s, r) => s + (atUsual(r) ?? 0), 0);
+  const dearEarned = dear.reduce((s, r) => s + n(r.line_total), 0);
+  const dearWould = dear.reduce((s, r) => s + (atUsual(r) ?? 0), 0);
+
+  // ── one finding per ORDER, not per line ────────────────────────────────
+  const orders = new Map<string, { order: string; party: string; lines: number; diff: number }>();
+  for (const r of [...cheap, ...dear]) {
     const cur = orders.get(r.order_no) ?? {
       order: r.order_no,
       party: r.party_name ?? "Not recorded",
       lines: 0,
-      effect: 0,
-      date: r.order_date?.slice(0, 10) ?? "",
+      diff: 0,
     };
     cur.lines += 1;
-    cur.effect += effectOf(r);
+    cur.diff += difference(r);
     orders.set(r.order_no, cur);
   }
-  const orderList = [...orders.values()].sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect));
+  const orderList = [...orders.values()].sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
   const byParty = new Map<string, number>();
   const byAgent = new Map<string, number>();
-  for (const r of below) {
-    const e = Math.abs(effectOf(r));
-    byParty.set(r.party_name?.trim() || "Not recorded", (byParty.get(r.party_name?.trim() || "Not recorded") ?? 0) + e);
-    byAgent.set(r.agent?.trim() || "No agent", (byAgent.get(r.agent?.trim() || "No agent") ?? 0) + e);
+  for (const r of cheap) {
+    const d = Math.abs(difference(r));
+    byParty.set(r.party_name?.trim() || "Not recorded", (byParty.get(r.party_name?.trim() || "Not recorded") ?? 0) + d);
+    byAgent.set(r.agent?.trim() || "No agent", (byAgent.get(r.agent?.trim() || "No agent") ?? 0) + d);
   }
 
   const gaps = spread(judged.filter((r) => n(r.usual) > 0).map((r) => ((n(r.rate) - n(r.usual)) / n(r.usual)) * 100));
 
   const headline =
     orderList.length > 0
-      ? `${count(orderList.length)} orders were priced away from what that cloth usually sells for. ` +
-        `The cheap ones cost ${inrShort(belowValue)}; the dear ones brought in ${inrShort(aboveValue)} extra.`
+      ? `${count(orderList.length)} orders were priced away from what that cloth usually goes for. ` +
+        `The cheap ones brought in ${inrShort(cheapEarned)} where the usual rate would have given ${inrShort(cheapWould)}.`
       : "Every line in this period was priced within the usual range for its cloth.";
 
-  const insights: string[] = [];
-  insights.push(
-    `Each line is compared with the same DESIGN where we have sold it at least ${MIN_LINES} times ` +
-      `(${count(byDesign.length)} lines), and otherwise with the whole quality (${count(judged.length - byDesign.length)}). ` +
-      `${count(unjudged.length)} lines are of cloth we have barely sold, so they are left unjudged rather than guessed at.`,
-  );
-  if (below.length) {
-    const worst = orderList.filter((o) => o.effect < 0)[0];
+  const insights: string[] = [
+    `A cloth only has a “usual rate” once it has been sold in at least ${MIN_ORDERS} DIFFERENT orders, ` +
+      `and each order counts once however many lines it has. ${count(judged.length)} lines could be judged that way; ` +
+      `${count(tooFew.length)} are of cloth sold too few times to say anything about.`,
+  ];
+  if (wrongSize.length) {
+    insights.push(
+      `${count(wrongSize.length)} lines were set aside because their size is nothing like the orders they would be compared with — ` +
+        `a 200-metre line against 1.6-metre samples is not a pricing problem, it is a different kind of sale.`,
+    );
+  }
+  if (cheap.length) {
+    const worst = orderList.filter((o) => o.diff < 0)[0];
     if (worst) {
       insights.push(
-        `The largest single case is order ${worst.order} for ${worst.party} — ${count(worst.lines)} line${worst.lines === 1 ? "" : "s"} ` +
-          `priced ${inrShort(Math.abs(worst.effect))} below the usual rate. That is one conversation, not ${count(worst.lines)}.`,
+        `The biggest case is order ${worst.order} for ${worst.party}: ${count(worst.lines)} line${worst.lines === 1 ? "" : "s"} ` +
+          `brought in ${inrShort(Math.abs(worst.diff))} less than the usual rate would have. That is one conversation, not ${count(worst.lines)}.`,
       );
     }
   }
   if (gaps.median !== null && gaps.p25 !== null && gaps.p75 !== null) {
     insights.push(
-      `Most pricing is tight: the middle line sits within ${pct(Math.abs(gaps.median))} of the usual rate, and half of all lines ` +
-        `fall between ${pct(gaps.p25)} and ${pct(gaps.p75)} of it. The flagged ones really are the exceptions.`,
+      `Most pricing is tight — half of all judged lines sit between ${pct(gaps.p25)} and ${pct(gaps.p75)} of the usual rate. ` +
+        `The flagged ones really are the exceptions.`,
     );
   }
-  if (above.length) {
+  if (dear.length) {
     insights.push(
-      `${count(above.length)} lines went out ABOVE the usual rate, worth ${inrShort(aboveValue)} more. ` +
-        `Worth knowing which customers accept it as much as which get a discount.`,
+      `${count(dear.length)} lines went out ABOVE the usual rate, bringing in ${inrShort(dearEarned - dearWould)} more than usual. ` +
+        `Worth knowing which customers accept a higher price as much as which get a discount.`,
     );
   }
 
@@ -224,62 +275,58 @@ async function run(params: ReportParams): Promise<ReportResult> {
       headline,
       kpis: [
         { label: "Lines priced", value: count(raw.length) },
-        { label: "Judged", value: count(judged.length), sub: `${count(byDesign.length)} against their own design`, tone: "good" },
-        { label: "Sold cheap", value: count(below.length), tone: below.length ? "bad" : "good", sub: `${count(orderList.filter((o) => o.effect < 0).length)} orders` },
-        { label: "What that cost", value: inrShort(belowValue), tone: "bad" },
-        { label: "Sold dear", value: count(above.length), tone: "good" },
-        { label: "What that gained", value: inrShort(aboveValue), tone: "good" },
-        {
-          label: "Normal spread",
-          value:
-            gaps.p25 !== null && gaps.p75 !== null
-              ? `${gaps.p25 >= 0 ? "+" : ""}${gaps.p25.toFixed(1)}% to ${gaps.p75 >= 0 ? "+" : ""}${gaps.p75.toFixed(1)}%`
-              : "—",
-          sub: "where half of all lines sit",
-        },
-        { label: "Not judged", value: count(unjudged.length), tone: "warn", sub: `fewer than ${MIN_LINES} sales` },
+        { label: "Could be judged", value: count(judged.length), tone: "good", sub: `${count(byDesign.length)} against their own design` },
+        { label: "Sold cheaper", value: count(cheap.length), tone: cheap.length ? "bad" : "good", lowerIsBetter: true, sub: `${count(orderList.filter((o) => o.diff < 0).length)} orders` },
+        { label: "They brought in", value: inrShort(cheapEarned), tone: "bad", sub: `usual rate: ${inrShort(cheapWould)}` },
+        { label: "Sold dearer", value: count(dear.length), tone: "good" },
+        { label: "They brought in", value: inrShort(dearEarned), tone: "good", sub: `usual rate: ${inrShort(dearWould)}` },
+        { label: "Different size", value: count(wrongSize.length), tone: "warn", sub: "set aside, not counted" },
+        { label: "Too few sales", value: count(tooFew.length), tone: "warn", sub: `under ${MIN_ORDERS} orders of that cloth` },
       ],
       panels: [
         {
           title: "Orders priced furthest from usual",
-          valueLabel: "Effect",
+          valueLabel: "Difference",
           kind: "split",
           rows: orderList.slice(0, 8).map((o) => ({
-            label: `${o.order} · ${o.party.slice(0, 22)}`,
-            value: o.effect,
-            display: inrShort(Math.abs(o.effect)),
+            label: `${o.order} · ${o.party.slice(0, 20)}`,
+            value: o.diff,
+            display: inrShort(Math.abs(o.diff)),
             meta: `${o.lines} line${o.lines === 1 ? "" : "s"}`,
           })),
-          note: "Green sold above the usual rate, red below. One row per order, so a mis-priced order is one thing to look at.",
+          note: "Green earned more than usual, red less. One row per order.",
         },
         {
-          title: "How much was judged, and against what",
+          title: "What could and could not be judged",
           valueLabel: "Lines",
           kind: "share",
           rows: [
             { label: "Against its own design", value: byDesign.length, display: count(byDesign.length) },
             { label: "Against its quality", value: judged.length - byDesign.length, display: count(judged.length - byDesign.length) },
-            { label: "Too few sales to judge", value: unjudged.length, display: count(unjudged.length) },
+            { label: "A different size of sale", value: wrongSize.length, display: count(wrongSize.length) },
+            { label: "Sold too few times", value: tooFew.length, display: count(tooFew.length) },
           ],
           note: "A finding judged against its own design is the stronger one.",
         },
         {
-          title: "Cheap selling, by customer",
-          valueLabel: "Effect",
+          title: "Discount given, by customer",
+          valueLabel: "Difference",
           rows: rank([...byParty].map(([label, value]) => ({ label, value })), inrShort),
-          note: "What the discount was worth, added up per customer.",
+          note: "How much less than the usual rate each customer paid, added up.",
         },
         {
-          title: "Cheap selling, by agent",
-          valueLabel: "Effect",
+          title: "Discount given, by agent",
+          valueLabel: "Difference",
           rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort),
         },
       ],
       insights,
       caveats: [
-        `A line is compared with the same QUALITY AND DESIGN when we have sold that pair at least ${MIN_LINES} times, and with the quality alone otherwise. Cloth with fewer than ${MIN_LINES} sales is not judged at all — the “Compared with” column says which applied to each row.`,
-        "“Flagged” means the rate sits outside the usual range for that cloth by the standard statistical measure. It is an invitation to look, not a verdict — a deliberate discount to a large customer looks exactly the same as a mistake.",
-        "The usual rate is worked out from the PERIOD in this file. A narrower period means a narrower norm and more lines flagged.",
+        `A cloth needs to have been sold in ${MIN_ORDERS} or more DIFFERENT orders before this report will say what it usually costs. Each order counts once, however many lines it contains — otherwise one large order sets its own benchmark.`,
+        `A line whose size is more than ${SIZE_FACTOR} times larger, or a third the size, of the orders it would be compared with is marked “Different size” and left out of every total. Bigger orders normally get better rates, and that is not a pricing mistake.`,
+        "“What it brought in” and “At the usual rate” are shown side by side rather than as a single loss figure. The difference between them is what would have changed, not money that went missing.",
+        "A flag is an invitation to look, never a verdict. A deliberate discount to a large customer looks exactly like a mistake from here.",
+        "The usual rate is worked out from the PERIOD in this file. A narrower period means fewer orders to compare with, so more lines will read “Too few sales”.",
         CANCELLED_CAVEAT,
       ],
     },
@@ -291,10 +338,10 @@ export const rateAnalysis: ReportDefinition = {
   module: "order-entry",
   title: "Rate analysis",
   description:
-    "Where cloth went out cheaper or dearer than it usually does — compared design by design, with what the difference was worth and which orders it happened on.",
+    "Where cloth went out cheaper or dearer than it usually does — compared design by design against other orders of a similar size, with what each line earned beside what the usual rate would have given.",
   defaultMonthsBack: 3,
   columns: [
-    { key: "flag", label: "Flag", type: "text", width: 13, note: "Below or above the usual range for this cloth. A dash means normal." },
+    { key: "flag", label: "Flag", type: "text", width: 15, note: "Sold cheaper, Sold dearer, Normal, Different size (set aside), or Too few orders of this cloth to say." },
     { key: "order_no", label: "Order no", type: "text", width: 14 },
     { key: "order_date", label: "Order date", type: "date" },
     { key: "party_name", label: "Party", type: "text", width: 30 },
@@ -303,14 +350,31 @@ export const rateAnalysis: ReportDefinition = {
     { key: "quality", label: "Quality", type: "text", width: 26 },
     { key: "design_no", label: "Design no", type: "text", width: 15 },
     { key: "qty_mtr", label: "Metres", type: "number" },
-    { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "What this line actually went out at. The foot is weighted by metres." },
-    { key: "usual_rate", label: "Usual rate", type: "money", total: "none", note: "What this cloth normally sells for. Blank when we have not sold it enough times to say. Not totalled — a sum of norms means nothing." },
-    { key: "compared_with", label: "Compared with", type: "text", width: 16, note: "Whether the usual rate came from this design's own sales or from the whole quality." },
-    { key: "sample", label: "Sales compared", type: "int", total: "none", note: "How many past lines the usual rate is based on. More is stronger. Not added up." },
-    { key: "gap", label: "Gap", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rate minus usual. Negative means sold cheaper. The foot is the average gap, weighted by metres." },
-    { key: "gap_pct", label: "Gap %", type: "percent", total: "none", note: "Not added up — each row is its own percentage." },
-    { key: "value_effect", label: "Worth", type: "money", note: "The gap multiplied by the metres — what the difference is actually worth on this line." },
-    { key: "line_total", label: "Line value", type: "money" },
+    { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "What this line actually went out at, per metre." },
+    { key: "usual_rate", label: "Usual rate", type: "money", total: "none", note: "The middle rate across OTHER orders of this cloth — one vote per order, not per line. Blank when we have not sold it in enough orders." },
+    { key: "compared_with", label: "Compared with", type: "text", width: 16, note: "Whether the usual rate came from this design's own orders or from the whole quality." },
+    { key: "sample_orders", label: "Orders compared", type: "int", total: "none", note: "How many different orders the usual rate is based on. More is stronger." },
+    { key: "compared_sizes", label: "Their sizes", type: "text", width: 18, note: "The metre range of the lines behind the usual rate. If this line is nothing like that size, it is flagged Different size and left out." },
+    { key: "gap", label: "Gap", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rate minus usual rate. Negative means sold cheaper." },
+    { key: "gap_pct", label: "Gap %", type: "percent", total: "none" },
+    {
+      key: "line_total",
+      label: "It brought in",
+      type: "money",
+      note: "What this line actually earned. NOTE: the total at the foot covers EVERY line, while the two columns beside it cover only the lines that could be judged — filter to a single Flag to compare them like for like.",
+    },
+    {
+      key: "at_usual_rate",
+      label: "At the usual rate",
+      type: "money",
+      note: "What the same metres would have earned at the usual rate. Blank where the cloth has been sold too few times to have one, so the foot covers only judged lines.",
+    },
+    {
+      key: "difference",
+      label: "Difference",
+      type: "money",
+      note: "What it brought in, less what the usual rate would have given. A comparison, not money missing. Covers only judged lines.",
+    },
   ],
   filters: [
     { key: "dateRange", label: "Order date", kind: "dateRange" },
