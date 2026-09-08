@@ -1,6 +1,7 @@
 import { IconApps, IconUsers, IconInbox, IconActivity } from "@tabler/icons-react";
 import { EmptyState } from "@/components/shell/empty-state";
 import { getDashboardCounts } from "@/lib/queries";
+import { PasswordFallbackNotice } from "@/components/shell/password-fallback-notice";
 
 function KpiCard({
   icon: Icon,
@@ -57,6 +58,8 @@ export default async function DashboardPage() {
           Overview of LD Silk Mills ERP
         </p>
       </div>
+
+      <PasswordFallbackNotice />
 
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard

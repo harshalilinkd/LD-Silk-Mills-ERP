@@ -116,6 +116,13 @@ export function PeopleTable({
   // safety checks (footprint lookup, confirm step) still live in one place.
   const [removeTarget, setRemoveTarget] = useState<Person | null>(null);
 
+  // Only people who can actually sign in to the ERP count. Somebody with no
+  // ERP account, or a switched-off one, is not locked out by Google being
+  // down — they are already out, deliberately.
+  const canSignIn = people.filter((p) => p.erpId && p.erpStatus !== "inactive");
+  const signInCount = canSignIn.length;
+  const googleOnly = canSignIn.filter((p) => !p.hasPassword);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -131,12 +138,47 @@ export function PeopleTable({
         </Button>
       </div>
 
+      {/* ── GOOGLE IS THE ONLY WAY IN FOR MOST OF THIS TEAM ──────────────
+          Not a fault — it is how everybody signed up. It becomes one the day
+          Google is unreachable, the OAuth client is changed, or somebody's
+          Google account is suspended: those people have no second way in and
+          no way to make one, because setting a password needs you to be
+          signed in already.
+
+          It says how many and it says the cheap fix. The cheapest fix is NOT
+          the admin typing ten passwords and reading them out — it is each
+          person setting their own, which they can already do and which means
+          nobody else ever knows it. */}
+      {googleOnly.length > 0 ? (
+        <div className="flex flex-col gap-1.5 rounded-card border border-status-amber/30 bg-status-amber-dim px-4 py-3">
+          <div className="flex items-center gap-2">
+            <IconAlertTriangle className="size-4 shrink-0 text-status-amber" />
+            <span className="text-[13px] font-semibold text-status-amber">
+              {googleOnly.length} of {signInCount}{" "}
+              {signInCount === 1 ? "person" : "people"} can only sign in with
+              Google
+            </span>
+          </div>
+          <p className="text-[12.5px] text-text-2">
+            If Google is ever unavailable to them, they have no other way in and
+            cannot make one — setting a password needs you to be signed in
+            already. Each of them can add one themselves in a few seconds from
+            Settings → Your profile, and that way nobody else ever knows it. You
+            can also set one for somebody here, but then you have to tell them
+            what it is.
+          </p>
+          <p className="text-[12px] text-text-3">
+            {googleOnly.map((p) => p.name).join(" · ")}
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-card border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
-                {["Person", "ERP", "Orders", "Help Slip", ""].map((h, i) => (
+                {["Person", "Sign-in", "ERP", "Orders", "Help Slip", ""].map((h, i) => (
                   <th
                     key={h || i}
                     className="border-b border-border px-3.5 pt-3.5 pb-2.5 text-left text-[11px] font-bold tracking-[0.04em] text-text-1 uppercase"
@@ -156,6 +198,25 @@ export function PeopleTable({
                       <div className="num text-[12px] text-text-3">
                         {p.email}
                       </div>
+                    </td>
+                    {/* ── HOW THEY GET IN ──────────────────────────────
+                        On the LIST, not only inside the dialog. Ten of eleven
+                        people here could sign in with Google and nothing else,
+                        and finding that out meant opening eleven dialogs one
+                        at a time — so nobody did, and the gap sat there. Same
+                        principle as the systems registry printing its viewer
+                        count: a gap you cannot see is a gap nobody fixes. */}
+                    <td className="border-b border-border px-3.5 py-3">
+                      {!p.erpId || inactive ? (
+                        <span className="text-[12px] text-text-3">—</span>
+                      ) : p.hasPassword ? (
+                        <Chip text="Google or password" />
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-status-amber-dim px-2 py-0.5 text-[11.5px] font-semibold text-status-amber">
+                          <IconAlertTriangle className="size-3.5" />
+                          Google only
+                        </span>
+                      )}
                     </td>
                     <td className="border-b border-border px-3.5 py-3">
                       {/* An INACTIVE account still carries its old role, so
