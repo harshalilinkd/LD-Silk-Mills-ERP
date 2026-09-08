@@ -1,11 +1,29 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 
 import { db } from "@/db";
 import { systemAccess, systems, users } from "@/db/schema";
 import { pettyCashDb } from "@/db/petty-cash";
-import { categories, employees, members, transactions } from "@/db/petty-cash/schema";
+import {
+  categories,
+  employees,
+  entryAttachments,
+  members,
+  transactions,
+} from "@/db/petty-cash/schema";
 import type { MemberRole } from "@/db/petty-cash/schema";
 import { addMonths, startOfMonth, todayIso, type IsoDate } from "@/lib/dates";
 import { PETTY_CASH_SYSTEM_CODE } from "./authz";
@@ -86,7 +104,9 @@ function conditions(f: LedgerFilters): SQL[] {
         sql`${transactions.categoryName} ilike ${needle}`,
         // Amount, only when the search looks like one. Casting every row's
         // numeric to text on a text search would be a scan for nothing.
-        /^[\d.]+$/.test(q) ? sql`${transactions.amount}::text like ${q + "%"}` : sql`false`,
+        /^[\d.]+$/.test(q)
+          ? sql`${transactions.amount}::text like ${q + "%"}`
+          : sql`false`,
       )!,
     );
   }
@@ -106,8 +126,17 @@ export type LedgerRow = {
   proofType: ProofType;
   proofOther: string | null;
   hasAttachment: boolean;
-  attachmentName: string | null;
+  /** New-table rows plus the one legacy attachment, if either is there. */
+  attachmentCount: number;
 };
+
+/** Counts as ONE attachment for the legacy shape and however many rows exist
+ * in `entry_attachments` for the new one — the two are never both populated
+ * for the same entry, see the note on `entryAttachments` in the schema. */
+const ATTACHMENT_COUNT = sql<number>`(
+  select count(*)::int from ${entryAttachments}
+   where ${entryAttachments.transactionId} = ${transactions.id}
+) + (case when ${transactions.attachmentPath} is not null then 1 else 0 end)`;
 
 export type LedgerSort = "date" | "amount" | "category";
 
@@ -124,10 +153,17 @@ export const DEFAULT_PAGE_SIZE = 25;
 /** One page of the ledger. Newest first unless asked otherwise. */
 export async function getTransactions(
   f: LedgerFilters,
-  opts: { page?: number; pageSize?: number; sort?: LedgerSort; dir?: "asc" | "desc" } = {},
+  opts: {
+    page?: number;
+    pageSize?: number;
+    sort?: LedgerSort;
+    dir?: "asc" | "desc";
+  } = {},
 ): Promise<LedgerPage> {
   const page = Math.max(1, opts.page ?? 1);
-  const pageSize = (PAGE_SIZES as readonly number[]).includes(opts.pageSize ?? 0)
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(
+    opts.pageSize ?? 0,
+  )
     ? opts.pageSize!
     : DEFAULT_PAGE_SIZE;
   const dir = opts.dir ?? "desc";
@@ -138,9 +174,9 @@ export async function getTransactions(
       ? [d(transactions.amount), desc(transactions.id)]
       : opts.sort === "category"
         ? [d(transactions.categoryName), desc(transactions.id)]
-        // `id` breaks every tie, so paging cannot repeat or skip a row when
-        // several entries share a date.
-        : [d(transactions.transactionDate), desc(transactions.id)];
+        : // `id` breaks every tie, so paging cannot repeat or skip a row when
+          // several entries share a date.
+          [d(transactions.transactionDate), desc(transactions.id)];
 
   const where = and(...conditions(f));
 
@@ -157,8 +193,8 @@ export async function getTransactions(
       amount: transactions.amount,
       proofType: transactions.proofType,
       proofOther: transactions.proofOther,
-      hasAttachment: sql<boolean>`${transactions.attachmentPath} is not null`,
-      attachmentName: transactions.attachmentName,
+      attachmentCount: ATTACHMENT_COUNT,
+      hasAttachment: sql<boolean>`(${ATTACHMENT_COUNT}) > 0`,
     })
     .from(transactions)
     .where(where)
@@ -219,8 +255,18 @@ export type MonthSummary = {
   from: IsoDate;
   to: IsoDate;
   totals: Totals;
-  byGroup: { groupName: string; credits: Money; debits: Money; count: number }[];
-  byCategory: { categoryName: string; groupName: string; debits: Money; count: number }[];
+  byGroup: {
+    groupName: string;
+    credits: Money;
+    debits: Money;
+    count: number;
+  }[];
+  byCategory: {
+    categoryName: string;
+    groupName: string;
+    debits: Money;
+    count: number;
+  }[];
 };
 
 /**
@@ -239,7 +285,11 @@ export async function getMonthlySummary(
   from: IsoDate,
   to: IsoDate,
 ): Promise<MonthSummary> {
-  const range = and(LIVE, gte(transactions.transactionDate, from), lte(transactions.transactionDate, to));
+  const range = and(
+    LIVE,
+    gte(transactions.transactionDate, from),
+    lte(transactions.transactionDate, to),
+  );
 
   const totals = await getTotals({ from, to });
 
@@ -294,7 +344,9 @@ export type MonthPoint = {
  * the chart's X axis is continuous — a gap in a trend line reads as missing
  * data, not as "nothing happened that month".
  */
-export async function getMonthlyTrend(monthsBack: number): Promise<MonthPoint[]> {
+export async function getMonthlyTrend(
+  monthsBack: number,
+): Promise<MonthPoint[]> {
   const today = todayIso();
   const from = startOfMonth(addMonths(today, -(monthsBack - 1)));
   const monthKey = sql<string>`to_char(${transactions.transactionDate}, 'YYYY-MM-01')`;
@@ -334,7 +386,12 @@ export async function getMonthlyTrend(monthsBack: number): Promise<MonthPoint[]>
 
 // ─── the analysis calendar ────────────────────────────────────────────────
 
-export type DayTotals = { date: IsoDate; credits: Money; debits: Money; count: number };
+export type DayTotals = {
+  date: IsoDate;
+  credits: Money;
+  debits: Money;
+  count: number;
+};
 
 /**
  * One row per day that had activity, for the calendar.
@@ -359,7 +416,11 @@ export async function getDailyTotals(
     })
     .from(transactions)
     .where(
-      and(LIVE, gte(transactions.transactionDate, from), lte(transactions.transactionDate, to)),
+      and(
+        LIVE,
+        gte(transactions.transactionDate, from),
+        lte(transactions.transactionDate, to),
+      ),
     )
     .groupBy(transactions.transactionDate)
     .orderBy(asc(transactions.transactionDate));
@@ -370,7 +431,9 @@ export async function getDailyTotals(
 /** The years that actually have entries, so the pickers offer no empty ones. */
 export async function getActiveYears(): Promise<number[]> {
   const rows = await pettyCashDb
-    .select({ y: sql<number>`extract(year from ${transactions.transactionDate})::int` })
+    .select({
+      y: sql<number>`extract(year from ${transactions.transactionDate})::int`,
+    })
     .from(transactions)
     .where(LIVE)
     .groupBy(sql`extract(year from ${transactions.transactionDate})`)
@@ -380,16 +443,23 @@ export async function getActiveYears(): Promise<number[]> {
 
 // ─── one entry, in full ───────────────────────────────────────────────────
 
+/** One file, addressable for the read route — `"legacy"` for the old
+ * single-column shape, a real row id for the new table. */
+export type AttachmentRef = { id: number | "legacy"; name: string };
+
 export type TransactionDetail = LedgerRow & {
   employeeId: number;
   categoryId: number;
+  attachments: AttachmentRef[];
   createdAt: Date;
   updatedAt: Date;
   createdByName: string | null;
   updatedByName: string | null;
 };
 
-export async function getTransaction(id: number): Promise<TransactionDetail | null> {
+export async function getTransaction(
+  id: number,
+): Promise<TransactionDetail | null> {
   const [row] = await pettyCashDb
     .select({
       id: transactions.id,
@@ -405,7 +475,7 @@ export async function getTransaction(id: number): Promise<TransactionDetail | nu
       amount: transactions.amount,
       proofType: transactions.proofType,
       proofOther: transactions.proofOther,
-      hasAttachment: sql<boolean>`${transactions.attachmentPath} is not null`,
+      attachmentPath: transactions.attachmentPath,
       attachmentName: transactions.attachmentName,
       createdAt: transactions.createdAt,
       updatedAt: transactions.updatedAt,
@@ -418,6 +488,12 @@ export async function getTransaction(id: number): Promise<TransactionDetail | nu
 
   if (!row) return null;
 
+  const attachments = await getAttachmentRefs(
+    id,
+    row.attachmentPath,
+    row.attachmentName,
+  );
+
   // Who did it, resolved from the ERP's own people list. A second query rather
   // than a cross-schema join, because `ld_erp_core` is a different Drizzle
   // instance and eleven rows is nothing.
@@ -427,6 +503,9 @@ export async function getTransaction(id: number): Promise<TransactionDetail | nu
     ...(row as unknown as LedgerRow),
     employeeId: row.employeeId,
     categoryId: row.categoryId,
+    hasAttachment: attachments.length > 0,
+    attachmentCount: attachments.length,
+    attachments,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     createdByName: row.createdBy ? (names.get(row.createdBy) ?? null) : null,
@@ -434,7 +513,71 @@ export async function getTransaction(id: number): Promise<TransactionDetail | nu
   };
 }
 
-async function resolveActorNames(ids: (string | null)[]): Promise<Map<string, string>> {
+/** Every file on one entry, new-table rows first, oldest first, falling back
+ * to the legacy single column only when the new table has nothing. */
+async function getAttachmentRefs(
+  transactionId: number,
+  legacyPath: string | null,
+  legacyName: string | null,
+): Promise<AttachmentRef[]> {
+  const rows = await pettyCashDb
+    .select({ id: entryAttachments.id, name: entryAttachments.fileName })
+    .from(entryAttachments)
+    .where(eq(entryAttachments.transactionId, transactionId))
+    .orderBy(asc(entryAttachments.id));
+  if (rows.length > 0) return rows;
+  if (legacyPath) return [{ id: "legacy", name: legacyName ?? "Receipt" }];
+  return [];
+}
+
+/** One attachment, re-fetched and checked to belong to THIS entry. */
+export async function getEntryAttachment(
+  transactionId: number,
+  attachmentId: number,
+): Promise<{
+  filePath: string;
+  fileName: string;
+  fileSizeBytes: number | null;
+  mimeType: string | null;
+} | null> {
+  const [row] = await pettyCashDb
+    .select({
+      filePath: entryAttachments.filePath,
+      fileName: entryAttachments.fileName,
+      fileSizeBytes: entryAttachments.fileSizeBytes,
+      mimeType: entryAttachments.mimeType,
+    })
+    .from(entryAttachments)
+    .where(
+      and(
+        eq(entryAttachments.id, attachmentId),
+        eq(entryAttachments.transactionId, transactionId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** The one OLD-shape receipt an entry saved before `entry_attachments`
+ * existed still carries directly on `transactions`. */
+export async function getLegacyAttachment(
+  transactionId: number,
+): Promise<{ path: string; name: string } | null> {
+  const [row] = await pettyCashDb
+    .select({
+      path: transactions.attachmentPath,
+      name: transactions.attachmentName,
+    })
+    .from(transactions)
+    .where(eq(transactions.id, transactionId))
+    .limit(1);
+  if (!row?.path) return null;
+  return { path: row.path, name: row.name ?? "Receipt" };
+}
+
+async function resolveActorNames(
+  ids: (string | null)[],
+): Promise<Map<string, string>> {
   const wanted = [...new Set(ids.filter((v): v is string => !!v))];
   if (wanted.length === 0) return new Map();
   const rows = await db
@@ -523,7 +666,10 @@ export async function getPayeesWithUse(): Promise<PayeeRow[]> {
       lastUsed: sql<IsoDate | null>`max(${transactions.transactionDate})`,
     })
     .from(employees)
-    .leftJoin(transactions, and(eq(transactions.employeeId, employees.id), LIVE))
+    .leftJoin(
+      transactions,
+      and(eq(transactions.employeeId, employees.id), LIVE),
+    )
     .groupBy(employees.id, employees.name, employees.code, employees.active)
     .orderBy(asc(employees.name));
 }
@@ -558,7 +704,10 @@ export async function getCategoriesWithUse(): Promise<CategoryRow[]> {
       spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.transactionType} = 'DEBIT'), 0)`,
     })
     .from(categories)
-    .leftJoin(transactions, and(eq(transactions.categoryId, categories.id), LIVE))
+    .leftJoin(
+      transactions,
+      and(eq(transactions.categoryId, categories.id), LIVE),
+    )
     .groupBy(
       categories.id,
       categories.name,
@@ -566,7 +715,11 @@ export async function getCategoriesWithUse(): Promise<CategoryRow[]> {
       categories.active,
       categories.sortOrder,
     )
-    .orderBy(asc(categories.groupName), asc(categories.sortOrder), asc(categories.name));
+    .orderBy(
+      asc(categories.groupName),
+      asc(categories.sortOrder),
+      asc(categories.name),
+    );
 }
 
 /** The distinct groups already in use, so the add form offers them. */
@@ -622,7 +775,11 @@ export async function getPettyCashPeople(): Promise<PettyCashPerson[]> {
     .orderBy(asc(users.name));
 
   const rows = await pettyCashDb
-    .select({ userId: members.userId, role: members.role, active: members.active })
+    .select({
+      userId: members.userId,
+      role: members.role,
+      active: members.active,
+    })
     .from(members);
   const byUser = new Map(rows.map((r) => [r.userId, r]));
 

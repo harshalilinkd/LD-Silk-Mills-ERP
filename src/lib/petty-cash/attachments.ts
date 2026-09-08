@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME } from "./money";
+import { ATTACHMENT_MAX_BYTES } from "./money";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -25,18 +25,28 @@ import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME } from "./money";
 
 const BUCKET = "petty-cash-attachments";
 
-const MIME_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/heic": "heic",
-  "application/pdf": "pdf",
-};
+/**
+ * The uploaded file's own extension, sanitised — any type is accepted, so
+ * there is no fixed MIME→extension table to fall back on anymore. Anything
+ * that is not a short run of letters/digits is dropped rather than trusted:
+ * the value comes from a filename a browser handed us.
+ */
+function extensionOf(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  if (dot < 0 || dot === fileName.length - 1) return "bin";
+  const ext = fileName
+    .slice(dot + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return ext.length > 0 && ext.length <= 10 ? ext : "bin";
+}
 
 function env(name: string): string {
   const v = process.env[name];
   if (!v) {
-    throw new Error(`${name} is not set. Petty Cash attachments need it — see CLAUDE.md.`);
+    throw new Error(
+      `${name} is not set. Petty Cash attachments need it — see CLAUDE.md.`,
+    );
   }
   return v;
 }
@@ -57,13 +67,13 @@ async function storageFetch(
 /**
  * `entries/{yyyy-mm}/{uuid}.{ext}`.
  *
- * The uploader's filename is NEVER part of the path. It can contain slashes,
- * which would silently reshape it, and it can carry a payee's name into a
- * string that ends up in logs. Foldered by month so a year of receipts is not
- * one flat directory.
+ * The uploader's filename is NEVER part of the path beyond its extension. It
+ * can contain slashes, which would silently reshape it, and it can carry a
+ * payee's name into a string that ends up in logs. Foldered by month so a
+ * year of receipts is not one flat directory.
  */
-function pathFor(mime: string, monthKey: string): string {
-  return `entries/${monthKey}/${crypto.randomUUID()}.${MIME_EXT[mime] ?? "bin"}`;
+function pathFor(fileName: string, monthKey: string): string {
+  return `entries/${monthKey}/${crypto.randomUUID()}.${extensionOf(fileName)}`;
 }
 
 /**
@@ -119,7 +129,11 @@ export function verifySignedPath(path: string, signature: string): boolean {
   if (!path || !signature) return false;
   // Shape first: anything that is not our own layout is refused before the
   // comparison, so a traversal attempt never reaches storage.
-  if (!/^entries\/\d{4}-(0[1-9]|1[0-2]|unknown)\/[0-9a-f-]{36}\.[a-z]{3,4}$/.test(path)) {
+  if (
+    !/^entries\/\d{4}-(0[1-9]|1[0-2]|unknown)\/[0-9a-f-]{36}\.[a-z0-9]{1,10}$/.test(
+      path,
+    )
+  ) {
     return false;
   }
   const expected = Buffer.from(signPath(path));
@@ -130,26 +144,27 @@ export function verifySignedPath(path: string, signature: string): boolean {
 /**
  * Authorise one upload of one file to one path.
  *
- * Type and size are checked here as well as on the bucket: the bucket's own
- * refusal is a Supabase error blob, and somebody filling in an expense form
- * deserves a sentence. They are checked in the browser too — that one is a
- * courtesy, this one decides.
+ * Size is checked here as well as on the bucket: the bucket's own refusal is
+ * a Supabase error blob, and somebody filling in an expense form deserves a
+ * sentence. It is checked in the browser too — that one is a courtesy, this
+ * one decides. There is no type restriction: a receipt arrives in whatever
+ * format it arrives in.
  */
 export async function signReceiptUpload(
   fileName: string,
-  contentType: string,
   size: number,
   monthKey: string,
 ): Promise<{ ok: true; upload: SignedUpload } | { ok: false; error: string }> {
-  if (!Number.isFinite(size) || size <= 0) return { ok: false, error: "That file is empty." };
+  if (!Number.isFinite(size) || size <= 0)
+    return { ok: false, error: "That file is empty." };
   if (size > ATTACHMENT_MAX_BYTES) {
-    return { ok: false, error: "That file is larger than 10 MB." };
-  }
-  if (!(ATTACHMENT_MIME as readonly string[]).includes(contentType)) {
-    return { ok: false, error: "Attach a photo (JPG, PNG, WEBP, HEIC) or a PDF." };
+    return { ok: false, error: "That file is larger than 50 MB." };
   }
 
-  const path = pathFor(contentType, /^\d{4}-\d{2}$/.test(monthKey) ? monthKey : "unknown");
+  const path = pathFor(
+    fileName,
+    /^\d{4}-\d{2}$/.test(monthKey) ? monthKey : "unknown",
+  );
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
   const res = await fetch(
     `${env("SUPABASE_URL")}/storage/v1/object/upload/sign/${BUCKET}/${path}`,
@@ -165,8 +180,15 @@ export async function signReceiptUpload(
     },
   );
   if (!res.ok) {
-    console.error("petty-cash upload sign failed", res.status, await res.text());
-    return { ok: false, error: "Could not start that upload. Please try again." };
+    console.error(
+      "petty-cash upload sign failed",
+      res.status,
+      await res.text(),
+    );
+    return {
+      ok: false,
+      error: "Could not start that upload. Please try again.",
+    };
   }
   const { url } = (await res.json()) as { url: string };
 
@@ -183,47 +205,22 @@ export async function signReceiptUpload(
   };
 }
 
-/** True when the object is really there — checked before a row claims it. */
-export async function attachmentExists(path: string): Promise<boolean> {
-  const res = await storageFetch(path, { method: "HEAD" });
-  return res.ok;
-}
-
-export type UploadResult =
-  | { ok: true; path: string; name: string }
-  | { ok: false; error: string };
-
 /**
- * Store one file. Type and size are checked here as well as on the bucket:
- * the bucket's own refusal is a Supabase error blob, and somebody filling in
- * an expense form deserves a sentence.
+ * The object's real size and type, straight from storage — checked before a
+ * row claims it. `null` when nothing is there. Size and content type come
+ * from here rather than from what the browser reported when it started the
+ * upload, because that value was never verified against what actually landed.
  */
-export async function uploadAttachment(
-  file: File,
-  monthKey: string,
-): Promise<UploadResult> {
-  if (!file || file.size === 0) return { ok: false, error: "That file is empty." };
-  if (file.size > ATTACHMENT_MAX_BYTES) {
-    return { ok: false, error: "That file is larger than 10 MB." };
-  }
-  if (!(ATTACHMENT_MIME as readonly string[]).includes(file.type)) {
-    return { ok: false, error: "Attach a photo (JPG, PNG, WEBP, HEIC) or a PDF." };
-  }
-
-  const path = pathFor(file.type, monthKey);
-  const res = await storageFetch(path, {
-    method: "POST",
-    body: file,
-    headers: { "Content-Type": file.type },
-  });
-
-  if (!res.ok) {
-    console.error("petty-cash attachment upload failed", res.status, await res.text());
-    return { ok: false, error: "Could not store that file. Please try again." };
-  }
-  // The original name is kept for DISPLAY only, trimmed of any path parts.
-  const name = (file.name || "receipt").split(/[\\/]/).pop()!.slice(0, 255);
-  return { ok: true, path, name };
+export async function statAttachment(
+  path: string,
+): Promise<{ size: number; contentType: string } | null> {
+  const res = await storageFetch(path, { method: "HEAD" });
+  if (!res.ok) return null;
+  const len = Number(res.headers.get("content-length"));
+  return {
+    size: Number.isFinite(len) ? len : 0,
+    contentType: res.headers.get("content-type") ?? "application/octet-stream",
+  };
 }
 
 export type AttachmentBytes = {
@@ -232,7 +229,9 @@ export type AttachmentBytes = {
 };
 
 /** Stream one file back. Callers MUST have checked access first. */
-export async function fetchAttachmentBytes(path: string): Promise<AttachmentBytes | null> {
+export async function fetchAttachmentBytes(
+  path: string,
+): Promise<AttachmentBytes | null> {
   const res = await storageFetch(path, { method: "GET" });
   if (!res.ok) return null;
   return {
@@ -250,34 +249,70 @@ export async function fetchAttachmentBytes(path: string): Promise<AttachmentByte
 export async function deleteAttachment(path: string): Promise<void> {
   try {
     const res = await storageFetch(path, { method: "DELETE" });
-    if (!res.ok) console.error("petty-cash attachment delete failed", res.status);
+    if (!res.ok)
+      console.error("petty-cash attachment delete failed", res.status);
   } catch (e) {
     console.error("petty-cash attachment delete threw", e);
   }
 }
 
-/** Create the bucket if it is not there. Idempotent; run from a setup script. */
-export async function ensureBucket(): Promise<{ created: boolean; message: string }> {
+/**
+ * Create the bucket if it is not there, and (re)apply its size limit either
+ * way. Idempotent; run from a setup script, and safe to re-run whenever
+ * `ATTACHMENT_MAX_BYTES` changes — an existing bucket keeps whatever limit it
+ * was created with until something pushes the new one to it.
+ *
+ * No `allowed_mime_types` on either request: any file type is accepted.
+ */
+export async function ensureBucket(): Promise<{
+  created: boolean;
+  message: string;
+}> {
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
-  const res = await fetch(`${env("SUPABASE_URL")}/storage/v1/bucket`, {
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    apikey: key,
+    "Content-Type": "application/json",
+  };
+
+  const created = await fetch(`${env("SUPABASE_URL")}/storage/v1/bucket`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      apikey: key,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       id: BUCKET,
       name: BUCKET,
       public: false,
       file_size_limit: ATTACHMENT_MAX_BYTES,
-      allowed_mime_types: ATTACHMENT_MIME,
     }),
   });
-  if (res.ok) return { created: true, message: `created ${BUCKET}` };
-  const body = await res.text();
-  if (res.status === 409 || /already exists/i.test(body)) {
-    return { created: false, message: `${BUCKET} already exists` };
+  if (created.ok) return { created: true, message: `created ${BUCKET}` };
+
+  const body = await created.text();
+  if (created.status !== 409 && !/already exists/i.test(body)) {
+    throw new Error(`could not create ${BUCKET}: ${created.status} ${body}`);
   }
-  throw new Error(`could not create ${BUCKET}: ${res.status} ${body}`);
+
+  const updated = await fetch(
+    `${env("SUPABASE_URL")}/storage/v1/bucket/${BUCKET}`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        public: false,
+        file_size_limit: ATTACHMENT_MAX_BYTES,
+        // Explicit null, not omitted: Supabase keeps an existing restriction on
+        // a PUT that simply leaves the field out.
+        allowed_mime_types: null,
+      }),
+    },
+  );
+  if (!updated.ok) {
+    throw new Error(
+      `could not update ${BUCKET}: ${updated.status} ${await updated.text()}`,
+    );
+  }
+  return {
+    created: false,
+    message: `${BUCKET} already existed, limits updated`,
+  };
 }

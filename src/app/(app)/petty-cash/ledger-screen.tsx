@@ -29,6 +29,7 @@ import type {
   LedgerSort,
   Totals,
 } from "@/lib/petty-cash/queries";
+import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 import {
   EmptyState,
@@ -173,34 +174,34 @@ export function LedgerScreen({
 
       {/* ── the whole box, never filtered ────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <Kpi
-          icon={<IconScale className="size-4" />}
+        <StatCard
+          icon={<IconScale />}
           label="Current balance"
           value={formatMoney(overall.balance)}
           sub="Everything in, less everything out"
-          tone={Number(overall.balance) < 0 ? "red" : "blue"}
-          emphasise
+          tone={Number(overall.balance) < 0 ? "danger" : "accent"}
+          valueTone={Number(overall.balance) < 0 ? "danger" : undefined}
         />
-        <Kpi
-          icon={<IconArrowDown className="size-4" />}
+        <StatCard
+          icon={<IconArrowDown />}
           label="Total credit"
           value={formatMoney(overall.credits)}
           sub="Money put into the box"
-          tone="green"
+          tone="success"
         />
-        <Kpi
-          icon={<IconArrowUp className="size-4" />}
+        <StatCard
+          icon={<IconArrowUp />}
           label="Total debit"
           value={formatMoney(overall.debits)}
           sub="Money paid out"
-          tone="red"
+          tone="danger"
         />
-        <Kpi
-          icon={<IconWallet className="size-4" />}
+        <StatCard
+          icon={<IconWallet />}
           label="Transactions"
           value={overall.count.toLocaleString("en-IN")}
           sub="Entries recorded"
-          tone="grey"
+          tone="neutral"
         />
       </div>
 
@@ -222,8 +223,6 @@ export function LedgerScreen({
           </form>
         }
       >
-        {/* The same range prints at the foot of the table; on a phone it was
-            the one thing stopping search and Filters sharing a row. */}
         <span className="hidden shrink-0 text-[12px] whitespace-nowrap text-text-3 sm:inline">
           {ledger.total === 0
             ? "0 records"
@@ -626,21 +625,16 @@ function Row({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
       </td>
 
       <td className={cn(td, "whitespace-nowrap")}>
+        {/* A count, not a direct link — there can be up to five now, so
+            "open one of them" belongs in the detail panel this row already
+            opens, not a single href a table cell cannot hold five of. */}
         {row.hasAttachment ? (
-          // Opens the file itself. `stopPropagation` because the whole row is
-          // also a button — without it, clicking the receipt would open the
-          // entry behind the new tab.
-          <a
-            href={`/api/petty-cash/entries/${row.id}/attachment`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            title={row.attachmentName ?? "View receipt"}
-            className="inline-flex max-w-[150px] items-center gap-1 text-[12px] text-text-2 hover:text-text-1 hover:underline"
-          >
+          <span className="inline-flex items-center gap-1 text-[12px] text-text-2">
             <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
-            <span className="truncate">{row.attachmentName ?? "Receipt"}</span>
-          </a>
+            {row.attachmentCount > 1
+              ? `${row.attachmentCount} files`
+              : "1 file"}
+          </span>
         ) : (
           <span className="text-[12px] text-text-3">—</span>
         )}
@@ -725,7 +719,9 @@ function LedgerCard({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
         {row.hasAttachment ? (
           <span className="inline-flex items-center gap-1">
             <IconPaperclip className="size-3" />
-            receipt
+            {row.attachmentCount > 1
+              ? `${row.attachmentCount} receipts`
+              : "receipt"}
           </span>
         ) : null}
       </div>
@@ -733,56 +729,3 @@ function LedgerCard({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
   );
 }
 
-function Kpi({
-  icon,
-  label,
-  value,
-  sub,
-  tone,
-  emphasise,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  tone: "green" | "red" | "blue" | "grey";
-  emphasise?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "min-w-0 rounded-card border bg-surface p-2.5 sm:p-3.5",
-        emphasise ? "border-primary/30" : "border-border",
-      )}
-    >
-      <span
-        className={cn(
-          "hidden size-7 place-items-center rounded-field sm:grid",
-          tone === "green" && "bg-status-green-dim text-status-green",
-          tone === "red" && "bg-status-red-dim text-status-red",
-          tone === "blue" && "bg-accent text-accent-text",
-          tone === "grey" && "bg-chip text-text-2",
-        )}
-      >
-        {icon}
-      </span>
-      <div
-        className={cn(
-          "num leading-none font-bold tracking-[-0.02em] sm:mt-2",
-          emphasise ? "text-[20px] sm:text-[28px]" : "text-[18px] sm:text-[24px]",
-          tone === "red" && !emphasise ? "text-status-red" : "text-text-1",
-        )}
-      >
-        {value}
-      </div>
-      <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-        {label}
-      </div>
-      {/* Desktop only, as StatCard does: the explanation is worth having
-          and is not worth a third of a phone screen. */}
-      <div className="mt-0.5 hidden text-[11.5px] leading-snug text-text-3 sm:block">
-        {sub}
-      </div>
-    </div>
-  );
-}

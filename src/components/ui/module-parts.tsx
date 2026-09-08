@@ -214,17 +214,27 @@ export function PageHead({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 sm:items-end">
-      <div className="min-w-0 flex-1">
+    // ── ONE LINE, NOT THREE ────────────────────────────────────────────
+    //
+    // Eyebrow over title over lede spent about 90px at the top of every
+    // screen in two modules saying "Cash box / Petty Cash / Money paid out
+    // and put in, with the receipts behind it" — three lines for one
+    // sentence, before a single figure. On one baseline the same words read
+    // as a heading with its context attached and cost one line.
+    //
+    // It still wraps: on a phone the lede drops under the title on its own,
+    // which is right there and wrong on a wide screen.
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         {eyebrow && (
-          <div className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+          <span className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
             {eyebrow}
-          </div>
+          </span>
         )}
         <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
           {title}
         </h1>
-        {lede && <p className="mt-1 text-[13px] text-text-3">{lede}</p>}
+        {lede && <p className="min-w-0 text-[13px] text-text-3">{lede}</p>}
       </div>
       {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
     </div>
@@ -470,9 +480,25 @@ export function TableCard({
   );
 }
 
+/**
+ * ── THE TABLE IS THE ORDERS TABLE ─────────────────────────────────────────
+ *
+ * These matched `ui/data-table.tsx` in everything except the one thing that
+ * makes a table read as a table: the COLUMN rules. Rows were separated and
+ * columns were not, so ten columns of short values floated as one field of
+ * text and the eye had nothing to track along — the owner's words were that
+ * it should "look structured like orders table UI".
+ *
+ * Same weights and the same rule colours as `data-table.tsx`: a solid line
+ * under the header, a fainter one between cells, and no rule after the last
+ * column so the card's own border is not doubled. Padding tightened to the
+ * Orders figures too (px-3 / py-2.5), which is a row height back on a screen
+ * that shows twenty-five of them.
+ */
 export const th =
-  "sticky top-0 z-10 border-b border-border bg-surface px-3.5 py-2.5 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase";
-export const td = "border-b border-border px-3.5 py-3 text-[13px] text-text-2";
+  "sticky top-0 z-10 border-r border-b border-border/70 bg-surface px-3 py-2 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0";
+export const td =
+  "border-r border-b border-border/45 px-3 py-2.5 align-middle text-[13px] text-text-2 last:border-r-0";
 
 export function EmptyState({
   icon,

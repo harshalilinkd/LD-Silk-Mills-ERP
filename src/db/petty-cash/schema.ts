@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   check,
@@ -105,8 +106,12 @@ export const members = ldPettyCash.table(
       .references(() => users.id),
     role: memberRoleEnum("role").notNull().default("VIEWER"),
     active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [uniqueIndex("uq_pc_member_user").on(t.userId)],
 );
@@ -134,8 +139,12 @@ export const employees = ldPettyCash.table(
     /** The old sheet's `Emp - ID`. Optional — see above. */
     code: varchar("code", { length: 40 }),
     active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdBy: uuid("created_by").references(() => users.id),
   },
   (t) => [
@@ -173,7 +182,9 @@ export const categories = ldPettyCash.table(
     groupName: varchar("group_name", { length: 80 }).notNull(),
     active: boolean("active").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     uniqueIndex("uq_pc_category_name").on(sql`lower(${t.name})`),
@@ -269,9 +280,13 @@ export const transactions = ldPettyCash.table(
     attachmentPath: text("attachment_path"),
     attachmentName: varchar("attachment_name", { length: 255 }),
 
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdBy: uuid("created_by").references(() => users.id),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     updatedBy: uuid("updated_by").references(() => users.id),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: uuid("deleted_by").references(() => users.id),
@@ -301,18 +316,64 @@ export const transactions = ldPettyCash.table(
   ],
 );
 
+/**
+ * Every file kept as proof for one transaction — up to five.
+ *
+ * `transactions.attachmentPath`/`attachmentName` above are the OLD shape, kept
+ * only so entries recorded before this table existed keep their receipt
+ * readable. Every entry saved from here on uses this table instead, even when
+ * it holds a single file, so "how many receipts" is never a question the two
+ * places can disagree on.
+ *
+ * Deleting a transaction never deletes its rows here, for the same reason
+ * `transactions` itself is soft-deleted: the receipt is the evidence for a
+ * payment somebody may later have to justify having removed.
+ */
+export const entryAttachments = ldPettyCash.table(
+  "entry_attachments",
+  {
+    id: serial("id").primaryKey(),
+    transactionId: bigint("transaction_id", { mode: "number" })
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    filePath: text("file_path").notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
+    mimeType: varchar("mime_type", { length: 150 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBy: uuid("created_by").references(() => users.id),
+  },
+  (t) => [index("idx_pc_entry_attachments_txn").on(t.transactionId)],
+);
+
 // ─── relations ────────────────────────────────────────────────────────────
 
-export const transactionsRelations = relations(transactions, ({ one }) => ({
-  employee: one(employees, {
-    fields: [transactions.employeeId],
-    references: [employees.id],
+export const transactionsRelations = relations(
+  transactions,
+  ({ one, many }) => ({
+    employee: one(employees, {
+      fields: [transactions.employeeId],
+      references: [employees.id],
+    }),
+    category: one(categories, {
+      fields: [transactions.categoryId],
+      references: [categories.id],
+    }),
+    attachments: many(entryAttachments),
   }),
-  category: one(categories, {
-    fields: [transactions.categoryId],
-    references: [categories.id],
+);
+
+export const entryAttachmentsRelations = relations(
+  entryAttachments,
+  ({ one }) => ({
+    transaction: one(transactions, {
+      fields: [entryAttachments.transactionId],
+      references: [transactions.id],
+    }),
   }),
-}));
+);
 
 export const employeesRelations = relations(employees, ({ many }) => ({
   transactions: many(transactions),
@@ -328,6 +389,7 @@ export type PettyCashMember = typeof members.$inferSelect;
 export type PettyCashEmployee = typeof employees.$inferSelect;
 export type PettyCashCategory = typeof categories.$inferSelect;
 export type PettyCashTransaction = typeof transactions.$inferSelect;
+export type PettyCashEntryAttachment = typeof entryAttachments.$inferSelect;
 export type TransactionType = (typeof transactionTypeEnum.enumValues)[number];
 export type ProofType = (typeof proofTypeEnum.enumValues)[number];
 export type MemberRole = (typeof memberRoleEnum.enumValues)[number];

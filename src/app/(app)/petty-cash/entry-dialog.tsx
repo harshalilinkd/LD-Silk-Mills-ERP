@@ -17,7 +17,7 @@ import { formatDate, todayIso } from "@/lib/dates";
 import {
   ATTACHMENT_HELP,
   ATTACHMENT_MAX_BYTES,
-  ATTACHMENT_MIME,
+  ATTACHMENT_MAX_FILES,
   PROOF_TYPES,
   PROOF_TYPE_META,
   TRANSACTION_TYPES,
@@ -48,6 +48,8 @@ import {
   updateEntry,
 } from "./actions";
 
+export type AttachmentRef = { id: number | "legacy"; name: string };
+
 export type EntryDraft = {
   id: number;
   transactionDate: string;
@@ -59,11 +61,22 @@ export type EntryDraft = {
   amount: string;
   proofType: ProofType;
   proofOther: string | null;
-  attachmentName: string | null;
-  hasAttachment: boolean;
+  attachments: AttachmentRef[];
 };
 
 export type Option = { id: number; name: string };
+
+/** A receipt already saved on this entry, or one just picked and not yet
+ * uploaded — the same list holds both while the dialog is open. */
+type FileSlot =
+  | { kind: "existing"; id: number | "legacy"; name: string }
+  | { kind: "new"; localId: string; file: File; name: string };
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 /**
  * Adding or changing one movement of cash.
@@ -121,10 +134,18 @@ export function EntryDialog({
     draft ? String(draft.categoryId) : "",
   );
   const [reason, setReason] = React.useState(draft?.reason ?? "");
-  const [proofType, setProofType] = React.useState<ProofType>(draft?.proofType ?? "NONE");
+  const [proofType, setProofType] = React.useState<ProofType>(
+    draft?.proofType ?? "NONE",
+  );
   const [proofOther, setProofOther] = React.useState(draft?.proofOther ?? "");
-  const [file, setFile] = React.useState<File | null>(null);
-  const [removeAttachment, setRemoveAttachment] = React.useState(false);
+  const [files, setFiles] = React.useState<FileSlot[]>(
+    () =>
+      draft?.attachments.map((a) => ({
+        kind: "existing" as const,
+        id: a.id,
+        name: a.name,
+      })) ?? [],
+  );
 
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -132,28 +153,85 @@ export function EntryDialog({
 
   const amountCheck = checkAmount(amount);
   const ready =
-    date.length === 10 && amountCheck.ok && !!employeeId && !!categoryId && reason.trim().length > 0;
+    date.length === 10 &&
+    amountCheck.ok &&
+    fromName.trim().length > 0 &&
+    !!employeeId &&
+    !!categoryId;
+
+  const roomLeft = ATTACHMENT_MAX_FILES - files.length;
+
+  const addFiles = (picked: File[]) => {
+    if (picked.length === 0) return;
+    setError(null);
+    const accepted = picked.slice(0, roomLeft);
+    if (picked.length > accepted.length) {
+      setError(
+        `Up to ${ATTACHMENT_MAX_FILES} files can be attached — ${roomLeft} more can be added.`,
+      );
+    }
+    const oversized = accepted.find((f) => f.size > ATTACHMENT_MAX_BYTES);
+    if (oversized) {
+      setError(`${oversized.name} is larger than 50 MB and was not added.`);
+    }
+    const ok = accepted.filter(
+      (f) => f.size > 0 && f.size <= ATTACHMENT_MAX_BYTES,
+    );
+    setFiles((prev) => [
+      ...prev,
+      ...ok.map((file) => ({
+        kind: "new" as const,
+        localId: crypto.randomUUID(),
+        file,
+        name: file.name,
+      })),
+    ]);
+  };
+
+  const removeFile = (target: FileSlot) => {
+    setFiles((prev) => prev.filter((f) => f !== target));
+  };
 
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      // ── the receipt goes straight to storage, not through the action ────
+      // ── new receipts go straight to storage, not through the action ────
       //
       // A file inside a server action's FormData is capped at 1 MB by Next and
       // at 4.5 MB by Vercel before our code even runs — which is what the very
-      // first real receipt hit. So the bytes are PUT to a one-use signed URL
-      // the server issues, and the form carries nothing but the path.
-      let receipt: { path: string; sig: string; name: string } | null = null;
-      if (file) {
-        const up = await startReceiptUpload(date, file.name, file.type, file.size);
+      // first real receipt hit. So each new file's bytes are PUT to a one-use
+      // signed URL the server issues, and the form carries nothing but paths.
+      const resolved: Array<
+        | { kind: "new"; path: string; sig: string; name: string }
+        | { kind: "existing"; id: number }
+        | { kind: "legacy" }
+      > = [];
+      for (const f of files) {
+        if (f.kind === "existing") {
+          resolved.push(
+            f.id === "legacy"
+              ? { kind: "legacy" }
+              : { kind: "existing", id: f.id },
+          );
+          continue;
+        }
+        const up = await startReceiptUpload(date, f.file.name, f.file.size);
         const put = await fetch(up.uploadUrl, {
           method: "PUT",
-          headers: { "Content-Type": file.type },
-          body: file,
+          headers: {
+            "Content-Type": f.file.type || "application/octet-stream",
+          },
+          body: f.file,
         });
-        if (!put.ok) throw new Error("The receipt could not be uploaded. Please try again.");
-        receipt = { path: up.path, sig: up.signature, name: up.name };
+        if (!put.ok)
+          throw new Error(`${f.name} could not be uploaded. Please try again.`);
+        resolved.push({
+          kind: "new",
+          path: up.path,
+          sig: up.signature,
+          name: up.name,
+        });
       }
 
       const fd = new FormData();
@@ -166,12 +244,7 @@ export function EntryDialog({
       fd.set("amount", amount);
       fd.set("proofType", proofType);
       fd.set("proofOther", proofType === "OTHER" ? proofOther : "");
-      if (receipt) {
-        fd.set("attachmentPath", receipt.path);
-        fd.set("attachmentSig", receipt.sig);
-        fd.set("attachmentName", receipt.name);
-      }
-      if (removeAttachment && !file) fd.set("removeAttachment", "1");
+      fd.set("attachments", JSON.stringify(resolved));
 
       if (editing) {
         await updateEntry(draft.id, fd);
@@ -182,7 +255,9 @@ export function EntryDialog({
       }
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The entry could not be saved.");
+      setError(
+        e instanceof Error ? e.message : "The entry could not be saved.",
+      );
       setBusy(false);
     }
   };
@@ -195,7 +270,9 @@ export function EntryDialog({
         wide
         title={editing ? "Edit transaction" : "New transaction"}
         subtitle={
-          editing ? "The reference and who first recorded it never change." : undefined
+          editing
+            ? "The reference and who first recorded it never change."
+            : undefined
         }
         footer={
           <>
@@ -211,7 +288,7 @@ export function EntryDialog({
               Date, amount and direction on ONE row. These three are the
               entry: everything below them describes a movement that has
               already been decided by the time somebody reaches this dialog. */}
-          <section className="flex flex-col gap-3">
+          <section className="flex flex-col gap-3 rounded-card border border-border bg-surface-2/50 p-3.5">
             <SectionHead icon={<IconArrowsExchange className="size-4" />}>
               The movement
             </SectionHead>
@@ -277,8 +354,14 @@ export function EntryDialog({
                           "flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-field border px-2 text-[12.5px] font-semibold transition-colors",
                           on
                             ? t === "DEBIT"
-                              ? cn("border-status-red/40 bg-status-red-dim", m.text)
-                              : cn("border-status-green/40 bg-status-green-dim", m.text)
+                              ? cn(
+                                  "border-status-red/40 bg-status-red-dim",
+                                  m.text,
+                                )
+                              : cn(
+                                  "border-status-green/40 bg-status-green-dim",
+                                  m.text,
+                                )
                             : "border-border bg-surface text-text-2 hover:border-border-strong hover:text-text-1",
                         )}
                       >
@@ -300,13 +383,13 @@ export function EntryDialog({
           </section>
 
           {/* ══ 2. who and what for ═══════════════════════════════════════ */}
-          <section className="flex flex-col gap-3 border-t border-border pt-4">
+          <section className="flex flex-col gap-3 rounded-card border border-border bg-surface-2/50 p-3.5">
             <SectionHead icon={<IconUsers className="size-4" />}>
               Who, and what for
             </SectionHead>
 
             <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="From" htmlFor="pc_from" hint="Optional">
+              <Field label="From" htmlFor="pc_from" required>
                 {typingFrom ? (
                   <div className="flex gap-2">
                     <Input
@@ -338,7 +421,9 @@ export function EntryDialog({
                         : setFromName(e.target.value)
                     }
                   >
-                    <option value="">Not recorded</option>
+                    <option value="" disabled>
+                      Who paid…
+                    </option>
                     {fromOptions.map((o) => (
                       <option key={o} value={o}>
                         {o}
@@ -397,7 +482,7 @@ export function EntryDialog({
               <Field
                 label="What was it for"
                 htmlFor="pc_reason"
-                required
+                hint="Optional"
                 className="sm:col-span-2"
               >
                 <Textarea
@@ -426,14 +511,18 @@ export function EntryDialog({
           </section>
 
           {/* ══ 3. the paperwork ══════════════════════════════════════════ */}
-          <section className="flex flex-col gap-3 border-t border-border pt-4">
+          <section className="flex flex-col gap-3 rounded-card border border-border bg-surface-2/50 p-3.5">
             <SectionHead icon={<IconPaperclip className="size-4" />}>
               The paperwork
             </SectionHead>
 
             <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
               {proofType === "OTHER" && (
-                <Field label="What kind of proof" htmlFor="pc_proof_other" required>
+                <Field
+                  label="What kind of proof"
+                  htmlFor="pc_proof_other"
+                  required
+                >
                   <Input
                     id="pc_proof_other"
                     value={proofOther}
@@ -444,79 +533,67 @@ export function EntryDialog({
               )}
 
               <Field
-                label="Receipt"
-                className={proofType === "OTHER" ? "sm:col-span-2" : "sm:col-span-3"}
+                label="Receipts"
+                className={
+                  proofType === "OTHER" ? "sm:col-span-2" : "sm:col-span-3"
+                }
               >
-                <div className="flex h-9 flex-wrap items-center gap-2">
-                  <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 text-[12.5px] font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1">
-                    <IconUpload className="size-3.5" />
-                    {file ? "Choose a different file" : "Attach a file"}
+                <div className="flex flex-col gap-2">
+                  <label
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-field border border-dashed px-3 py-3 text-center text-[12.5px] font-medium transition-colors",
+                      roomLeft > 0
+                        ? "cursor-pointer border-border-strong bg-surface text-text-2 hover:border-primary hover:bg-surface-2 hover:text-text-1"
+                        : "cursor-not-allowed border-border bg-surface-2 text-text-3",
+                    )}
+                  >
+                    <IconUpload className="size-4 shrink-0" />
+                    {roomLeft > 0
+                      ? `Attach a file — ${ATTACHMENT_HELP}`
+                      : `${ATTACHMENT_MAX_FILES} files attached, that's the limit`}
                     <input
                       type="file"
+                      multiple
                       className="hidden"
-                      accept={ATTACHMENT_MIME.join(",")}
+                      disabled={roomLeft <= 0}
                       onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        setError(null);
-                        // `accept` only filters the picker. A drag-drop, an
-                        // "All files" pick or a phone's share sheet all get
-                        // past it, and the server then refuses the upload —
-                        // correctly, but after a round trip and with nothing
-                        // on screen until it returns. Saying it here is the
-                        // same rule, said sooner.
-                        if (f && !ATTACHMENT_MIME.includes(f.type as never)) {
-                          setError(
-                            `A ${f.name.split(".").pop()?.toUpperCase() ?? "file"} cannot be attached. ${ATTACHMENT_HELP}`,
-                          );
-                          e.target.value = "";
-                          return;
-                        }
-                        if (f && f.size > ATTACHMENT_MAX_BYTES) {
-                          setError("That file is larger than 10 MB.");
-                          e.target.value = "";
-                          return;
-                        }
-                        setFile(f);
-                        setRemoveAttachment(false);
+                        addFiles(Array.from(e.target.files ?? []));
                         e.target.value = "";
                       }}
                     />
                   </label>
 
-                  {file ? (
-                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] text-text-2">
-                      <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
-                      <span className="truncate">{file.name}</span>
-                      <button
-                        type="button"
-                        aria-label="Remove the chosen file"
-                        onClick={() => setFile(null)}
-                        className="shrink-0 cursor-pointer text-text-3 hover:text-status-red"
-                      >
-                        <IconTrash className="size-3.5" />
-                      </button>
-                    </span>
-                  ) : editing && draft.hasAttachment && !removeAttachment ? (
-                    /* An existing receipt, when nothing new has been chosen. */
-                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] text-text-2">
-                      <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
-                      <span className="truncate">{draft.attachmentName ?? "Receipt"}</span>
-                      <button
-                        type="button"
-                        onClick={() => setRemoveAttachment(true)}
-                        className="shrink-0 cursor-pointer text-[12px] text-status-red hover:underline"
-                      >
-                        Remove
-                      </button>
-                    </span>
-                  ) : removeAttachment ? (
-                    <span className="text-[12.5px] text-status-amber">
-                      The receipt will be removed when you save.
-                    </span>
-                  ) : (
-                    <span className="truncate text-[12px] text-text-3">
-                      {ATTACHMENT_HELP}
-                    </span>
+                  {files.length > 0 && (
+                    <ul className="flex flex-col gap-1.5">
+                      {files.map((f) => (
+                        <li
+                          key={
+                            f.kind === "existing"
+                              ? `existing-${f.id}`
+                              : f.localId
+                          }
+                          className="flex items-center gap-2 rounded-field border border-border bg-surface px-2.5 py-1.5"
+                        >
+                          <IconPaperclip className="size-3.5 shrink-0 text-text-3" />
+                          <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-2">
+                            {f.name}
+                          </span>
+                          {f.kind === "new" && (
+                            <span className="num shrink-0 text-[11px] text-text-3">
+                              {formatBytes(f.file.size)}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${f.name}`}
+                            onClick={() => removeFile(f)}
+                            className="shrink-0 cursor-pointer text-text-3 hover:text-status-red"
+                          >
+                            <IconTrash className="size-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
               </Field>
@@ -536,7 +613,12 @@ export function EntryDialog({
           {ready && (
             <p className="rounded-field border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-text-2">
               {type === "DEBIT" ? "Paying out" : "Taking in"}{" "}
-              <strong className={cn("num font-bold", TRANSACTION_TYPE_META[type].text)}>
+              <strong
+                className={cn(
+                  "num font-bold",
+                  TRANSACTION_TYPE_META[type].text,
+                )}
+              >
                 {formatMoney(amountCheck.value)}
               </strong>{" "}
               on {formatDate(date)}
@@ -590,7 +672,9 @@ function AddPayeeDialog({
       const r = await addEmployee(name, code || null);
       onAdded(r.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That person could not be added.");
+      setError(
+        e instanceof Error ? e.message : "That person could not be added.",
+      );
       setBusy(false);
     }
   };
@@ -619,8 +703,15 @@ function AddPayeeDialog({
             placeholder="Full name"
           />
         </Field>
-        <Field label="Staff number (optional)" help="The old sheet's Emp-ID, if they have one.">
-          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="AB-02" />
+        <Field
+          label="Staff number (optional)"
+          help="The old sheet's Emp-ID, if they have one."
+        >
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="AB-02"
+          />
         </Field>
         <ErrorNote>{error}</ErrorNote>
       </div>

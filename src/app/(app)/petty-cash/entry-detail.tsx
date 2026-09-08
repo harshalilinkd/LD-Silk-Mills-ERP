@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/module-parts";
 import { usePettyCashViewer } from "./viewer-context";
 import { deleteEntry } from "./actions";
-import type { EntryDraft } from "./entry-dialog";
+import type { AttachmentRef, EntryDraft } from "./entry-dialog";
 
 type Detail = {
   id: number;
@@ -46,8 +46,7 @@ type Detail = {
   amount: string;
   proofType: ProofType;
   proofOther: string | null;
-  hasAttachment: boolean;
-  attachmentName: string | null;
+  attachments: AttachmentRef[];
   createdAt: string;
   updatedAt: string;
   createdByName: string | null;
@@ -85,12 +84,17 @@ export function EntryDetail({
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(`/api/petty-cash/entries/${id}`, { cache: "no-store" });
+        const res = await fetch(`/api/petty-cash/entries/${id}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("That entry could not be loaded.");
         const data = (await res.json()) as Detail;
         if (alive) setRow(data);
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "That entry could not be loaded.");
+        if (alive)
+          setError(
+            e instanceof Error ? e.message : "That entry could not be loaded.",
+          );
       }
     })();
     return () => {
@@ -111,7 +115,11 @@ export function EntryDetail({
           row ? (
             <>
               {viewer.can.delete && (
-                <QuietButton tone="danger" className="mr-auto h-9" onClick={() => setConfirming(true)}>
+                <QuietButton
+                  tone="danger"
+                  className="mr-auto h-9"
+                  onClick={() => setConfirming(true)}
+                >
                   <IconTrash className="size-3.5" />
                   Delete
                 </QuietButton>
@@ -131,8 +139,7 @@ export function EntryDetail({
                       amount: row.amount,
                       proofType: row.proofType,
                       proofOther: row.proofOther,
-                      attachmentName: row.attachmentName,
-                      hasAttachment: row.hasAttachment,
+                      attachments: row.attachments,
                     })
                   }
                 >
@@ -159,10 +166,20 @@ export function EntryDetail({
                   : "border-status-green/30 bg-status-green-dim",
               )}
             >
-              <div className={cn("text-[11px] font-bold tracking-[0.06em] uppercase", meta!.text)}>
+              <div
+                className={cn(
+                  "text-[11px] font-bold tracking-[0.06em] uppercase",
+                  meta!.text,
+                )}
+              >
                 {meta!.label}
               </div>
-              <div className={cn("num mt-1 text-[30px] leading-none font-bold", meta!.text)}>
+              <div
+                className={cn(
+                  "num mt-1 text-[30px] leading-none font-bold",
+                  meta!.text,
+                )}
+              >
                 {formatMoney(row.amount)}
               </div>
               <div className="mt-1.5 text-[12.5px] text-text-2">
@@ -178,22 +195,34 @@ export function EntryDetail({
             <Line label="What it was for" value={row.reason} block />
 
             <div className="grid grid-cols-2 gap-3">
-              <Line label="Proof" value={proofLabel(row.proofType, row.proofOther)} />
+              <Line
+                label="Proof"
+                value={proofLabel(row.proofType, row.proofOther)}
+              />
               <div className="flex min-w-0 flex-col gap-1.5">
-                <span className="text-[13px] font-medium text-text-2">Receipt</span>
-                {row.hasAttachment ? (
-                  <a
-                    href={`/api/petty-cash/entries/${row.id}/attachment`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex w-fit items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1"
-                  >
-                    <IconPaperclip className="size-3.5" />
-                    {row.attachmentName ?? "View receipt"}
-                    <IconExternalLink className="size-3 text-text-3" />
-                  </a>
+                <span className="text-[13px] font-medium text-text-2">
+                  {row.attachments.length > 1 ? "Receipts" : "Receipt"}
+                </span>
+                {row.attachments.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    {row.attachments.map((a) => (
+                      <a
+                        key={a.id}
+                        href={`/api/petty-cash/entries/${row.id}/attachment/${a.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex w-fit min-w-0 items-center gap-1.5 rounded-field border border-border bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1"
+                      >
+                        <IconPaperclip className="size-3.5 shrink-0" />
+                        <span className="truncate">{a.name}</span>
+                        <IconExternalLink className="size-3 shrink-0 text-text-3" />
+                      </a>
+                    ))}
+                  </div>
                 ) : (
-                  <span className="text-[13px] text-text-3">No attachments found.</span>
+                  <span className="text-[13px] text-text-3">
+                    No attachments found.
+                  </span>
                 )}
               </div>
             </div>
@@ -264,7 +293,9 @@ function DeleteDialog({
       const r = await deleteEntry(row.id, note || null);
       onDone(r.uid);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "That entry could not be deleted.");
+      setError(
+        e instanceof Error ? e.message : "That entry could not be deleted.",
+      );
       setBusy(false);
     }
   };
@@ -290,15 +321,16 @@ function DeleteDialog({
             {formatMoney(row.amount)}
           </div>
           <div className="mt-0.5 text-[12.5px] text-text-3">
-            {row.categoryName} · {row.toName} · {formatDateLong(row.transactionDate)}
+            {row.categoryName} · {row.toName} ·{" "}
+            {formatDateLong(row.transactionDate)}
           </div>
         </div>
 
         <p className="text-[13px] leading-relaxed text-text-2">
           It will leave the ledger, the balance and every total. It is{" "}
-          <strong className="font-semibold text-text-1">kept for audit</strong> —
-          this is money, so nothing here destroys a record — and the receipt is
-          kept with it.
+          <strong className="font-semibold text-text-1">kept for audit</strong>{" "}
+          — this is money, so nothing here destroys a record — and the receipt
+          is kept with it.
         </p>
 
         <Field label="Why (optional)" help="Recorded on the audit entry.">
@@ -329,12 +361,18 @@ function Line({
   block?: boolean;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1.5", block && "col-span-full")}>
+    <div
+      className={cn("flex min-w-0 flex-col gap-1.5", block && "col-span-full")}
+    >
       <span className="text-[13px] font-medium text-text-2">{label}</span>
       <span
         className={cn(
           "text-[13px] break-words",
-          strong ? "font-semibold text-text-1" : muted ? "text-text-3" : "text-text-1",
+          strong
+            ? "font-semibold text-text-1"
+            : muted
+              ? "text-text-3"
+              : "text-text-1",
         )}
       >
         {value}

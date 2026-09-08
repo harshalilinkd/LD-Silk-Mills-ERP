@@ -65,14 +65,18 @@ export function formatSigned(
 }
 
 /** Null for anything that is not a finite number, so callers can show "—". */
-export function toNumber(value: Money | number | null | undefined): number | null {
+export function toNumber(
+  value: Money | number | null | undefined,
+): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
 /** Sum a column of `numeric` strings without going through floating point twice. */
-export function sumMoney(values: (Money | number | null | undefined)[]): number {
+export function sumMoney(
+  values: (Money | number | null | undefined)[],
+): number {
   return values.reduce<number>((a, v) => a + (toNumber(v) ?? 0), 0);
 }
 
@@ -93,7 +97,14 @@ export function isTransactionType(v: unknown): v is TransactionType {
  */
 export const TRANSACTION_TYPE_META: Record<
   TransactionType,
-  { label: string; short: string; help: string; text: string; chip: string; dot: string }
+  {
+    label: string;
+    short: string;
+    help: string;
+    text: string;
+    chip: string;
+    dot: string;
+  }
 > = {
   DEBIT: {
     label: "Debit (Expense)",
@@ -119,7 +130,9 @@ export const PROOF_TYPES = ["NONE", "VOUCHER", "BILL", "OTHER"] as const;
 export type ProofType = (typeof PROOF_TYPES)[number];
 
 export function isProofType(v: unknown): v is ProofType {
-  return typeof v === "string" && (PROOF_TYPES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (PROOF_TYPES as readonly string[]).includes(v)
+  );
 }
 
 /**
@@ -129,7 +142,10 @@ export function isProofType(v: unknown): v is ProofType {
  * `OTHER` plus a label — so the reporting values stay a closed set of four
  * while the wording stays open.
  */
-export const PROOF_TYPE_META: Record<ProofType, { label: string; help: string }> = {
+export const PROOF_TYPE_META: Record<
+  ProofType,
+  { label: string; help: string }
+> = {
   NONE: { label: "No proof", help: "Nothing was kept for this one" },
   VOUCHER: { label: "Voucher", help: "A signed voucher" },
   BILL: { label: "Bill", help: "A shop bill or invoice" },
@@ -138,14 +154,17 @@ export const PROOF_TYPE_META: Record<ProofType, { label: string; help: string }>
 
 /** What the screens print, folding OTHER's own wording back in. */
 export function proofLabel(type: ProofType, other: string | null): string {
-  return type === "OTHER" ? (other?.trim() || "Other") : PROOF_TYPE_META[type].label;
+  return type === "OTHER"
+    ? other?.trim() || "Other"
+    : PROOF_TYPE_META[type].label;
 }
 
 // ─── validation both sides share ──────────────────────────────────────────
 
 export const MAX_AMOUNT = 99_999_999.99; // the column is numeric(12,2)
 
-export type AmountCheck = { ok: true; value: string } | { ok: false; error: string };
+export type AmountCheck =
+  { ok: true; value: string } | { ok: false; error: string };
 
 /**
  * The one place an amount is judged.
@@ -158,8 +177,11 @@ export type AmountCheck = { ok: true; value: string } | { ok: false; error: stri
  * "₹1,250" out of WhatsApp, and refusing that teaches them to distrust the
  * form rather than teaching them anything useful.
  */
-export function checkAmount(raw: string | number | null | undefined): AmountCheck {
-  if (raw === null || raw === undefined) return { ok: false, error: "Enter an amount." };
+export function checkAmount(
+  raw: string | number | null | undefined,
+): AmountCheck {
+  if (raw === null || raw === undefined)
+    return { ok: false, error: "Enter an amount." };
   const cleaned = String(raw).replace(/[₹,\s]/g, "");
   if (cleaned === "") return { ok: false, error: "Enter an amount." };
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) {
@@ -175,14 +197,14 @@ export function checkAmount(raw: string | number | null | undefined): AmountChec
 
 // ─── attachments ──────────────────────────────────────────────────────────
 
-export const ATTACHMENT_MIME = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "application/pdf",
-] as const;
+/**
+ * Any file type is accepted — a bill can arrive as a photo, a PDF, a scanned
+ * Word document, even an Excel sheet from a supplier. Refusing a real receipt
+ * because of its extension only teaches somebody to rename it.
+ */
+export const ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
 
-export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const ATTACHMENT_MAX_FILES = 5;
 
-export const ATTACHMENT_HELP = "A photo (JPG, PNG, WEBP, HEIC) or a PDF, up to 10 MB.";
+export const ATTACHMENT_HELP =
+  "Any file type, up to 50 MB each — up to 5 files.";

@@ -6,7 +6,12 @@ import type { TransactionSql } from "postgres";
 
 import { sql as pg } from "@/db";
 import { pettyCashDb } from "@/db/petty-cash";
-import { categories, employees, transactions } from "@/db/petty-cash/schema";
+import {
+  categories,
+  employees,
+  entryAttachments,
+  transactions,
+} from "@/db/petty-cash/schema";
 import { memberRoleEnum, type MemberRole } from "@/db/petty-cash/schema";
 import { isIsoDate, type IsoDate } from "@/lib/dates";
 import {
@@ -86,8 +91,10 @@ function validate(input: TransactionInput): Clean {
   if (!amount.ok) throw new Error(amount.error);
 
   const reason = input.reason?.trim() ?? "";
-  if (!reason) throw new Error("Say what the money was for.");
   if (reason.length > 2000) throw new Error("That description is too long.");
+
+  const fromName = input.fromName?.trim() ?? "";
+  if (!fromName) throw new Error("Say who the money came from.");
 
   if (!Number.isInteger(input.employeeId) || input.employeeId <= 0) {
     throw new Error("Choose who the money went to.");
@@ -105,7 +112,7 @@ function validate(input: TransactionInput): Clean {
   return {
     transactionDate: input.transactionDate,
     transactionType: input.transactionType,
-    fromName: input.fromName?.trim() || null,
+    fromName,
     employeeId: input.employeeId,
     categoryId: input.categoryId,
     reason,
@@ -161,6 +168,30 @@ async function audit(
 
 export type CreateResult = { id: number; uid: string };
 
+/** One file to attach — resolved and re-verified, never trusted from the form. */
+export type PendingAttachment = {
+  path: string;
+  name: string;
+  size: number;
+  mimeType: string | null;
+};
+
+/** Every entry saved from here on uses `entry_attachments`, even for a single
+ * file — the legacy `attachment_path`/`attachment_name` pair is left null. */
+async function insertAttachments(
+  tx: TransactionSql,
+  transactionId: number,
+  attachments: PendingAttachment[],
+  uploadedBy: string,
+): Promise<void> {
+  for (const a of attachments) {
+    await tx`
+      insert into ld_petty_cash.entry_attachments
+        (transaction_id, file_path, file_name, file_size_bytes, mime_type, created_by)
+      values (${transactionId}, ${a.path}, ${a.name}, ${a.size || null}, ${a.mimeType}, ${uploadedBy}::uuid)`;
+  }
+}
+
 /**
  * Record one movement of cash.
  *
@@ -172,17 +203,21 @@ export type CreateResult = { id: number; uid: string };
 export async function createTransaction(
   viewer: PettyCashViewer,
   input: TransactionInput,
-  attachment: { path: string; name: string } | null,
+  attachments: PendingAttachment[],
 ): Promise<CreateResult> {
   const v = validate(input);
-  const { toName, categoryName } = await resolveRefs(pettyCashDb, v.employeeId, v.categoryId);
+  const { toName, categoryName } = await resolveRefs(
+    pettyCashDb,
+    v.employeeId,
+    v.categoryId,
+  );
 
   return pg.begin(async (tx) => {
     const [row] = await tx<{ id: number; uid: string }[]>`
       insert into ld_petty_cash.transactions
         (uid, transaction_date, transaction_type, from_name, employee_id, to_name,
          category_id, category_name, reason, amount, proof_type, proof_other,
-         attachment_path, attachment_name, created_by, updated_by)
+         created_by, updated_by)
       values (
         'PC-' || to_char((now() at time zone 'Asia/Kolkata'), 'YYYY') || '-' ||
           lpad(nextval('ld_petty_cash.transaction_uid_seq')::text, 6, '0'),
@@ -190,10 +225,11 @@ export async function createTransaction(
         ${v.fromName}, ${v.employeeId}, ${toName},
         ${v.categoryId}, ${categoryName}, ${v.reason}, ${v.amount}::numeric,
         ${v.proofType}::ld_petty_cash.proof_type, ${v.proofOther},
-        ${attachment?.path ?? null}, ${attachment?.name ?? null},
         ${viewer.userId}::uuid, ${viewer.userId}::uuid
       )
       returning id, uid`;
+
+    await insertAttachments(tx, row.id, attachments, viewer.userId);
 
     await audit(tx, viewer.userId, "petty-cash.created", {
       id: row.id,
@@ -203,6 +239,7 @@ export async function createTransaction(
       date: v.transactionDate,
       category: categoryName,
       to: toName,
+      attachments: attachments.length,
     });
 
     return { id: row.id, uid: row.uid };
@@ -222,10 +259,14 @@ export async function updateTransaction(
   viewer: PettyCashViewer,
   id: number,
   input: TransactionInput,
-  attachment: { path: string; name: string } | null | "unchanged",
+  attachments: PendingAttachment[],
 ): Promise<void> {
   const v = validate(input);
-  const { toName, categoryName } = await resolveRefs(pettyCashDb, v.employeeId, v.categoryId);
+  const { toName, categoryName } = await resolveRefs(
+    pettyCashDb,
+    v.employeeId,
+    v.categoryId,
+  );
 
   const [before] = await pettyCashDb
     .select({
@@ -243,32 +284,35 @@ export async function updateTransaction(
     .limit(1);
   if (!before) throw new Error("That entry no longer exists.");
 
+  // What is stored NOW, so the paths kept by the new set can be told apart
+  // from the ones nothing will reference once this commits.
+  const existing = await pettyCashDb
+    .select({ path: entryAttachments.filePath })
+    .from(entryAttachments)
+    .where(eq(entryAttachments.transactionId, id));
+  const oldPaths = new Set(existing.map((r) => r.path));
+  if (before.attachmentPath) oldPaths.add(before.attachmentPath);
+  const keptPaths = new Set(attachments.map((a) => a.path));
+  const orphaned = [...oldPaths].filter((p) => !keptPaths.has(p));
+
   await pg.begin(async (tx) => {
-    if (attachment === "unchanged") {
-      await tx`
-        update ld_petty_cash.transactions set
-          transaction_date = ${v.transactionDate}::date,
-          transaction_type = ${v.transactionType}::ld_petty_cash.transaction_type,
-          from_name = ${v.fromName}, employee_id = ${v.employeeId}, to_name = ${toName},
-          category_id = ${v.categoryId}, category_name = ${categoryName},
-          reason = ${v.reason}, amount = ${v.amount}::numeric,
-          proof_type = ${v.proofType}::ld_petty_cash.proof_type, proof_other = ${v.proofOther},
-          updated_at = now(), updated_by = ${viewer.userId}::uuid
-        where id = ${id} and deleted_at is null`;
-    } else {
-      await tx`
-        update ld_petty_cash.transactions set
-          transaction_date = ${v.transactionDate}::date,
-          transaction_type = ${v.transactionType}::ld_petty_cash.transaction_type,
-          from_name = ${v.fromName}, employee_id = ${v.employeeId}, to_name = ${toName},
-          category_id = ${v.categoryId}, category_name = ${categoryName},
-          reason = ${v.reason}, amount = ${v.amount}::numeric,
-          proof_type = ${v.proofType}::ld_petty_cash.proof_type, proof_other = ${v.proofOther},
-          attachment_path = ${attachment?.path ?? null},
-          attachment_name = ${attachment?.name ?? null},
-          updated_at = now(), updated_by = ${viewer.userId}::uuid
-        where id = ${id} and deleted_at is null`;
-    }
+    // The legacy pair is always cleared here on: once an entry is edited,
+    // whatever it ends up with — even the same single file it started with —
+    // lives in `entry_attachments` from now on, never split across both shapes.
+    await tx`
+      update ld_petty_cash.transactions set
+        transaction_date = ${v.transactionDate}::date,
+        transaction_type = ${v.transactionType}::ld_petty_cash.transaction_type,
+        from_name = ${v.fromName}, employee_id = ${v.employeeId}, to_name = ${toName},
+        category_id = ${v.categoryId}, category_name = ${categoryName},
+        reason = ${v.reason}, amount = ${v.amount}::numeric,
+        proof_type = ${v.proofType}::ld_petty_cash.proof_type, proof_other = ${v.proofOther},
+        attachment_path = null, attachment_name = null,
+        updated_at = now(), updated_by = ${viewer.userId}::uuid
+      where id = ${id} and deleted_at is null`;
+
+    await tx`delete from ld_petty_cash.entry_attachments where transaction_id = ${id}`;
+    await insertAttachments(tx, id, attachments, viewer.userId);
 
     await audit(tx, viewer.userId, "petty-cash.updated", {
       id,
@@ -289,16 +333,18 @@ export async function updateTransaction(
         to: toName,
         reason: v.reason,
       },
-      attachmentChanged: attachment !== "unchanged",
+      attachmentsChanged:
+        orphaned.length > 0 || attachments.some((a) => !oldPaths.has(a.path)),
+      attachments: attachments.length,
     });
   });
 
   // Only after the row is committed pointing elsewhere. The row is the record
   // of truth; an orphaned object costs kilobytes, a dangling path is a broken
   // link on a screen.
-  if (attachment !== "unchanged" && before.attachmentPath && before.attachmentPath !== attachment?.path) {
+  if (orphaned.length > 0) {
     const { deleteAttachment } = await import("./attachments");
-    await deleteAttachment(before.attachmentPath);
+    await Promise.all(orphaned.map((p) => deleteAttachment(p)));
   }
 }
 
@@ -337,7 +383,8 @@ export async function deleteTransaction(
          set deleted_at = now(), deleted_by = ${viewer.userId}::uuid, updated_at = now()
        where id = ${id} and deleted_at is null
        returning id`;
-    if (rows.length === 0) throw new Error("That entry has already been removed.");
+    if (rows.length === 0)
+      throw new Error("That entry has already been removed.");
 
     await audit(tx, viewer.userId, "petty-cash.deleted", {
       id,
@@ -453,7 +500,8 @@ export async function renameEmployee(
 
   await pg.begin(async (tx) => {
     const clash = await nameTaken(tx, "employees", clean, id);
-    if (clash) throw new Error("Somebody else on the list already has that name.");
+    if (clash)
+      throw new Error("Somebody else on the list already has that name.");
 
     const rows = await tx<{ id: number }[]>`
       update ld_petty_cash.employees
@@ -594,7 +642,9 @@ export async function setCategoryActive(
     await audit(
       tx,
       viewer.userId,
-      active ? "petty-cash.category_switched_on" : "petty-cash.category_switched_off",
+      active
+        ? "petty-cash.category_switched_on"
+        : "petty-cash.category_switched_off",
       { id, name: rows[0].name },
     );
   });
@@ -619,7 +669,8 @@ export async function setMemberRole(
   userId: string,
   role: MemberRole,
 ): Promise<void> {
-  if (!memberRoleEnum.enumValues.includes(role)) throw new Error("That is not a role.");
+  if (!memberRoleEnum.enumValues.includes(role))
+    throw new Error("That is not a role.");
   if (userId === viewer.userId) {
     // With nobody able to grant a role back, an administrator who removes
     // their own last permission locks the module for everybody. The same rule
@@ -659,7 +710,8 @@ export async function clearMemberRole(
   viewer: PettyCashViewer,
   userId: string,
 ): Promise<void> {
-  if (userId === viewer.userId) throw new Error("You cannot change your own Petty Cash role.");
+  if (userId === viewer.userId)
+    throw new Error("You cannot change your own Petty Cash role.");
 
   await pg.begin(async (tx) => {
     const rows = await tx<{ id: number }[]>`
@@ -668,6 +720,8 @@ export async function clearMemberRole(
        where user_id = ${userId}::uuid and active
       returning id`;
     if (rows.length === 0) return; // Already nothing to take away.
-    await audit(tx, viewer.userId, "petty-cash.role_cleared", { targetUserId: userId });
+    await audit(tx, viewer.userId, "petty-cash.role_cleared", {
+      targetUserId: userId,
+    });
   });
 }
