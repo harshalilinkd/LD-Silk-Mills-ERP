@@ -38,7 +38,7 @@ const EXECUTED = /^[=+@\t\r]/;
 /**
  * Silently CHANGED by Excel on import, which is the quieter half of the
  * problem: a design number `01` becomes the number 1 and merges with a
- * different design, and a cloth quality literally named `TRUE` becomes a
+ * different design, and a fabric quality literally named `TRUE` becomes a
  * boolean. Both are real in this data.
  */
 const COERCED = /^0\d|^(?:TRUE|FALSE)$|^[-+]?\d+(?:\.\d+)?[eE]/i;

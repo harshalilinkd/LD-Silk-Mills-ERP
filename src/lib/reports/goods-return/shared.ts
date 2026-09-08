@@ -8,7 +8,7 @@ import { sql as pg } from "@/db";
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Six reports over `goods_return`, on six different grains: by return, by
- * item, by party, by reason, by cloth, by broker/transport. What is shared
+ * item, by party, by reason, by fabric, by broker/transport. What is shared
  * here is the definitions that must not drift between them.
  *
  * ── FOUR THINGS THIS DATA DOES THAT A REPORT MUST NOT HIDE ───────────────
@@ -16,7 +16,7 @@ import { sql as pg } from "@/db";
  * Measured across all 341 returns before a line of this module was written:
  *
  *  1. **26 returns carry no value at all** (`total_value` null or zero). They
- *     are real returns with real cloth on them. Every money figure therefore
+ *     are real returns with real fabric on them. Every money figure therefore
  *     says how many rows had no value behind it, rather than quietly counting
  *     them as ₹0 and dragging every average down.
  *  2. **72 returns were marked received BEFORE the date on the return.** They
@@ -50,7 +50,7 @@ export { money2, n } from "../num";
  * it, sitting two lines above genuinely recomputed caveats.
  */
 export const noValueCaveat = (withoutValue: number, of: number) =>
-  `${withoutValue.toLocaleString("en-IN")} of the ${of.toLocaleString("en-IN")} returns in this file carry no value — the cloth came back but nothing was entered against it. ` +
+  `${withoutValue.toLocaleString("en-IN")} of the ${of.toLocaleString("en-IN")} returns in this file carry no value — the fabric came back but nothing was entered against it. ` +
   `They are counted as returns and left out of every money figure, so a value total is never dragged down by a blank.`;
 
 export const BACKDATED_CAVEAT =

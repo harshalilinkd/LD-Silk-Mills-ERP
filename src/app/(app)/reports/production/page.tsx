@@ -199,7 +199,7 @@ export default async function ProductionDashboardPage({
                     <tr>
                       <th className={th}>Order</th>
                       <th className={th}>Party</th>
-                      <th className={th}>Cloth</th>
+                      <th className={th}>Fabric</th>
                       <th className={th}>Design</th>
                       <th className={`${th} text-right`}>Metres</th>
                       <th className={`${th} text-right`}>Value</th>

@@ -35,7 +35,7 @@ import {
  *
  * ── THE CHARGES ARE FOUR SEPARATE FACTS ──────────────────────────────────
  *
- * Transport and other charges are what it cost to send the cloth back; the two
+ * Transport and other charges are what it cost to send the fabric back; the two
  * Bhiwandi figures are what was paid at the receiving end and are only known
  * once it arrives. `total_cost` adds all four, and the four stay beside it,
  * because "why is this return's cost ₹1,200" is a question with four possible
@@ -263,7 +263,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
         : undefined,
       panels: [
         {
-          title: "Why the cloth came back",
+          title: "Why the fabric came back",
           valueLabel: "Returns",
           rows: rank([...byReason].map(([label, value]) => ({ label, value })), count, 8),
           note: `Counted by return, not by value — ${noValue} of them have no value entered and would otherwise vanish from this chart.`,
@@ -294,7 +294,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       ],
       matrix: matrixFrom(
         raw.map((r) => ({ label: r.party?.trim() || "Not recorded", month: r.dated?.slice(0, 7) ?? "", value: n(r.value) })),
-        { title: "Which parties sent cloth back, and when", format: "money", display: inrShort, note: "The eight biggest by value returned." },
+        { title: "Which parties sent fabric back, and when", format: "money", display: inrShort, note: "The eight biggest by value returned." },
       ),
       insights,
       caveats: [
@@ -330,8 +330,8 @@ export const returnRegister: ReportDefinition = {
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "return_reason", label: "Reason", type: "text", width: 24 },
     { key: "custom_reason", label: "Reason, in their words", type: "text", width: 30, optional: true },
-    { key: "items", label: "Items", type: "int", note: "How many cloth lines are on this return." },
-    { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct cloths on this return. Not added up — the same cloth on two returns is one cloth." },
+    { key: "items", label: "Items", type: "int", note: "How many fabric lines are on this return." },
+    { key: "qualities", label: "Fabrics", type: "int", total: "none", note: "Distinct fabrics on this return. Not added up — the same fabric on two returns is one fabric." },
     { key: "qty", label: "Metres", type: "number", unit: "MTR" },
     { key: "pieces", label: "Pieces", type: "int", unit: "PCS", note: "Blank where no item on the return recorded a piece count — a blank is not a zero." },
     { key: "value", label: "Value", type: "money", note: "Blank where nothing was entered. A blank is not a zero." },

@@ -1131,6 +1131,32 @@ does. **A `dataBar`/`colorScale` rule REQUIRES `cfvo`** — undocumented, and
 without it the workbook builds fine and then dies inside `writeBuffer()` on
 `rule.cfvo.forEach`, a long way from the cause.
 
+**THE MATERIAL IS CALLED A FABRIC, EVERYWHERE** (Sep 2026, owner's
+instruction: *"rename cloth as fabric"*, then the same for Quality). It had
+three names for one thing: the database column is `quality`, the reports wrote
+"cloth", and the order form — which is what everybody actually uses — is built
+out of FABRIC blocks. One dashboard read "237 qualities" beside "which cloth
+earns most" about the same material.
+
+Every user-facing string now says **fabric**: column labels, chart titles, KPI
+labels, insights, caveats, and the report name (`Quality & design analysis` →
+**Fabric & design analysis**). **Nothing under the surface moved** — the column
+KEYS are still `quality` / `qualities`, the SQL still selects `li.quality`, and
+the filter values are unchanged, so an existing link or a saved filter keeps
+working.
+
+Two traps a blanket find-and-replace walks straight into, and both bit:
+- **It renames column KEYS.** `key: "qualities"` became `key: "fabrics"` while
+  the row object still emitted `qualities`, which produces a silently EMPTY
+  column — no error anywhere.
+- **It renames SQL ALIASES.** `as qualities` became `as fabrics` while the
+  outer select still asked for `l.qualities`: `column l.qualities does not
+  exist`, and every Order Entry report stopped running.
+
+Rename the strings people read, never the identifiers. Afterwards, prove no
+column went blank — regenerate and check that every renamed column still has
+values in it.
+
 **THE WORKBOOK DASHBOARD FOLLOWS ONE DESIGN SYSTEM** (Sep 2026, on the
 owner's brief: a premium corporate MIS pack, white ground, restrained
 teal/blue/green, amber and red kept for warnings). The rules are in the code

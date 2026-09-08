@@ -59,7 +59,7 @@ const REGISTER_SQL = `
       coalesce(sum(li.line_total) filter (where not li.is_cancelled), 0)        as value,
       coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)            as cancelled_value,
       -- LIVE lines only. Counting cancelled ones made this report say 226
-      -- qualities where the line detail said 223 over the same period.
+      -- fabrics where the line detail said 223 over the same period.
       count(distinct li.quality)   filter (where not li.is_cancelled)           as qualities,
       count(distinct li.design_no) filter (where not li.is_cancelled)           as designs,
       -- Lines whose quality AND design already appear on this order. The
@@ -354,8 +354,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   if (repeatedLines > 0) {
     insights.push(
-      `${count(repeatedOrders)} orders list the same cloth and design more than once — ${count(repeatedLines)} extra lines in all. ` +
-        `That is allowed — the same cloth and design can go at two rates or for two lots. The totals are right either way; it is worth a glance only where the two lines look identical.`,
+      `${count(repeatedOrders)} orders list the same fabric and design more than once — ${count(repeatedLines)} extra lines in all. ` +
+        `That is allowed — the same fabric and design can go at two rates or for two lots. The totals are right either way; it is worth a glance only where the two lines look identical.`,
     );
   }
 
@@ -561,9 +561,9 @@ export const orderRegister: ReportDefinition = {
     { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
     { key: "last_tick", label: "Last ticked", type: "datetime" },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
-    { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
+    { key: "qualities", label: "Fabrics", type: "int", total: "none", note: "Distinct fabrics on this order. Not added up at the foot — the same fabric on two orders is one fabric." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
-    { key: "repeated_lines", label: "Extra lines", type: "int", note: "How many EXTRA lines repeat a cloth and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same cloth and design can go at two rates or for two lots, and the order's totals are right either way." },
+    { key: "repeated_lines", label: "Extra lines", type: "int", note: "How many EXTRA lines repeat a fabric and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same fabric and design can go at two rates or for two lots, and the order's totals are right either way." },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR", note: "Cancelled lines excluded." },
     { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },

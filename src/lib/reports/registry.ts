@@ -44,8 +44,8 @@ import { MODULE_META } from "./types";
  *     Its useful parts — what each line is waiting on, how long it has been
  *     open — are columns on production status now, and "Still open" filters
  *     to exactly the old report.
- *   · Rate analysis is gone at the owner's request. Quality & design analysis
- *     still carries the lowest and highest rate each cloth went out at, which
+ *   · Rate analysis is gone at the owner's request. Fabric & design analysis
+ *     still carries the lowest and highest rate each fabric went out at, which
  *     is the part of it that was never in doubt.
  *
  * What is left answers six genuinely different questions, one each: by order,
@@ -76,11 +76,11 @@ export const REPORTS: ReportDefinition[] = [
   qualityAnalysis,   // by product
 
   // Goods Return — 341 returns over 391 items. Three grains: the return, the
-  // cloth on it, and the customer who sent it back. Receiving is a COLUMN on
+  // fabric on it, and the customer who sent it back. Receiving is a COLUMN on
   // the register, not a fourth report, and the reasons are a panel on its
   // dashboard rather than a sheet of four rows.
   returnRegister,    // by return
-  returnItemDetail,  // by cloth line
+  returnItemDetail,  // by fabric line
   partyAnalysis,     // by party
 
   // One each, because each of these modules has ONE fact table worth

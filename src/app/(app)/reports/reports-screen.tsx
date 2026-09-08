@@ -93,7 +93,7 @@ const MODULE_ICON: Record<string, React.ReactNode> = {
 const MODULE_BLURB: Record<string, string> = {
   "order-entry": "What was ordered, what it is worth, and how far through the mill it has got.",
   crm: "Follow-up calls, what customers said, and the complaints behind them.",
-  "goods-return": "Cloth coming back — why, from whom, and what it costs to handle.",
+  "goods-return": "Fabric coming back — why, from whom, and what it costs to handle.",
   "petty-cash": "Money in and out of the cash box, and what it was spent on.",
   "help-slip": "Concerns raised by staff, and how quickly they were answered.",
   checklist: "Recurring duties, and whether they were done on time.",

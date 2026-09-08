@@ -18,7 +18,7 @@ import {
 } from "./shared";
 
 /**
- * Party analysis — one row per customer who has sent cloth back.
+ * Party analysis — one row per customer who has sent fabric back.
  *
  * ── WHAT THIS REPORT DELIBERATELY DOES NOT DO ────────────────────────────
  *
@@ -161,7 +161,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
   if (ci) insights.push(ci);
   if (raw.length) {
     insights.push(
-      `${count(repeat.length)} of ${count(raw.length)} parties have sent cloth back more than once — ${pct((repeat.length / raw.length) * 100, 0)} of them.`,
+      `${count(repeat.length)} of ${count(raw.length)} parties have sent fabric back more than once — ${pct((repeat.length / raw.length) * 100, 0)} of them.`,
     );
   }
   if (sizes.n > 0 && sizes.median !== null) {
@@ -180,7 +180,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     );
   }
   if (totalCost > 0) {
-    insights.push(`${inrShort(totalCost)} was spent moving this cloth back.`);
+    insights.push(`${inrShort(totalCost)} was spent moving this fabric back.`);
   }
 
   return {
@@ -188,7 +188,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     totalRows: raw.length,
     analysis: {
       headline: raw.length
-        ? `${count(raw.length)} parties sent ${inrShort(total)} of cloth back` +
+        ? `${count(raw.length)} parties sent ${inrShort(total)} of fabric back` +
           (conc.topLabel && conc.topShare !== null ? ` — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.` : ".")
         : "No parties returned anything in this period.",
       kpis: [
@@ -234,7 +234,7 @@ export const partyAnalysis: ReportDefinition = {
   module: "goods-return",
   title: "Party return analysis",
   description:
-    "One row per customer who sent cloth back — how much, how often, which cloth and why, what it cost to move, and whether they are still doing it.",
+    "One row per customer who sent fabric back — how much, how often, which fabric and why, what it cost to move, and whether they are still doing it.",
   defaultMonthsBack: 12,
   columns: [
     { key: "party", label: "Party", type: "text", width: 34 },
@@ -242,7 +242,7 @@ export const partyAnalysis: ReportDefinition = {
     { key: "received", label: "Received", type: "int" },
     { key: "still_out", label: "Still out", type: "int" },
     { key: "items", label: "Items", type: "int" },
-    { key: "qualities", label: "Cloths", type: "int", total: "none", note: "Distinct cloths this party returned. Not added up — the same cloth from two parties is one cloth." },
+    { key: "qualities", label: "Fabrics", type: "int", total: "none", note: "Distinct fabrics this party returned. Not added up — the same fabric from two parties is one fabric." },
     { key: "qty", label: "Metres", type: "number", unit: "MTR" },
     { key: "pieces", label: "Pieces", type: "int", unit: "PCS" },
     { key: "value", label: "Value returned", type: "money" },
@@ -250,10 +250,10 @@ export const partyAnalysis: ReportDefinition = {
     { key: "avg_return", label: "Avg return", type: "money", total: "avg", avgWeightBy: "returns", note: "Value divided by the returns that carry a value — the value-less ones are excluded from both sides, the same as everywhere else on this sheet. The foot is the file-wide average, weighted by how many returns each party sent." },
     { key: "no_value", label: "With no value", type: "int", note: "Returns from this party where no figure was entered." },
     { key: "cost", label: "Cost of moving it", type: "money" },
-    { key: "cost_share", label: "Cost as % of value", type: "percent", total: "avg", avgWeightBy: "value", note: "What moving the cloth cost, against what the cloth was worth. The foot is weighted by value, not a plain average of the rows." },
+    { key: "cost_share", label: "Cost as % of value", type: "percent", total: "avg", avgWeightBy: "value", note: "What moving the fabric cost, against what the fabric was worth. The foot is weighted by value, not a plain average of the rows." },
     { key: "top_reason", label: "Usual reason", type: "text", width: 24, note: "The reason that appears most often on this party's returns." },
     { key: "reasons", label: "Reasons used", type: "int", total: "none" },
-    { key: "top_quality", label: "Usual cloth", type: "text", width: 24 },
+    { key: "top_quality", label: "Usual fabric", type: "text", width: 24 },
     { key: "a_broker", label: "Broker", type: "text", width: 24, note: "One of them, where there is more than one." },
     { key: "brokers", label: "Brokers", type: "int", total: "none" },
     { key: "first_return", label: "First return", type: "date" },

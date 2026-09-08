@@ -30,7 +30,7 @@ import {
  * The widest report in the module by row count (5,857 lines over the full
  * period) and the one most likely to be taken into somebody's own pivot table,
  * which is why every dimension the line touches is carried on it: the order's
- * party, agent and transport as well as the line's own quality and design.
+ * party, agent and transport as well as the line's own fabric and design.
  * Denormalised on purpose — a pivot cannot join.
  */
 
@@ -52,7 +52,7 @@ const SQL = `
     -- The same quality AND design appearing more than once inside one order.
     -- Almost always a slip during entry, and every report was reproducing it
     -- silently: the order's totals are right, but a reader comparing the sheet
-    -- with the order sees the same cloth twice and cannot tell whether it is a
+    -- with the order sees the same fabric twice and cannot tell whether it is a
     -- real split delivery or a mistake.
     (count(*) over (partition by li.order_id, li.quality, li.design_no) > 1) as repeated,
     li.remarks,
@@ -134,10 +134,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
     add(byMonth, (r.order_date ?? "").slice(0, 7), n(r.line_total));
     add(byQuality, r.quality?.trim() || "Not recorded", n(r.line_total));
     add(qtyByQuality, r.quality?.trim() || "Not recorded", n(r.qty_mtr));
-    // Keyed by CLOTH AND DESIGN. A design number is only unique inside its
-    // own cloth, so keying on the number alone added LIO LINEN's "1" to
+    // Keyed by FABRIC AND DESIGN. A design number is only unique inside its
+    // own fabric, so keying on the number alone added LIO LINEN's "1" to
     // CORDRAY's "1" and reported a ₹40.2 L design that is really 213 lines
-    // across 89 cloths.
+    // across 89 fabrics.
     add(
       byDesign,
       `${r.quality?.trim() || "Not recorded"} · ${r.design_no?.trim() || "Not recorded"}`,
@@ -154,7 +154,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const insights: string[] = [];
   const ti = trendInsight(t, "line value");
   if (ti) insights.push(ti);
-  const qi = concentrationInsight(qConc, "qualities");
+  const qi = concentrationInsight(qConc, "fabrics");
   if (qi) insights.push(qi);
   if (rateSpread.median !== null) {
     insights.push(
@@ -169,7 +169,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     );
   }
   if (live.length) insights.push(
-    `${count(byDesign.size)} cloth-and-design pairs across ${count(byQuality.size)} qualities went to ${count(byParty.size)} customers.` +
+    `${count(byDesign.size)} fabric-and-design pairs across ${count(byQuality.size)} fabrics went to ${count(byParty.size)} customers.` +
       // The order register counts every customer who placed an order; this
       // counts the ones with a line still standing. Where they differ, say so
       // — two reports quietly printing 202 and 204 is a question nobody
@@ -184,7 +184,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     totalRows: raw.length,
     analysis: {
       headline: raw.length
-        ? `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} cloth-and-design pairs across ${count(byQuality.size)} qualities.`
+        ? `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} fabric-and-design pairs across ${count(byQuality.size)} fabrics.`
         : "No lines in this period.",
       kpis: [
         { label: "Line value", value: inrShort(value), sub: "cancelled left out", deltaPct: monthDelta(byMonth) },
@@ -196,8 +196,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Lines", value: count(live.length), tone: "good", sub: `${count(cancelled.length)} cancelled` },
         { label: "Metres", value: qty(Math.round(metres)), sub: "cancelled left out" },
         { label: "Average rate", value: metres > 0 ? inr(value / metres) : "—", sub: "per metre" },
-        { label: "Qualities", value: count(byQuality.size) },
-        { label: "Cloth-and-design pairs", value: count(byDesign.size), sub: "a design number only means something inside its own cloth" },
+        { label: "Fabrics", value: count(byQuality.size) },
+        { label: "Fabric-and-design pairs", value: count(byDesign.size), sub: "a design number only means something inside its own fabric" },
         { label: "Middle rate per line", value: inr(rateSpread.median), sub: "half the lines are above, half below" },
         { label: "Cheapest to dearest", value: `${inr(rateSpread.min)} – ${inr(rateSpread.max)}`, tone: "warn", sub: "per metre" },
       ],
@@ -213,11 +213,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
           month: (r.order_date ?? "").slice(0, 7),
           value: n(r.line_total),
         })),
-        { title: "Which cloth sold, and when", format: "money", display: inrShort },
+        { title: "Which fabric sold, and when", format: "money", display: inrShort },
       ),
       panels: [
         {
-          title: "Which cloth earns most",
+          title: "Which fabric earns most",
           valueLabel: "Value",
           rows: rank(
             [...byQuality].map(([label, v]) => ({
@@ -229,19 +229,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Is it a few cloths or many",
+          title: "Is it a few fabrics or many",
           valueLabel: "Value",
           kind: "share",
           rows: rank([...byQuality].map(([label, v]) => ({ label, value: v })), inrShort, 5),
-          note: "How much of the money comes from the top few qualities.",
+          note: "How much of the money comes from the top few fabrics.",
         },
         {
           title: "Which designs earn most",
           valueLabel: "Value",
           rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort),
-          note: "Cloth then design. A design number only means something inside its own cloth, so they are never added together across cloths.",
+          note: "Fabric then design. A design number only means something inside its own fabric, so they are never added together across fabrics.",
         },
-        { title: "Which cloth moves most metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
+        { title: "Which fabric moves most metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
       ],
       insights,
       caveats: [
@@ -260,7 +260,7 @@ export const lineDetail: ReportDefinition = {
   module: "order-entry",
   title: "Order line detail",
   description:
-    "Every line of every order — quality, design, metres, rate and value, with the order's party, agent and transport carried alongside so it pivots without a join.",
+    "Every line of every order — fabric, design, metres, rate and value, with the order's party, agent and transport carried alongside so it pivots without a join.",
   defaultMonthsBack: 2,
   columns: [
     { key: "order_no", label: "Order no", type: "text", width: 14 },
@@ -269,13 +269,13 @@ export const lineDetail: ReportDefinition = {
     { key: "agent", label: "Agent", type: "text", width: 22 },
     { key: "sales_person", label: "Sales person", type: "text", width: 17 },
     { key: "transport", label: "Transport", type: "text", width: 22 },
-    { key: "quality", label: "Quality", type: "text", width: 26 },
+    { key: "quality", label: "Fabric", type: "text", width: 26 },
     { key: "design_no", label: "Design no", type: "text", width: 16 },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rupees a metre. The foot is weighted by metres, not a plain average of the rates — and it covers EVERY row in this sheet including the cancelled ones, so it differs slightly from the dashboard's Average rate, which is live lines only." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
-    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same cloth and design appears more than once on this order. Every member of the pair is flagged here, so a pair shows as two rows — the order register counts the EXTRA lines instead, so the same 29 repeats read as 29 there and 58 here. Allowed on purpose: two rates, or two lots." },
+    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same fabric and design appears more than once on this order. Every member of the pair is flagged here, so a pair shows as two rows — the order register counts the EXTRA lines instead, so the same 29 repeats read as 29 there and 58 here. Allowed on purpose: two rates, or two lots." },
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },
@@ -286,7 +286,7 @@ export const lineDetail: ReportDefinition = {
     { key: "party", label: "Party", kind: "select", options: () => distinctValues("party_name") },
     { key: "agent", label: "Agent", kind: "select", options: () => distinctValues("agent") },
     { key: "salesPerson", label: "Sales person", kind: "select", options: () => distinctValues("sales_person") },
-    { key: "quality", label: "Quality", kind: "select", options: () => distinctLineValues("quality") },
+    { key: "quality", label: "Fabric", kind: "select", options: () => distinctLineValues("quality") },
     { key: "design", label: "Design no", kind: "select", options: () => distinctLineValues("design_no") },
   ],
   run,

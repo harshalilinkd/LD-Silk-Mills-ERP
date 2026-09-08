@@ -8,20 +8,20 @@ import { MAX_EXPORT_ROWS } from "../types";
 import { CANCELLED_CAVEAT, distinctLineValues, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
 
 /**
- * Quality & design analysis — what actually sells.
+ * Fabric & design analysis — what actually sells.
  *
  * ── THE GRAIN IS QUALITY × DESIGN, AND THAT IS DELIBERATE ────────────────
  *
- * 233 qualities and 1,355 designs, and a design number means something
+ * 233 fabrics and 1,355 designs, and a design number means something
  * different inside each quality. Rolling to quality alone hides that one
  * design is carrying a whole quality; rolling to design alone invents
- * comparisons between unrelated cloth. The pair is the grain the business
+ * comparisons between unrelated fabric. The pair is the grain the business
  * actually sells at, and the dashboard rolls it up both ways so neither view
  * is lost.
  *
  * ── SPREAD OF RATE, NOT JUST THE AVERAGE ─────────────────────────────────
  *
- * Every row carries the lowest and highest rate that quality-design went out
+ * Every row carries the lowest and highest rate that fabric-design went out
  * at, alongside the average. A single number hides a design sold at ₹90 to one
  * customer and ₹210 to another, which is the most useful thing on the sheet.
  */
@@ -96,14 +96,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   const conc = concentration([...byQualityValue].map(([label, value]) => ({ label, value })));
   const rates = spread(raw.filter((r) => n(r.qty_mtr) > 0).map((r) => n(r.value) / n(r.qty_mtr)));
-  // Where the same cloth went out at very different prices.
+  // Where the same fabric went out at very different prices.
   const wideSpread = raw
     .filter((r) => n(r.lines) >= 3 && n(r.min_rate) > 0 && n(r.max_rate) / n(r.min_rate) >= 1.5)
     .sort((a, b) => n(b.value) - n(a.value));
   const singleCustomer = raw.filter((r) => n(r.customers) === 1 && n(r.value) > 0);
 
   const insights: string[] = [];
-  const ci = concentrationInsight(conc, "qualities");
+  const ci = concentrationInsight(conc, "fabrics");
   if (ci) insights.push(ci);
   if (raw.length) {
     const top = raw[0];
@@ -115,19 +115,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
   if (wideSpread.length) {
     const w = wideSpread[0];
     insights.push(
-      `${count(wideSpread.length)} quality-designs went out at rates more than half again apart. The largest is ` +
+      `${count(wideSpread.length)} fabric-designs went out at rates more than half again apart. The largest is ` +
         `${w.quality} · ${w.design_no}: ${inr(n(w.min_rate))} to ${inr(n(w.max_rate))} a metre.`,
     );
   }
   if (singleCustomer.length) {
     insights.push(
-      `${count(singleCustomer.length)} quality-designs worth ${inrShort(singleCustomer.reduce((s, r) => s + n(r.value), 0))} went to exactly one customer — ` +
+      `${count(singleCustomer.length)} fabric-designs worth ${inrShort(singleCustomer.reduce((s, r) => s + n(r.value), 0))} went to exactly one customer — ` +
         `they stop selling the day that customer stops buying.`,
     );
   }
   if (rates.median !== null) {
     insights.push(
-      `Across ${count(byQualityValue.size)} qualities the middle rate is ${inr(rates.median)} a metre, with the middle half between ${inr(rates.p25)} and ${inr(rates.p75)}.`,
+      `Across ${count(byQualityValue.size)} fabrics the middle rate is ${inr(rates.median)} a metre, with the middle half between ${inr(rates.p25)} and ${inr(rates.p75)}.`,
     );
   }
 
@@ -136,30 +136,30 @@ async function run(params: ReportParams): Promise<ReportResult> {
     totalRows: raw.length,
     analysis: {
       headline: !raw.length
-        ? "No cloth was sold in this period."
-        : `${count(byQualityValue.size)} qualities and ${count(new Set(raw.map((r) => r.design_no)).size)} designs sold ${inrShort(total)}` +
-          (conc.top5Share !== null ? ` — the top five qualities are ${pct(conc.top5Share)} of it.` : "."),
+        ? "No fabric was sold in this period."
+        : `${count(byQualityValue.size)} fabrics and ${count(new Set(raw.map((r) => r.design_no)).size)} designs sold ${inrShort(total)}` +
+          (conc.top5Share !== null ? ` — the top five fabrics are ${pct(conc.top5Share)} of it.` : "."),
       kpis: [
-        { label: "Qualities", value: count(byQualityValue.size), tone: "good" },
+        { label: "Fabrics", value: count(byQualityValue.size), tone: "good" },
         { label: "Designs", value: count(new Set(raw.map((r) => r.design_no)).size) },
-        { label: "Combinations", value: count(raw.length), sub: "quality × design" },
+        { label: "Combinations", value: count(raw.length), sub: "fabric × design" },
         { label: "Total value", value: inrShort(total) },
         { label: "Metres", value: qty(Math.round(raw.reduce((s, r) => s + n(r.qty_mtr), 0))) },
-        { label: "Middle cloth's rate", value: inr(rates.median), sub: "per metre, across cloth-and-design rows" },
+        { label: "Middle fabric's rate", value: inr(rates.median), sub: "per metre, across fabric-and-design rows" },
         { label: "Sold at very different prices", value: count(wideSpread.length), tone: wideSpread.length ? "warn" : "good", lowerIsBetter: true, sub: "dearest is 50%+ above cheapest" },
         { label: "Only one buyer", value: count(singleCustomer.length), tone: "warn", lowerIsBetter: true },
       ],
       panels: [
-        { title: "Which cloth earns most", valueLabel: "Value", rows: rank([...byQualityValue].map(([label, value]) => ({ label, value, meta: `${byQualityDesigns.get(label)?.size ?? 0} designs` })), inrShort) },
+        { title: "Which fabric earns most", valueLabel: "Value", rows: rank([...byQualityValue].map(([label, value]) => ({ label, value, meta: `${byQualityDesigns.get(label)?.size ?? 0} designs` })), inrShort) },
         {
-          title: "How much comes from a few cloths",
+          title: "How much comes from a few fabrics",
           valueLabel: "Value",
           kind: "share",
           rows: rank([...byQualityValue].map(([label, value]) => ({ label, value })), inrShort, 5),
         },
         { title: "Which designs earn most", valueLabel: "Value", rows: rank(raw.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.value) })), inrShort) },
         {
-          title: "Same cloth, very different prices",
+          title: "Same fabric, very different prices",
           valueLabel: "Range",
           rows: rank(wideSpread.map((r) => ({ label: `${r.quality} · ${r.design_no}`, value: n(r.max_rate) - n(r.min_rate), meta: `${inr(n(r.min_rate))}–${inr(n(r.max_rate))}` })), inr),
           note: "The gap between the cheapest and dearest sale of the same design. Worth asking why.",
@@ -168,8 +168,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
       insights,
       caveats: [
         CANCELLED_CAVEAT,
-        "The grain is quality × design. A quality's own totals are the sum of its designs, and the dashboard rolls it up both ways.",
-        "A design number means something different inside each quality, so the same number under two qualities is two different things and is never combined.",
+        "The grain is fabric × design. A quality's own totals are the sum of its designs, and the dashboard rolls it up both ways.",
+        "A design number means something different inside each quality, so the same number under two fabrics is two different things and is never combined.",
       ],
     },
   };
@@ -178,15 +178,15 @@ async function run(params: ReportParams): Promise<ReportResult> {
 export const qualityAnalysis: ReportDefinition = {
   id: "order-entry.quality-analysis",
   module: "order-entry",
-  title: "Quality & design analysis",
+  title: "Fabric & design analysis",
   description:
     "What sells — metres, value and rate for every quality-and-design pair, with the lowest and highest rate each one went out at.",
   defaultMonthsBack: 6,
   columns: [
-    { key: "quality", label: "Quality", type: "text", width: 28 },
+    { key: "quality", label: "Fabric", type: "text", width: 28 },
     { key: "design_no", label: "Design no", type: "text", width: 16 },
     { key: "lines", label: "Lines", type: "int" },
-    { key: "orders", label: "Orders", type: "int", total: "none", note: "Orders containing this quality and design. NOT added up — one order holding six designs would be counted six times." },
+    { key: "orders", label: "Orders", type: "int", total: "none", note: "Orders containing this fabric and design. NOT added up — one order holding six designs would be counted six times." },
     { key: "customers", label: "Customers", type: "int", total: "none", note: "Customers who bought it. Not added up, for the same reason." },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
@@ -195,14 +195,14 @@ export const qualityAnalysis: ReportDefinition = {
     { key: "median_rate", label: "Middle rate", type: "money", total: "none", note: "The median line's rate — unweighted, so one big line cannot drag it. Not totalled: a median of medians means nothing." },
     { key: "min_rate", label: "Lowest rate", type: "money", total: "none" },
     { key: "max_rate", label: "Highest rate", type: "money", total: "none" },
-    { key: "rate_spread", label: "Spread", type: "money", total: "avg", note: "Highest minus lowest, for this cloth. Averaged at the foot." },
+    { key: "rate_spread", label: "Spread", type: "money", total: "avg", note: "Highest minus lowest, for this fabric. Averaged at the foot." },
     { key: "top_customer", label: "Biggest customer", type: "text", width: 30 },
     { key: "first_sold", label: "First sold", type: "date" },
     { key: "last_sold", label: "Last sold", type: "date" },
   ],
   filters: [
     { key: "dateRange", label: "Order date", kind: "dateRange" },
-    { key: "quality", label: "Quality", kind: "select", options: () => distinctLineValues("quality") },
+    { key: "quality", label: "Fabric", kind: "select", options: () => distinctLineValues("quality") },
     { key: "party", label: "Party", kind: "select", options: () => distinctValues("party_name") },
     { key: "agent", label: "Agent", kind: "select", options: () => distinctValues("agent") },
     { key: "salesPerson", label: "Sales person", kind: "select", options: () => distinctValues("sales_person") },

@@ -35,7 +35,7 @@ const SQL = `
     coalesce(sum(li.line_total) filter (where not li.is_cancelled), 0) as value,
     coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)     as cancelled_value,
     -- Filtered to LIVE lines. Without it a party whose only two lines were
-    -- both cancelled reported "2 qualities" beside a value of zero.
+    -- both cancelled reported "2 fabrics" beside a value of zero.
     count(distinct li.quality)   filter (where not li.is_cancelled) as qualities,
     count(distinct li.design_no) filter (where not li.is_cancelled) as designs,
     count(distinct o.agent)                                         as agents,
@@ -187,7 +187,7 @@ export const customerLedger: ReportDefinition = {
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres. The foot is weighted by metres." },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "cancelled_value", label: "Cancelled value", type: "money" },
-    { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities this customer bought. Not added up — the same quality bought by two customers is one quality." },
+    { key: "qualities", label: "Fabrics", type: "int", total: "none", note: "Distinct fabrics this customer bought. Not added up — the same fabric bought by two customers is one fabric." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs. Not added up, for the same reason." },
     { key: "agents", label: "Agents", type: "int", total: "none", note: "How many different agents have handled this customer. Not added up." },
     { key: "an_agent", label: "Agent", type: "text", width: 22, note: "One of them, when there is more than one." },

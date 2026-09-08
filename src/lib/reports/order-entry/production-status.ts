@@ -304,7 +304,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Which cloth is holding things up",
+          title: "Which fabric is holding things up",
           valueLabel: "Lines",
           rows: rank(
             [...raw.filter((r) => n(r.s6_done as number) !== 1).reduce((m, r) => {
@@ -342,7 +342,7 @@ export const productionStatus: ReportDefinition = {
     { key: "agent", label: "Agent", type: "text", width: 20 },
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "haste", label: "Haste", type: "text", width: 12 },
-    { key: "quality", label: "Quality", type: "text", width: 24 },
+    { key: "quality", label: "Fabric", type: "text", width: 24 },
     { key: "design_no", label: "Design no", type: "text", width: 15 },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "line_total", label: "Line value", type: "money" },

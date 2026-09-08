@@ -79,8 +79,8 @@ export type ReportColumn = {
    * ── THIS EXISTS BECAUSE THE FOOTER WAS PRINTING NONSENSE ────────────
    *
    * The first version summed every numeric column. That put "Share: 73.8%"
-   * under a column that must total 100, "Qualities: 734" under a count of
-   * distinct cloths, "Avg order: ₹3.85 crore" under a column of averages, and
+   * under a column that must total 100, "Fabrics: 734" under a count of
+   * distinct fabrics, "Avg order: ₹3.85 crore" under a column of averages, and
    * "Order Entry — days late: 45,665" under a column of days. Every one of
    * those is arithmetic nobody asked for and none of them means anything —
    * and a report going to the MD cannot carry a single figure like that.

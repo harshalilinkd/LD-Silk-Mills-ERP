@@ -155,9 +155,9 @@ export default async function SalesDashboardPage({
           </div>
 
           <Card
-            title="Highest selling cloth"
+            title="Highest selling fabric"
             sub="by value"
-            note="The ten cloths that earned most. Hover any column for the exact figure and how many lines it took."
+            note="The ten fabrics that earned most. Hover any column for the exact figure and how many lines it took."
           >
             <CountColumns data={d.topQualities} money height={300} />
           </Card>
