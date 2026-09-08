@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 
 import { C, buildDashboard } from "./dashboard";
 
-import { excelFormat, excelWidth, isNumeric, isoToKolkata } from "./format";
+import { excelFormat, excelWidth, isNumeric, isoToKolkata, plural } from "./format";
 import type {
   ReportAnalysis,
   ReportColumn,
@@ -365,7 +365,7 @@ export async function toWorkbook(
   const period =
     params.from && params.to ? `${params.from} to ${params.to}` : "everything on record";
   const subtitle =
-    `${period}  ·  ${rows.length.toLocaleString("en-IN")} rows` +
+    `${period}  ·  ${plural(rows.length, "row")}` +
     (rows.length < meta.totalRows ? ` of ${meta.totalRows.toLocaleString("en-IN")} (truncated)` : "") +
     `  ·  run ${isoToKolkata(meta.runAt.toISOString())}`;
 
@@ -379,22 +379,43 @@ export async function toWorkbook(
     };
   }
 
-  const charts = buildDashboard(wb, report.title, subtitle, analysis);
-  buildData(wb, columns, rows);
   // Resolve the chosen option back to its label. Only for filters that were
   // actually applied, so an unfiltered run costs nothing.
+  //
+  // This runs BEFORE the dashboard, not after, because the dashboard prints
+  // what was filtered across the top of the page. It used to be resolved
+  // afterwards and never handed over, so every export — including one narrowed
+  // to a single customer — said "No filters applied, this is the whole period"
+  // above figures covering one party. That is the exact sentence the strip
+  // exists to prevent.
   const filterLabels: Record<string, string> = {};
+  const filterList: string[] = [];
   for (const f of report.filters) {
     const v = params[f.key];
-    if (!v || f.kind === "dateRange" || !f.options) continue;
-    try {
-      const found = (await f.options()).find((o) => o.value === v);
-      if (found && found.label !== v) filterLabels[f.key] = `${found.label} (${v})`;
-    } catch {
-      // A dropdown that cannot be resolved is not a reason to fail an export;
-      // the raw value is still recorded.
+    // The dates are already in the subtitle; repeating them reads as a
+    // second, different filter.
+    if (!v || f.kind === "dateRange") continue;
+    let shown = String(v);
+    if (f.options) {
+      try {
+        const found = (await f.options()).find((o) => o.value === v);
+        if (found && found.label !== v) {
+          filterLabels[f.key] = `${found.label} (${v})`;
+          shown = found.label;
+        }
+      } catch {
+        // A dropdown that cannot be resolved is not a reason to fail an export;
+        // the raw value is still recorded.
+      }
     }
+    filterList.push(`${f.label}: ${shown}`);
   }
+
+  const charts = buildDashboard(wb, report.title, subtitle, analysis, filterList, {
+    columns,
+    rows,
+  });
+  buildData(wb, columns, rows);
 
   buildNotes(wb, report, params, analysis, {
     runBy: meta.runBy,

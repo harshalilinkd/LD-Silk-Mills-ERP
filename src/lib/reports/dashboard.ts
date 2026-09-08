@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 
-import type { Kpi, Matrix, Panel, ReportAnalysis } from "./types";
+import { excelFormat, isNumeric, plural } from "./format";
+import type { Kpi, Matrix, Panel, ReportAnalysis, ReportColumn, ReportRow } from "./types";
 import type { ChartSpec } from "./xlsx-charts";
 
 /**
@@ -257,6 +258,8 @@ export function buildDashboard(
   a: ReportAnalysis,
   /** "Party: PR EXPO", "Status: Received at Bhiwandi" — what was filtered. */
   filters: string[] = [],
+  /** The rows themselves, so a page with no charts can still show the detail. */
+  detail?: { columns: ReportColumn[]; rows: ReportRow[] },
 ): ChartSpec[] {
   const ws = wb.addWorksheet("Dashboard", {
     views: [{ showGridLines: false }],
@@ -566,7 +569,35 @@ export function buildDashboard(
     r += CHART_ROWS + 1;
   }
 
-  // ── NOTHING TO SHOW ─────────────────────────────────────────────────
+  // ── WHEN THERE IS NOTHING TO CHART, SAY SO AND SHOW THE ROWS ────────
+  //
+  // Petty Cash, the Checklist and Help Slip each hold ONE row today, so every
+  // panel has a single category and the house rule turns each into a card
+  // rather than a chart of one bar. That rule is right — a bar of length one
+  // is the thing that started this — but it left those three pages looking
+  // half-finished beside the Orders pack.
+  //
+  // So the chart band is filled with two things instead: a line saying what a
+  // chart needs before it can appear, and the rows themselves, which is the
+  // detail table the pack is supposed to end with anyway.
+  if (!specs.length && (summaries.length || (detail && detail.rows.length))) {
+    ws.mergeCells(r, 2, r + 1, GRID + 1);
+    const why = ws.getCell(r, 2);
+    why.value =
+      "Charts appear here as soon as there is more than one thing to compare — a second payee, a second month, a second person. " +
+      "With a single row there is nothing a chart could show that the figures above do not already say, so this page shows the rows instead.";
+    why.font = { name: BODY, size: 9.5, italic: true, color: { argb: C.ink3 } };
+    why.alignment = { wrapText: true, vertical: "middle", indent: 2 };
+    for (let rr = r; rr <= r + 1; rr++) for (let c = 2; c <= GRID + 1; c++) fill(ws.getCell(rr, c), C.paper);
+    ws.getCell(r, 2).border = { left: { style: "medium", color: { argb: C.teal } } };
+    ws.getRow(r).height = 17;
+    ws.getRow(r + 1).height = 17;
+    r += 3;
+
+    if (detail && detail.rows.length) r = drawDetail(ws, r, detail.columns, detail.rows);
+  }
+
+  // ── NOTHING AT ALL ──────────────────────────────────────────────────
   //
   // An empty period used to leave a blank half-page under the figure strip
   // and let the reader wonder whether the file had failed.
@@ -773,6 +804,71 @@ function drawKpis(ws: ExcelJS.Worksheet, top: number, all: Kpi[]): number {
     r += 2;
   }
   return r;
+}
+
+/**
+ * The first rows, on the dashboard itself.
+ *
+ * Only drawn when the page has no charts. The Data sheet always holds every
+ * row and every column; this is the management pack's closing table, and on a
+ * thin report it is the only thing on the page with detail in it.
+ *
+ * Columns are taken in order and stop at twelve, because the sheet is twelve
+ * wide and a table that runs off the printed page is worse than a short one.
+ */
+function drawDetail(
+  ws: ExcelJS.Worksheet,
+  top: number,
+  columns: ReportColumn[],
+  rows: ReportRow[],
+): number {
+  const MAX_ROWS = 10;
+  const shown = columns.filter((c) => !c.optional).slice(0, GRID);
+  let r = top;
+
+  caption(ws, r, 2, GRID + 1, "The rows behind these figures");
+  r++;
+
+  ws.getRow(r).height = 18;
+  shown.forEach((c, i) => {
+    const cell = ws.getCell(r, 2 + i);
+    cell.value = c.label;
+    cell.font = { name: BODY, size: 9, bold: true, color: { argb: "FFFFFFFF" } };
+    fill(cell, C.indigo);
+    cell.alignment = { vertical: "middle", horizontal: isNumeric(c.type) ? "right" : "left" };
+  });
+  r++;
+
+  rows.slice(0, MAX_ROWS).forEach((row, k) => {
+    ws.getRow(r).height = 15;
+    shown.forEach((c, i) => {
+      const cell = ws.getCell(r, 2 + i);
+      const v = row[c.key];
+      if (v === null || v === undefined) cell.value = null;
+      else if (c.type === "date") cell.value = new Date(`${String(v).slice(0, 10)}T00:00:00Z`);
+      else if (c.type === "boolean") cell.value = v ? "Yes" : "No";
+      else if (isNumeric(c.type)) cell.value = Number(v);
+      else cell.value = String(v);
+      const fmt = excelFormat(c.type);
+      if (fmt) cell.numFmt = fmt;
+      cell.font = { name: BODY, size: 9, color: { argb: C.ink2 } };
+      cell.alignment = { vertical: "middle", horizontal: isNumeric(c.type) ? "right" : "left" };
+      if (k % 2 === 1) fill(cell, C.paper);
+    });
+    r++;
+  });
+
+  ws.mergeCells(r, 2, r, GRID + 1);
+  const note = ws.getCell(r, 2);
+  note.value =
+    rows.length > MAX_ROWS
+      ? `The first ${MAX_ROWS} of ${plural(rows.length, "row")}. Every row and every column is on the Data sheet.`
+      : rows.length === 1
+        ? "The only row on record. Every column of it is on the Data sheet, and what each one means is on Notes."
+        : `All ${plural(rows.length, "row")}. Every column is on the Data sheet, and what each one means is on Notes.`;
+  note.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
+  ws.getRow(r).height = 13;
+  return r + 2;
 }
 
 // ─── the heat grid ────────────────────────────────────────────────────────
