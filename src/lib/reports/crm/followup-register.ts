@@ -287,7 +287,7 @@ export const followupRegister: ReportDefinition = {
     { key: "delivered_on", label: "Delivered on", type: "date" },
     { key: "due_on", label: "Call due on", type: "date" },
     { key: "days_overdue", label: "Days overdue", type: "int", total: "avg", note: "Past the due date and still not rung. Blank once somebody has called. The foot shows the average, not a sum." },
-    { key: "age", label: "How overdue", type: "text", width: 14 },
+    { key: "age", label: "How overdue", type: "text", width: 14, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Not due yet": "good" } },
     { key: "contacted", label: "Called", type: "boolean", note: "Filter this to No for the day's call list." },
     { key: "contacted_on", label: "Called on", type: "date" },
     { key: "days_to_contact", label: "Days to call", type: "int", total: "avg", note: "From the due date to the day it was actually rung. Negative means it was rung early." },

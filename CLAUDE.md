@@ -1131,6 +1131,61 @@ does. **A `dataBar`/`colorScale` rule REQUIRES `cfvo`** — undocumented, and
 without it the workbook builds fine and then dies inside `writeBuffer()` on
 `rule.cfvo.forEach`, a long way from the cause.
 
+**THE WORKBOOK DASHBOARD FOLLOWS ONE DESIGN SYSTEM** (Sep 2026, on the
+owner's brief: a premium corporate MIS pack, white ground, restrained
+teal/blue/green, amber and red kept for warnings). The rules are in the code
+and they are not negotiable per report, because a pack whose colours mean
+different things on page two is not a pack:
+
+| Colour | Means | Where |
+|---|---|---|
+| Teal | Normal, primary | Every comparison and ranking, single-colour |
+| Blue | Information | A second series, a reference |
+| Green | Completed, positive | Good end of a severity ramp, "Done" badges |
+| Amber | Pending, warning | Warnings only |
+| Red | Late, critical | Exceptions only |
+| Grey | Neutral | "Everyone else", "Not recorded" |
+
+- **Colour never encodes WHICH chart it is.** The old code rotated six colours
+  per panel, so the same fact was teal on one chart and brown on the next. A
+  ranking is one colour: its third bar is not more amber than its second. The
+  ONE exception is a panel marked `tone: "severity"` — only `ageing()` sets it,
+  because its rows genuinely run best to worst.
+- **Two chart shapes, and the choice is not a guess.** A time series is a
+  LINE. Everything else — rankings, comparisons, funnels, ageing — is a
+  HORIZONTAL BAR, read against a common baseline with room for a thirty-
+  character party name. The column chart is gone: it used to be picked by a
+  heuristic on label length, so the same question was drawn two ways in one
+  workbook depending on whose name was short.
+- **A doughnut only for a composition, and only with 2–5 slices.** Share
+  panels are the top FOUR plus "Everyone else", which also keeps the
+  percentages honest (Excel rebases pie labels over the points it is given).
+- **ONE BAR IS NOT A CHART.** A panel with a single category becomes a summary
+  card. This is what the owner reported: the Checklist drew three charts each
+  showing one bar of length 1. It now draws none and prints three cards.
+- **Labels are readable on the fill they sit on.** A doughnut writes its label
+  INSIDE the slice, so those labels are WHITE; bar labels sit outside on white
+  paper and stay dark. That was the owner's other complaint.
+- **Empty period → "No data available for the selected period"**, not a blank
+  half page.
+- **The page reads top-down the way a manager asks questions:** title and
+  period → what was filtered → the one sentence → six KPI tiles (the rest on
+  one "Also —" line, because the eye stops at about six) → the primary trend
+  full width → paired analysis charts → **Needs attention** (built from the
+  KPIs the report already marks `bad`/`warn` — not a new judgement) → the month
+  grid → what this says → caveats.
+
+**THE DATA SHEET IS THE MANAGEMENT TABLE.** Indian digit grouping
+(`83,42,172.64`, via `indianFormat()` — the commas are ESCAPED so Excel prints
+them literally instead of applying its own locale grouping, and three sections
+is the limit once conditions are used); dates **DD MMM YYYY**; units inside the
+cell (`900.00 MTR`, `2 PCS`) via `ReportColumn.unit`, so a column read out of
+context still says what it measures; and compact **status badges** via
+`ReportColumn.badge`, an explicit value→meaning map. Never infer a badge from
+the type: "Cancelled: Yes" is bad and "Received: Yes" is good, and nothing but
+the column knows which. **The CSV is untouched by all of this** — ISO dates,
+bare numbers, no units — because it is the machine's copy.
+
 **VALIDATE WITH REAL EXCEL, NOT WITH A LIBRARY.** This cost a shipped
 release. `.scratch/validate.py` parsed every XML part, checked every
 relationship, and re-read all six workbooks with **openpyxl** — a completely

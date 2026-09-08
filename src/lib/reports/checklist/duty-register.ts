@@ -145,17 +145,17 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const insights: string[] = [];
   if (comeRound.length) {
     insights.push(
-      `${count(doneOfComeRound.length)} of ${plural(comeRound.length, "duty", "duties")} that have come round are done — ${pct((doneOfComeRound.length / comeRound.length) * 100, 0)}. ${raw.length - comeRound.length === 0 ? "Nothing is" : plural(raw.length - comeRound.length, "duty", "duties") + " still ahead are"} not counted against anybody.`,
+      `${count(doneOfComeRound.length)} of ${plural(comeRound.length, "duty", "duties")} that ${comeRound.length === 1 ? "has" : "have"} come round ${comeRound.length === 1 ? "is" : "are"} done — ${pct((doneOfComeRound.length / comeRound.length) * 100, 0)}. ${raw.length - comeRound.length === 0 ? "Nothing is still ahead." : plural(raw.length - comeRound.length, "duty", "duties") + " still ahead, not counted against anybody."}`,
     );
   }
   if (done.length) {
     insights.push(
-      `${pct((onTime.length / done.length) * 100, 0)} of the ${plural(done.length, "completed duty", "completed duties")} were done on or before their planned day.`,
+      `${pct((onTime.length / done.length) * 100, 0)} of the ${plural(done.length, "completed duty", "completed duties")} ${done.length === 1 ? "was" : "were"} done on or before the planned day.`,
     );
   }
   if (delayed.length) {
     insights.push(
-      `${plural(delayed.length, "duty", "duties")} are past their day and not ticked.`,
+      `${plural(delayed.length, "duty", "duties")} ${delayed.length === 1 ? "is" : "are"} past ${delayed.length === 1 ? "its" : "their"} day and not ticked.`,
     );
   }
   if (lateness.n > 0 && lateness.max !== null && lateness.max > 0) {
@@ -235,7 +235,7 @@ export const dutyRegister: ReportDefinition = {
     { key: "planned_date", label: "Due on", type: "date" },
     { key: "actual_date", label: "Done on", type: "date" },
     { key: "status", label: "Status", type: "text", width: 12, note: "Only Scheduled and Done are stored. Everything else is worked out when the report runs." },
-    { key: "state", label: "Where it stands", type: "text", width: 14, note: "Done, Due today, Delayed or Upcoming — derived from the due date at the moment this file was made." },
+    { key: "state", label: "Where it stands", type: "text", width: 14, badge: { "Done": "good", "Due today": "warn", "Delayed": "bad", "Upcoming": "neutral" }, note: "Done, Due today, Delayed or Upcoming — derived from the due date at the moment this file was made." },
     { key: "on_time", label: "On time", type: "boolean", note: "Done on or before the day it was due. Blank until it is done." },
     { key: "days_late", label: "Days late", type: "int", total: "avg", note: "Only for duties that were done. The foot shows the average lateness, not a sum." },
     { key: "days_overdue", label: "Days overdue", type: "int", total: "avg", note: "For duties past their day and not ticked, counted to today." },

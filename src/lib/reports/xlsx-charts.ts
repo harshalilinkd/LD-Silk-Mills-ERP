@@ -154,14 +154,19 @@ function titleXml(text: string): string {
  * then the five show* flags, and every one of the flags must be present —
  * Excel treats a missing `showBubbleSize` as a broken part, not a default.
  */
-function dLbls(kind: ChartSeries["labels"], fmt: string, pos?: string): string {
+function dLbls(
+  kind: ChartSeries["labels"],
+  fmt: string,
+  pos?: string,
+  colour: string = INK,
+): string {
   if (!kind || kind === "none") return `<c:dLbls><c:delete val="1"/></c:dLbls>`;
   const percent = kind === "percent";
   return (
     `<c:dLbls>` +
     (percent ? "" : `<c:numFmt formatCode="${esc(fmt)}" sourceLinked="0"/>`) +
     `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>` +
-    txPr(850, INK) +
+    txPr(850, colour, true) +
     (pos ? `<c:dLblPos val="${pos}"/>` : "") +
     `<c:showLegendKey val="0"/>` +
     `<c:showVal val="${percent ? 0 : 1}"/>` +
@@ -254,7 +259,10 @@ function pieSer(s: ChartSeries, idx: number, spec: ChartSpec, fmt: string): stri
     // round-trip proves the XML parses, not that Excel accepts it. The five
     // workbooks with a share panel were rejected; production-status, the one
     // with no doughnut in it, opened fine. That was the tell.
-    dLbls(s.labels ?? "percent", fmt, spec.kind === "pie" ? "bestFit" : undefined) +
+    // WHITE, because a doughnut label is drawn inside the slice and every
+    // slice in this palette is a mid-to-dark solid. In near-black it was
+    // unreadable, which is exactly what the owner reported.
+    dLbls(s.labels ?? "percent", fmt, spec.kind === "pie" ? "bestFit" : undefined, "FFFFFF") +
     catXml(spec.catRef, spec.categories) +
     valXml(s.ref, s.values, fmt) +
     `</c:ser>`

@@ -188,7 +188,7 @@ export const qualityAnalysis: ReportDefinition = {
     { key: "lines", label: "Lines", type: "int" },
     { key: "orders", label: "Orders", type: "int", total: "none", note: "Orders containing this quality and design. NOT added up — one order holding six designs would be counted six times." },
     { key: "customers", label: "Customers", type: "int", total: "none", note: "Customers who bought it. Not added up, for the same reason." },
-    { key: "qty_mtr", label: "Metres", type: "number" },
+    { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
     { key: "share", label: "Share", type: "percent" },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres — weighted, so a big line counts more. The foot is weighted the same way." },

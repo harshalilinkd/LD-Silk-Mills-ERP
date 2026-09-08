@@ -180,7 +180,7 @@ export const customerLedger: ReportDefinition = {
     { key: "party_name", label: "Party", type: "text", width: 34 },
     { key: "orders", label: "Orders", type: "int" },
     { key: "lines", label: "Lines", type: "int" },
-    { key: "qty_mtr", label: "Metres", type: "number" },
+    { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
     { key: "share", label: "Share", type: "percent", note: "Of the total value in this file's period." },
     { key: "avg_order", label: "Avg order", type: "money", total: "avg", avgWeightBy: "orders", note: "Value divided by orders. The foot is the average order across the whole file, WEIGHTED by how many orders each customer placed — a plain mean of this column counts a one-order customer the same as a ninety-order one, and read 24% low." },

@@ -125,20 +125,50 @@ export function isoToKolkata(iso: string): string {
 }
 
 /** The Excel number format for a column type. */
+/**
+ * Indian digit grouping — 83,42,172.64, not 8,342,172.64.
+ *
+ * Excel picks grouping from the file's locale, not from the cell, so the only
+ * way to be sure is to write the grouping into the format itself. The three
+ * conditional sections cover crore, lakh and everything below; `dp` decides
+ * whether paise are shown.
+ */
+export function indianFormat(dp: 0 | 2): string {
+  const d = dp === 2 ? ".00" : "";
+  // The commas are ESCAPED so Excel prints them literally at the positions the
+  // digit placeholders put them, instead of applying its own locale grouping.
+  // That is the whole trick; an unescaped comma after a digit placeholder
+  // means "divide by a thousand" instead.
+  //
+  // Three sections is the limit once conditions are used - two conditions and
+  // an else - so anything under a lakh falls to the last one, where Indian and
+  // Western grouping are identical anyway and where negatives land.
+  return (
+    `[>=10000000]##\\,##\\,##\\,##0${d};` +
+    `[>=100000]##\\,##\\,##0${d};` +
+    `#,##0${d}`
+  );
+}
+
+
 export function excelFormat(type: ColumnType): string | undefined {
   switch (type) {
+    // Money and quantities carry Indian grouping. A negative shows in red with
+    // a real minus sign, which is what a management pack expects.
     case "money":
-      return '#,##0.00;[Red]-#,##0.00';
+      return indianFormat(2);
     case "number":
-      return "#,##0.00";
+      return indianFormat(2);
     case "int":
-      return "#,##0";
+      return indianFormat(0);
     case "percent":
       return '0.0"%"';
+    // DD MMM YYYY, because 05 Sep 2026 cannot be read as a month and a day the
+    // wrong way round and 2026-09-05 has to be explained to somebody once.
     case "date":
-      return "yyyy-mm-dd";
+      return "dd mmm yyyy";
     case "datetime":
-      return "yyyy-mm-dd hh:mm";
+      return "dd mmm yyyy hh:mm";
     default:
       return undefined;
   }

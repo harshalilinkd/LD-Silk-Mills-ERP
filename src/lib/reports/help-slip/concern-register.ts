@@ -296,7 +296,7 @@ export const concernRegister: ReportDefinition = {
     { key: "category", label: "Category", type: "text", width: 20 },
     { key: "department", label: "Department", type: "text", width: 18 },
     { key: "priority", label: "Priority", type: "text", width: 12 },
-    { key: "status", label: "Status", type: "text", width: 18 },
+    { key: "status", label: "Status", type: "text", width: 18, badge: { "Resolved": "good", "Closed": "good", "Being worked on": "neutral", "Waiting": "warn", "New": "warn" } },
     { key: "confidential", label: "Confidential", type: "boolean", note: "An HR-only concern. It is in your file because you are allowed to see it." },
     { key: "wait_reason", label: "Waiting on", type: "text", width: 20 },
     { key: "raised_by", label: "Raised by", type: "text", width: 24 },

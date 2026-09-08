@@ -212,6 +212,8 @@ export function ageing(days: number[]): Panel {
   }
   const total = counts.reduce((s, c) => s + c, 0);
   return {
+    // Best to worst down the list, so the palette may carry the meaning.
+    tone: "severity",
     title: "How long they have waited",
     valueLabel: "Items",
     rows: AGE_BUCKETS.map((b, i) => ({

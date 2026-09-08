@@ -102,6 +102,22 @@ export type ReportColumn = {
   total?: "sum" | "avg" | "none";
   /** For `total: "avg"` — the column to weight by. Omit for a plain mean. */
   avgWeightBy?: string;
+  /**
+   * `MTR`, `PCS`, `KG`. Printed inside the cell by the workbook so a column of
+   * figures says what it is measuring when it is read out of context — a
+   * screenshot of three columns, a pasted range, a printed page.
+   */
+  unit?: "MTR" | "PCS" | "KG";
+  /**
+   * Turns a status column into compact coloured badges on the Data sheet:
+   * value → what that value MEANS. Explicit per column and never inferred,
+   * because the same word points opposite ways on two columns — "Cancelled:
+   * Yes" is bad and "Received: Yes" is good, and no type can tell them apart.
+   *
+   * Only worth setting where a reader would otherwise have to interpret the
+   * text. A plain name or a date does not need a colour.
+   */
+  badge?: Record<string, "good" | "warn" | "bad" | "neutral">;
 };
 
 export type FilterKind = "dateRange" | "select" | "text";
@@ -175,6 +191,14 @@ export type PanelKind = "bar" | "share" | "funnel" | "split";
 
 export type Panel = {
   title: string;
+  /**
+   * `severity` means the ROWS ARE ORDERED BEST TO WORST and the palette may
+   * say so — green, teal, amber, red down the list. Only ageing sets it. Every
+   * other panel is drawn in one colour, because a ranking's third bar is not
+   * "more amber" than its second and colouring it that way is decoration
+   * pretending to be information.
+   */
+  tone?: "severity";
   /** What the numbers are: "Value", "Returns", "Entries". */
   valueLabel: string;
   rows: RankRow[];

@@ -56,7 +56,7 @@ const SQL = `
     r.custom_reason,
     count(i.id)                              as items,
     coalesce(sum(i.quantity), 0)             as qty,
-    coalesce(sum(i.pieces), 0)               as pieces,
+    sum(i.pieces)                            as pieces,
     count(distinct i.quality_id)             as qualities,
     -- max(), not sum(): the join to items multiplies the header row, and a
     -- return with four items would otherwise report four times its value.
@@ -134,7 +134,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
       items: n(r.items),
       qualities: n(r.qualities),
       qty: n(r.qty),
-      pieces: n(r.pieces),
+      // Blank when NO item on the return recorded one. Half the items carry
+      // no piece count, and a sum over nothing is unknown, not zero.
+      pieces: r.pieces == null ? null : n(r.pieces),
       value: r.value == null ? null : money2(r.value),
       no_value: r.value == null || n(r.value) === 0,
       transport_value: money2(r.transport_value ?? 0),
@@ -330,8 +332,8 @@ export const returnRegister: ReportDefinition = {
     { key: "custom_reason", label: "Reason, in their words", type: "text", width: 30, optional: true },
     { key: "items", label: "Items", type: "int", note: "How many cloth lines are on this return." },
     { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct cloths on this return. Not added up — the same cloth on two returns is one cloth." },
-    { key: "qty", label: "Metres", type: "number" },
-    { key: "pieces", label: "Pieces", type: "int" },
+    { key: "qty", label: "Metres", type: "number", unit: "MTR" },
+    { key: "pieces", label: "Pieces", type: "int", unit: "PCS", note: "Blank where no item on the return recorded a piece count — a blank is not a zero." },
     { key: "value", label: "Value", type: "money", note: "Blank where nothing was entered. A blank is not a zero." },
     { key: "no_value", label: "No value entered", type: "boolean", note: "Filter this to Yes to find the returns still waiting for a figure." },
     { key: "transport_value", label: "Transport charge", type: "money" },
@@ -346,7 +348,7 @@ export const returnRegister: ReportDefinition = {
     { key: "received_no_date", label: "Received, date missing", type: "boolean", note: "Marked received but nobody recorded when." },
     { key: "days_to_receive", label: "Days to receive", type: "int", total: "avg", note: "From the return's date to the day Bhiwandi received it. Blank where the receipt was entered before the return date. The foot shows the average, not a sum." },
     { key: "days_waiting", label: "Days waiting", type: "int", total: "avg", note: "For the ones not yet received, counted to today. Blank where the return's own date is a typing slip — one return dated 2000-01-01 would otherwise sit in this average at 9,747 days." },
-    { key: "age", label: "Age", type: "text", width: 13 },
+    { key: "age", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Received": "good", "Unknown": "neutral" } },
     { key: "date_looks_wrong", label: "Date looks wrong", type: "boolean", note: `Dated before ${EARLIEST_SANE}, so almost certainly a typing slip.` },
     { key: "has_attachment", label: "Photo kept", type: "boolean" },
     { key: "receiving_notes", label: "Receiving notes", type: "text", width: 30, optional: true },

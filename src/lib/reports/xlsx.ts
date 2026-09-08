@@ -57,7 +57,7 @@ function buildData(
     key: c.key,
     width: excelWidth(c),
     style: {
-      numFmt: excelFormat(c.type),
+      numFmt: unitFormat(c),
       alignment: { horizontal: isNumeric(c.type) ? "right" : "left" },
     },
   }));
@@ -102,9 +102,39 @@ function buildData(
     to: { row: Math.max(1, rows.length + 1), column: columns.length },
   };
 
+  // ── STATUS BADGES ────────────────────────────────────────────────────
+  //
+  // A tinted cell with the word still in it, not an icon: it survives a filter,
+  // a print, a paste into another sheet, and somebody who is colour-blind still
+  // reads the word. Applied before the banding so the banding does not paint
+  // over it.
+  const BADGE: Record<string, { fg: string; bg: string }> = {
+    good: { fg: C.green, bg: C.greenDim },
+    warn: { fg: C.amber, bg: C.amberDim },
+    bad: { fg: C.red, bg: C.redDim },
+    neutral: { fg: C.ink3, bg: C.paper },
+  };
+  const badged = columns
+    .map((c, i) => ({ c, i: i + 1 }))
+    .filter((x) => x.c.badge);
+  for (const { c, i } of badged) {
+    for (let rr = 2; rr <= rows.length + 1; rr++) {
+      const cell = ws.getCell(rr, i);
+      const tone = c.badge?.[String(cell.value ?? "")];
+      if (!tone) continue;
+      const b = BADGE[tone];
+      fill(cell, b.bg);
+      cell.font = { name: BODY, size: 9, bold: tone !== "neutral", color: { argb: b.fg } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    }
+  }
+
   // Banding, so the eye keeps its place across thirty columns.
+  const badgedCols = new Set(badged.map((x) => x.i));
   for (let i = 2; i <= rows.length + 1; i += 2) {
-    ws.getRow(i).eachCell({ includeEmpty: true }, (cell) => fill(cell, C.paper));
+    ws.getRow(i).eachCell({ includeEmpty: true }, (cell, col) => {
+      if (!badgedCols.has(col)) fill(cell, C.paper);
+    });
   }
 
   // ── the Total row ──────────────────────────────────────────────────────
@@ -179,6 +209,22 @@ function buildData(
     note.font = { name: BODY, size: 8.5, italic: true, color: { argb: C.ink3 } };
     ws.mergeCells(noteRow.number, 1, noteRow.number, Math.min(columns.length, 12));
   }
+}
+
+/**
+ * The column's number format, with its unit written into it.
+ *
+ * `1,250.00 MTR` rather than `1,250.00`, so a column read out of context —
+ * pasted, printed, screenshotted — still says what it is measuring. The value
+ * stays a number: only the display changes, so it still sums.
+ */
+function unitFormat(c: ReportColumn): string | undefined {
+  const base = excelFormat(c.type);
+  if (!base || !c.unit) return base;
+  return base
+    .split(";")
+    .map((part) => (part ? `${part}" ${c.unit}"` : part))
+    .join(";");
 }
 
 // ─── the notes sheet ──────────────────────────────────────────────────────

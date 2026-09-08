@@ -271,7 +271,7 @@ export const lineDetail: ReportDefinition = {
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "quality", label: "Quality", type: "text", width: 26 },
     { key: "design_no", label: "Design no", type: "text", width: 16 },
-    { key: "qty_mtr", label: "Metres", type: "number" },
+    { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rupees a metre. The foot is weighted by metres, not a plain average of the rates — and it covers EVERY row in this sheet including the cancelled ones, so it differs slightly from the dashboard's Average rate, which is live lines only." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },

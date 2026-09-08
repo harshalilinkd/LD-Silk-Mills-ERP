@@ -215,7 +215,7 @@ export const agentPerformance: ReportDefinition = {
     { key: "customers", label: "Customers", type: "int", total: "none", note: "How many customers this person holds. NOT added up — a customer served by two agents would be counted twice." },
     { key: "orders", label: "Orders", type: "int" },
     { key: "lines", label: "Lines", type: "int" },
-    { key: "qty_mtr", label: "Metres", type: "number" },
+    { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
     { key: "share", label: "Share", type: "percent", note: "Of the total value in this file's period." },
     { key: "avg_order", label: "Avg order", type: "money", total: "avg", avgWeightBy: "orders", note: "Value divided by orders. The foot is the average order across the whole file, WEIGHTED by how many orders each name wrote — a plain mean of this column counts somebody with one order the same as somebody with ninety, and read 24% low." },
