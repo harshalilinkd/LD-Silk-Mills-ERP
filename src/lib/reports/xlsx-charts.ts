@@ -82,6 +82,8 @@ export type ChartSpec = {
   gapWidth?: number;
   /** Doughnut only, 10–90. */
   holeSize?: number;
+  /** Printed under the chart by the sheet builder; the chart itself ignores it. */
+  note?: string;
 };
 
 // ─── XML helpers ──────────────────────────────────────────────────────────

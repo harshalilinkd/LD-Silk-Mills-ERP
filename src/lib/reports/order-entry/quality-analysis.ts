@@ -135,14 +135,17 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
-      headline: `${count(byQualityValue.size)} qualities and ${count(new Set(raw.map((r) => r.design_no)).size)} designs sold ${inrShort(total)} — the top five qualities are ${conc.top5Share !== null ? pct(conc.top5Share) : "most"} of it.`,
+      headline: !raw.length
+        ? "No cloth was sold in this period."
+        : `${count(byQualityValue.size)} qualities and ${count(new Set(raw.map((r) => r.design_no)).size)} designs sold ${inrShort(total)}` +
+          (conc.top5Share !== null ? ` — the top five qualities are ${pct(conc.top5Share)} of it.` : "."),
       kpis: [
         { label: "Qualities", value: count(byQualityValue.size), tone: "good" },
         { label: "Designs", value: count(new Set(raw.map((r) => r.design_no)).size) },
         { label: "Combinations", value: count(raw.length), sub: "quality × design" },
         { label: "Total value", value: inrShort(total) },
         { label: "Metres", value: qty(Math.round(raw.reduce((s, r) => s + n(r.qty_mtr), 0))) },
-        { label: "Middle cloth's rate", value: inr(rates.median), sub: "per metre, across qualities" },
+        { label: "Middle cloth's rate", value: inr(rates.median), sub: "per metre, across cloth-and-design rows" },
         { label: "Sold at very different prices", value: count(wideSpread.length), tone: wideSpread.length ? "warn" : "good", lowerIsBetter: true, sub: "dearest is 50%+ above cheapest" },
         { label: "Only one buyer", value: count(singleCustomer.length), tone: "warn", lowerIsBetter: true },
       ],

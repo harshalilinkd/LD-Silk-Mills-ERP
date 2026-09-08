@@ -12,7 +12,7 @@ import {
   filterArgs,
   money2,
   n,
-  NO_VALUE_CAVEAT,
+  noValueCaveat,
   RETURN_FILTER_SQL,
 } from "./shared";
 
@@ -93,7 +93,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     quality_now: r.quality_now,
     renamed_since: !!r.quality_name && !!r.quality_now && r.quality_name !== r.quality_now,
     quantity: n(r.quantity),
-    pieces: n(r.pieces),
+    // NULL stays blank. 175 of 391 items record no piece count, and printing
+    // 0 made a total built from 56% of the rows look like it covered them all.
+    pieces: r.pieces == null ? null : n(r.pieces),
     metres_per_piece: n(r.pieces) > 0 ? money2(n(r.quantity) / n(r.pieces)) : null,
     return_reason: r.return_reason,
     custom_reason: r.custom_reason,
@@ -107,6 +109,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const totalQty = raw.reduce((s, r) => s + n(r.quantity), 0);
   const totalPieces = raw.reduce((s, r) => s + n(r.pieces), 0);
   const returns = new Set(raw.map((r) => r.display_id)).size;
+  // Counted over RETURNS, not items - the caveat is about returns.
+  const noValueReturns = new Set(
+    raw.filter((r) => r.return_value == null || n(r.return_value) === 0).map((r) => r.display_id),
+  ).size;
 
   const byQuality = new Map<string, number>();
   const qualityLines = new Map<string, number>();
@@ -195,7 +201,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       insights,
       caveats: [
         "The value column is the WHOLE RETURN's value repeated on every one of its items — the source data records no money against an individual cloth. It does not add up at the foot, and on a multi-cloth return it must not be summed.",
-        NO_VALUE_CAVEAT,
+        noValueCaveat(noValueReturns, returns),
         "The cloth name is a snapshot taken when the return was entered. Renaming it in the master list afterwards does not rewrite it, which is correct — the return said what it said. The current name is carried beside it.",
       ],
     },
@@ -220,7 +226,7 @@ export const returnItemDetail: ReportDefinition = {
     { key: "quality_now", label: "Cloth, current name", type: "text", width: 26, optional: true, note: "What that cloth is called in the master list today." },
     { key: "renamed_since", label: "Renamed since", type: "boolean", note: "The two names differ, so the cloth was renamed after this return was raised." },
     { key: "quantity", label: "Metres", type: "number" },
-    { key: "pieces", label: "Pieces", type: "int" },
+    { key: "pieces", label: "Pieces", type: "int", note: "Blank where the return did not record one — a blank is not a zero, and roughly half the items have none." },
     { key: "metres_per_piece", label: "Metres a piece", type: "number", total: "avg", avgWeightBy: "pieces", note: "Metres divided by pieces. The foot is weighted by pieces, not a plain average of the rows." },
     { key: "return_reason", label: "Reason", type: "text", width: 24 },
     { key: "custom_reason", label: "Reason, in their words", type: "text", width: 28, optional: true },

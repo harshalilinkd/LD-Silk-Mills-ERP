@@ -54,7 +54,7 @@ const SQL = `
     max(p.delay_minutes)     filter (where p.stage_key = '${s.key}') as s${i}_delay`,
     ).join(",")},
     max(p.actual_at) filter (where p.is_done)                            as last_tick,
-    (current_date - o.order_date)                                        as days_open
+    ((now() at time zone 'Asia/Kolkata')::date - o.order_date)                                        as days_open
   from ld_order_entry.order_line_items li
   join ld_order_entry.customer_orders o on o.id = li.order_id
   left join ld_order_entry.line_stage_progress p on p.order_line_item_id = li.id
@@ -333,7 +333,7 @@ export const productionStatus: ReportDefinition = {
   module: "order-entry",
   title: "Production status",
   description:
-    "Every live line against all seven stages — what is ticked, when, and how far past its planned date. how far past its planned date, and what each unfinished line is waiting on. Filter Still open to Yes for the action list.",
+    "Every live line against all seven stages — what is ticked, when, how far past its planned date, and what each unfinished line is waiting on. Filter Still open to Yes for the action list.",
   defaultMonthsBack: 2,
   columns: [
     { key: "order_no", label: "Order no", type: "text", width: 14 },

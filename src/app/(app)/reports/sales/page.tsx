@@ -92,6 +92,11 @@ export default async function SalesDashboardPage({
         agents={agents}
       />
 
+      {d.capped && (
+        <p className="rounded-card border border-status-amber/40 bg-status-amber-dim px-4 py-3 text-[12.5px] leading-snug text-text-2">
+          {d.capped}
+        </p>
+      )}
       {d.orders === 0 ? (
         <EmptyState
           title="Nothing in this period"

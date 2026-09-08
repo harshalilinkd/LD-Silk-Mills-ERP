@@ -134,7 +134,15 @@ async function run(params: ReportParams): Promise<ReportResult> {
     add(byMonth, (r.order_date ?? "").slice(0, 7), n(r.line_total));
     add(byQuality, r.quality?.trim() || "Not recorded", n(r.line_total));
     add(qtyByQuality, r.quality?.trim() || "Not recorded", n(r.qty_mtr));
-    add(byDesign, r.design_no?.trim() || "Not recorded", n(r.line_total));
+    // Keyed by CLOTH AND DESIGN. A design number is only unique inside its
+    // own cloth, so keying on the number alone added LIO LINEN's "1" to
+    // CORDRAY's "1" and reported a ₹40.2 L design that is really 213 lines
+    // across 89 cloths.
+    add(
+      byDesign,
+      `${r.quality?.trim() || "Not recorded"} · ${r.design_no?.trim() || "Not recorded"}`,
+      n(r.line_total),
+    );
     add(byParty, r.party_name?.trim() || "Not recorded", n(r.line_total));
   }
   byMonth.delete("");
@@ -160,8 +168,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
         `${pct((cancelledValue / (value + cancelledValue)) * 100, 2)} of everything written.`,
     );
   }
-  insights.push(
-    `${count(byDesign.size)} designs across ${count(byQuality.size)} qualities went to ${count(byParty.size)} customers.` +
+  if (live.length) insights.push(
+    `${count(byDesign.size)} cloth-and-design pairs across ${count(byQuality.size)} qualities went to ${count(byParty.size)} customers.` +
       // The order register counts every customer who placed an order; this
       // counts the ones with a line still standing. Where they differ, say so
       // — two reports quietly printing 202 and 204 is a question nobody
@@ -175,7 +183,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
-      headline: `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} designs across ${count(byQuality.size)} qualities.`,
+      headline: raw.length
+        ? `${count(live.length)} lines worth ${inrShort(value)} — ${count(byDesign.size)} cloth-and-design pairs across ${count(byQuality.size)} qualities.`
+        : "No lines in this period.",
       kpis: [
         { label: "Line value", value: inrShort(value), sub: "cancelled left out", deltaPct: monthDelta(byMonth) },
         {
@@ -187,7 +197,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Metres", value: qty(Math.round(metres)), sub: "cancelled left out" },
         { label: "Average rate", value: metres > 0 ? inr(value / metres) : "—", sub: "per metre" },
         { label: "Qualities", value: count(byQuality.size) },
-        { label: "Designs", value: count(byDesign.size) },
+        { label: "Cloth-and-design pairs", value: count(byDesign.size), sub: "a design number only means something inside its own cloth" },
         { label: "Middle rate per line", value: inr(rateSpread.median), sub: "half the lines are above, half below" },
         { label: "Cheapest to dearest", value: `${inr(rateSpread.min)} – ${inr(rateSpread.max)}`, tone: "warn", sub: "per metre" },
       ],
@@ -225,7 +235,12 @@ async function run(params: ReportParams): Promise<ReportResult> {
           rows: rank([...byQuality].map(([label, v]) => ({ label, value: v })), inrShort, 5),
           note: "How much of the money comes from the top few qualities.",
         },
-        { title: "Which designs earn most", valueLabel: "Value", rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort) },
+        {
+          title: "Which designs earn most",
+          valueLabel: "Value",
+          rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort),
+          note: "Cloth then design. A design number only means something inside its own cloth, so they are never added together across cloths.",
+        },
         { title: "Which cloth moves most metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
       ],
       insights,
@@ -257,10 +272,10 @@ export const lineDetail: ReportDefinition = {
     { key: "quality", label: "Quality", type: "text", width: 26 },
     { key: "design_no", label: "Design no", type: "text", width: 16 },
     { key: "qty_mtr", label: "Metres", type: "number" },
-    { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Per metre, as written on the line. The foot shows the rate across the whole file, weighted by metres." },
+    { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rupees a metre. The foot is weighted by metres, not a plain average of the rates — and it covers EVERY row in this sheet including the cancelled ones, so it differs slightly from the dashboard's Average rate, which is live lines only." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
-    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same cloth and design appears more than once on this order. Allowed on purpose — two rates, or two lots — so this is a prompt to glance, not a fault." },
+    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same cloth and design appears more than once on this order. Every member of the pair is flagged here, so a pair shows as two rows — the order register counts the EXTRA lines instead, so the same 29 repeats read as 29 there and 58 here. Allowed on purpose: two rates, or two lots." },
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },

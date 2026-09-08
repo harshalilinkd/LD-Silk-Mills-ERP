@@ -281,6 +281,20 @@ export function concentrationInsight(c: Concentration, noun = "customers", money
   );
 }
 
+/**
+ * Is the last bucket the month we are standing in?
+ *
+ * A comparison that puts eight days against thirty-one is not a comparison,
+ * and the dashboard was printing "fell 66.0%" as a fact two lines above its
+ * own run-rate sentence saying the opposite.
+ */
+export function lastMonthIsPartial(byMonth: Map<string, number>): boolean {
+  const keys = [...byMonth.keys()].sort();
+  const last = keys.at(-1);
+  if (!last) return false;
+  return last === new Date().toISOString().slice(0, 7);
+}
+
 export function trendInsight(t: Trend, valueNoun = "value"): string | null {
   if (!t.latest || !t.previous || t.changePct === null) return null;
   // The DIRECTION is the word, so the figure carries no sign — "fell −68.3%"
@@ -288,7 +302,14 @@ export function trendInsight(t: Trend, valueNoun = "value"): string | null {
   const dir = t.changePct >= 0 ? "rose" : "fell";
   return (
     `${t.latest.label} ${valueNoun} ${dir} ${Math.abs(t.changePct).toFixed(1)}% against ${t.previous.label} ` +
-    `— ${t.latest.display} against ${t.previous.display}.`
+    `— ${t.latest.display} against ${t.previous.display}.` +
+    // Said here rather than left to the reader: the current month is only as
+    // long as today, and putting eight days against a whole month reads as a
+    // collapse. The dashboard was printing "fell 66.0%" two lines above its
+    // own run-rate sentence saying the opposite.
+    (t.latest.label === monthName(new Date().toISOString().slice(0, 7))
+      ? ` ${t.latest.label} is not finished yet, so this is a part month against a whole one.`
+      : "")
   );
 }
 
@@ -333,6 +354,15 @@ export function matrixFrom(
   const months = [...new Set(rows.map((r) => r.month))].filter(Boolean).sort().slice(-12);
   if (months.length < 2) return undefined;
 
+  // ── RANK AND TOTAL OVER THE MONTHS SHOWN, NOT OVER ALL TIME ───────────
+  //
+  // Ranking over every month while drawing only twelve put KALAMEK GARMENTS at
+  // the top of the grid with every cell empty and ₹13.4 L beside it: all of
+  // its returns predate the window. A row in this grid must be there because
+  // of what is IN the grid.
+  const kept = new Set(months);
+  rows = rows.filter((r) => kept.has(r.month));
+
   const byLabel = new Map<string, Map<string, number>>();
   const totals = new Map<string, number>();
   for (const r of rows) {
@@ -354,7 +384,11 @@ export function matrixFrom(
       label,
       values: months.map((m) => {
         const v = byLabel.get(label)?.get(m) ?? 0;
-        return v === 0 ? null : opts.format === "money" ? v / 1000 : v;
+        // RUPEES, not thousands. The workbook's `#,##0,` format does the
+        // scaling and its legend says so; the screen formats rupees like
+        // every other figure. Pre-dividing here meant both were wrong — the
+        // workbook by a factor of a million, the screen by a thousand.
+        return v === 0 ? null : v;
       }),
       total,
       totalDisplay: opts.display(total),

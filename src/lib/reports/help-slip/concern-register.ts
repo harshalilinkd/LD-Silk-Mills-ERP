@@ -95,7 +95,9 @@ const STATUS: Record<string, string> = {
   waiting: "Waiting",
   resolved: "Resolved",
   closed: "Closed",
-  withdrawn: "Withdrawn",
+  // No `withdrawn` here: the database enum has no such status. Withdrawal is
+  // recorded as a timestamp, which the "Withdrawn" column reads — offering it
+  // as a status was a dropdown entry that could never match a row.
 };
 
 const hours = (from: string, to: string) =>
@@ -115,6 +117,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
       return {
         rows: [],
         totalRows: 0,
+        notice:
+          "This report shows the concerns your own account is allowed to see, and your account has no Help Slip profile against it. Ask an administrator to add you in Settings, then run it again.",
         analysis: {
           headline: "You do not have a Help Slip profile.",
           kpis: [],
@@ -144,7 +148,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   const today = todayIso();
   const rows: ReportRow[] = filtered.slice(0, MAX_EXPORT_ROWS).map((r) => {
-    const open = !["resolved", "closed", "withdrawn"].includes(r.status);
+    // A withdrawn concern is not open, and its STATUS never says so — the
+    // enum has no withdrawn member, only the timestamp does.
+    const open = !["resolved", "closed"].includes(r.status) && !r.withdrawn_at;
     return {
       concern_number: r.concern_number,
       title: r.title,
@@ -183,7 +189,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
   });
 
   // ── the figures ─────────────────────────────────────────────────────────
-  const open = filtered.filter((r) => !["resolved", "closed", "withdrawn"].includes(r.status));
+  const open = filtered.filter(
+    (r) => !["resolved", "closed"].includes(r.status) && !r.withdrawn_at,
+  );
   const resolved = filtered.filter((r) => r.resolved_at);
   const answered = filtered.filter((r) => r.first_response_at);
   const unanswered = filtered.filter((r) => !r.first_response_at);

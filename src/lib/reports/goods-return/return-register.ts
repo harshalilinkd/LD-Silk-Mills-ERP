@@ -3,7 +3,7 @@ import "server-only";
 import { sql as pg } from "@/db";
 import { todayIso } from "@/lib/dates";
 import { AGE_BUCKETS, ageing, concentration, concentrationInsight, matrixFrom, monthDelta, rank, spread, trend, trendInsight } from "../analysis";
-import { count, inrShort, pct, qty } from "../format";
+import { count, inrShort, pct, plural, qty } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 import {
@@ -16,7 +16,7 @@ import {
   filterArgs,
   money2,
   n,
-  NO_VALUE_CAVEAT,
+  noValueCaveat,
   RECEIVED_CAVEAT,
   RETURN_FILTER_SQL,
 } from "./shared";
@@ -111,7 +111,12 @@ async function run(params: ReportParams): Promise<ReportResult> {
     const toReceive = received && receivedOn && dated && receivedOn >= dated
       ? daysBetweenIso(dated, receivedOn)
       : null;
-    const waiting = !received && dated ? daysBetweenIso(dated, today) : null;
+    // Not for a date the report itself flags as a slip: the 2000-01-01 return
+    // has been "waiting" 9,747 days and dragged the column average from 240 to
+    // 389. A row this report calls wrong cannot sit inside a figure it calls
+    // right.
+    const datedLooksWrong = !!dated && dated < EARLIEST_SANE;
+    const waiting = !received && dated && !datedLooksWrong ? daysBetweenIso(dated, today) : null;
     const charges =
       n(r.transport_value) + n(r.other_charges) + n(r.bhiwandi_transport_value) + n(r.bhiwandi_charges);
 
@@ -145,7 +150,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       days_to_receive: toReceive,
       days_waiting: waiting,
       age: received ? "Received" : waiting == null ? "Unknown" : bucketOf(waiting),
-      date_looks_wrong: !!dated && dated < EARLIEST_SANE,
+      date_looks_wrong: datedLooksWrong,
       has_attachment: r.has_attachment,
       receiving_notes: r.receiving_notes,
       created_at: r.created_at,
@@ -166,6 +171,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const open = raw.filter((r) => r.status !== "received");
   const openValue = open.reduce((s, r) => s + n(r.value), 0);
   const openDays = open
+    .filter((r) => (r.dated?.slice(0, 10) ?? "") >= EARLIEST_SANE)
     .map((r) => daysBetweenIso(r.dated?.slice(0, 10) ?? null, today))
     .filter((d): d is number => d != null && d >= 0);
   const openOver30 = openDays.filter((d) => d > 30).length;
@@ -258,7 +264,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           title: "Why the cloth came back",
           valueLabel: "Returns",
           rows: rank([...byReason].map(([label, value]) => ({ label, value })), count, 8),
-          note: "Counted by return, not by value — a quarter of them have no value entered and would otherwise vanish from this chart.",
+          note: `Counted by return, not by value — ${noValue} of them have no value entered and would otherwise vanish from this chart.`,
         },
         {
           title: "Which parties send the most back",
@@ -290,14 +296,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
       ),
       insights,
       caveats: [
-        NO_VALUE_CAVEAT,
+        noValueCaveat(noValue, raw.length),
         RECEIVED_CAVEAT,
         BACKDATED_CAVEAT,
         ...(raw.filter((r) => r.received_at && r.dated && r.received_at.slice(0, 10) < r.dated.slice(0, 10)).length
           ? [`${raw.filter((r) => r.received_at && r.dated && r.received_at.slice(0, 10) < r.dated.slice(0, 10)).length} returns have a received date BEFORE the return's own date, from the catch-up. Days to receive is blank on those.`]
           : []),
         ...(receivedNoDate ? [`${receivedNoDate} returns are marked received with no date recorded. They count as received and are flagged in their own column.`] : []),
-        ...(wrongDate ? [`${wrongDate} return is dated before ${EARLIEST_SANE}, which is a typing slip rather than a real date. It is flagged, not corrected — this ERP does not edit the Goods Return records.`] : []),
+        ...(wrongDate ? [`${plural(wrongDate, "return")} ${wrongDate === 1 ? "is" : "are"} dated before ${EARLIEST_SANE}, which is a typing slip rather than a real date. ${wrongDate === 1 ? "It is" : "They are"} flagged, not corrected — this ERP does not edit the Goods Return records, and Days waiting is left blank on ${wrongDate === 1 ? "it" : "them"}.`] : []),
         "Who entered or received a return is not in this data. Those columns exist in the old system's own user table and are empty on every row; anything done through this ERP is in the audit log instead.",
       ],
     },
@@ -339,7 +345,7 @@ export const returnRegister: ReportDefinition = {
     { key: "received_on", label: "Received on", type: "date" },
     { key: "received_no_date", label: "Received, date missing", type: "boolean", note: "Marked received but nobody recorded when." },
     { key: "days_to_receive", label: "Days to receive", type: "int", total: "avg", note: "From the return's date to the day Bhiwandi received it. Blank where the receipt was entered before the return date. The foot shows the average, not a sum." },
-    { key: "days_waiting", label: "Days waiting", type: "int", total: "avg", note: "For the ones not yet received, counted to today." },
+    { key: "days_waiting", label: "Days waiting", type: "int", total: "avg", note: "For the ones not yet received, counted to today. Blank where the return's own date is a typing slip — one return dated 2000-01-01 would otherwise sit in this average at 9,747 days." },
     { key: "age", label: "Age", type: "text", width: 13 },
     { key: "date_looks_wrong", label: "Date looks wrong", type: "boolean", note: `Dated before ${EARLIEST_SANE}, so almost certainly a typing slip.` },
     { key: "has_attachment", label: "Photo kept", type: "boolean" },

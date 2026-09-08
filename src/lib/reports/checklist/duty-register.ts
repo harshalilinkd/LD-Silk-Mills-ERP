@@ -163,7 +163,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       `Where a duty was late, the middle one was ${lateness.median?.toFixed(0) ?? 0} days late and the worst was ${lateness.max.toFixed(0)}.`,
     );
   }
-  if (raw.length < 20) {
+  if (raw.length > 0 && raw.length < 20) {
     insights.push(
       `Only ${plural(raw.length, "duty", "duties")} on record. The Checklist starts empty and is filled in this order — Doers, then Holidays, then Tasks — and each of those screens takes a paste from Excel. Everything above is true and thin until then.`,
     );

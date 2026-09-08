@@ -2,8 +2,9 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { concentration, concentrationInsight, rank } from "../analysis";
-import { count, inr, inrShort, pct } from "../format";
+import { count, inr, inrShort, pct, plural } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
+import { MAX_EXPORT_ROWS } from "../types";
 import { CANCELLED_CAVEAT, distinctValues, money2, n, ORDER_FILTER_SQL, orderFilterArgs } from "./shared";
 
 /**
@@ -52,7 +53,7 @@ const SQL = (dim: "agent" | "sales_person") => `
       coalesce(sum(li.line_total) filter (where li.is_cancelled), 0)      as cancelled_value,
       min(o.order_date)                                                   as first_order,
       max(o.order_date)                                                   as last_order,
-      (current_date - max(o.order_date))                                  as days_since_last
+      ((now() at time zone 'Asia/Kolkata')::date - max(o.order_date))                                  as days_since_last
     from ld_order_entry.customer_orders o
     left join ld_order_entry.order_line_items li
            on li.order_id = o.id and not li.is_deleted
@@ -90,7 +91,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL(dim), orderFilterArgs(params))) as unknown as Raw[];
   const total = raw.reduce((s, r) => s + n(r.value), 0);
 
-  const rows: ReportRow[] = raw.map((r) => ({
+  // Capped like every other report, so a truncated file can say so in its
+  // name and on its Notes sheet.
+  const rows: ReportRow[] = raw.slice(0, MAX_EXPORT_ROWS).map((r) => ({
     who: r.who,
     customers: n(r.customers),
     orders: n(r.orders),
@@ -117,6 +120,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     .filter((r) => n(r.value) > 0 && n(r.top_customer_value) / n(r.value) > 0.6 && n(r.customers) > 1)
     .sort((a, b) => n(b.value) - n(a.value));
   const quiet = raw.filter((r) => n(r.days_since_last) > 45);
+  // Computed, not frozen into the sentence. The old caveat said "six orders"
+  // on every run, whatever the period - and September has none at all.
+  const unnamed = n(raw.find((r) => r.who === "Not recorded")?.orders ?? 0);
 
   const insights: string[] = [];
   const ci = concentrationInsight(conc, noun);
@@ -155,7 +161,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: `Average per ${Noun.toLowerCase()}`, value: raw.length ? inrShort(total / raw.length) : "—" },
         { label: "Top share", value: conc.topShare !== null ? pct(conc.topShare) : "—", tone: "warn", sub: conc.topLabel ?? undefined },
         { label: "Top 5 share", value: conc.top5Share !== null ? pct(conc.top5Share) : "—" },
-        { label: "Customers covered", value: count(raw.reduce((s, r) => s + n(r.customers), 0)), sub: "counted per person" },
+        {
+          label: "Customer relationships",
+          // NOT the number of customers. The column it adds up is declared
+          // total:"none" for exactly this reason, and the figure exceeds the
+          // number of customers in the file whenever anybody is shared.
+          value: count(raw.reduce((s, r) => s + n(r.customers), 0)),
+          sub: "a customer served by two names counts twice",
+        },
         { label: "Leaning on one name", value: count(reliant.length), tone: reliant.length ? "bad" : "good", lowerIsBetter: true, sub: "over 60% from one customer" },
         { label: "Gone quiet", value: count(quiet.length), tone: quiet.length ? "warn" : "good", lowerIsBetter: true, sub: "over 45 days" },
       ],
@@ -180,7 +193,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
         `This file is grouped by ${Noun.toUpperCase()}. Re-run it with the other grouping to see the same figures the other way.`,
         CANCELLED_CAVEAT,
         "An order carries one agent and one sales person, so the two groupings each add to the same total and neither double-counts.",
-        "“Not recorded” is a real row, not an error — six orders have no agent against them.",
+        ...(unnamed > 0
+          ? [
+              `“Not recorded” is a real row, not an error — ${plural(unnamed, "order")} in this period ${unnamed === 1 ? "has" : "have"} no ${noun.slice(0, -1)} against ${unnamed === 1 ? "it" : "them"}.`,
+            ]
+          : []),
       ],
     },
   };
@@ -201,7 +218,7 @@ export const agentPerformance: ReportDefinition = {
     { key: "qty_mtr", label: "Metres", type: "number" },
     { key: "value", label: "Value", type: "money" },
     { key: "share", label: "Share", type: "percent", note: "Of the total value in this file's period." },
-    { key: "avg_order", label: "Avg order", type: "money", total: "avg", note: "Value divided by orders. Averaged across the file at the foot." },
+    { key: "avg_order", label: "Avg order", type: "money", total: "avg", avgWeightBy: "orders", note: "Value divided by orders. The foot is the average order across the whole file, WEIGHTED by how many orders each name wrote — a plain mean of this column counts somebody with one order the same as somebody with ninety, and read 24% low." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres. The foot is weighted by metres." },
     { key: "top_customer", label: "Biggest customer", type: "text", width: 30 },
     { key: "top_customer_share", label: "From that one", type: "percent", total: "none", note: "How much of THIS person's value comes from their biggest customer. Not added up — each row is its own percentage." },

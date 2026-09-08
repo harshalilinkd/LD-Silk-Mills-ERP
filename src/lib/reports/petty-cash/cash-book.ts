@@ -163,7 +163,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       `${count(noProof)} of ${count(raw.length)} entries have no proof recorded against them.`,
     );
   }
-  if (raw.length < 20) {
+  if (raw.length > 0 && raw.length < 20) {
     insights.push(
       `Only ${plural(raw.length, "entry", "entries")} on record. The figures above are true but thin — this report becomes useful once the box is being used day to day.`,
     );

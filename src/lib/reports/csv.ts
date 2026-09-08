@@ -1,5 +1,5 @@
-import { csvValue } from "./format";
-import type { ReportColumn, ReportRow } from "./types";
+import { csvValue, isNumeric } from "./format";
+import type { ColumnType, ReportColumn, ReportRow } from "./types";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -32,9 +32,49 @@ import type { ReportColumn, ReportRow } from "./types";
 
 const BOM = "﻿";
 
-/** RFC 4180 quoting, plus the formula-injection guard. */
-function cell(value: string): string {
-  const needsGuard = /^[=+\-@\t\r]/.test(value);
+/** Executed by Excel the moment the file opens. */
+const EXECUTED = /^[=+@\t\r]/;
+
+/**
+ * Silently CHANGED by Excel on import, which is the quieter half of the
+ * problem: a design number `01` becomes the number 1 and merges with a
+ * different design, and a cloth quality literally named `TRUE` becomes a
+ * boolean. Both are real in this data.
+ */
+const COERCED = /^0\d|^(?:TRUE|FALSE)$|^[-+]?\d+(?:\.\d+)?[eE]/i;
+
+/** A value that is nothing but a number, and so cannot be a formula. */
+const NUMBER_ONLY = /^-?\d+(?:\.\d+)?$/;
+
+/**
+ * RFC 4180 quoting, plus the formula-injection guard.
+ *
+ * ── A NEGATIVE NUMBER IS NOT AN ATTACK ───────────────────────────────────
+ *
+ * The guard fires on a leading `-`, and `-5.8` starts with one. Prefixing it
+ * with an apostrophe turned 2,439 cells across the seven "days late" columns
+ * of the production status file into TEXT — so the one format that exists for
+ * machines handed Excel a column it would not add up, sort or average, and
+ * nothing on screen said so.
+ *
+ * A value that is only digits, with an optional sign and decimal point, cannot
+ * be a formula and is never guarded. Everything else still is: `-1+cmd|…` is
+ * not a number and is caught, and so are `=`, `+`, `@`, tab and carriage
+ * return at the start of any text.
+ */
+function cell(value: string, type?: ColumnType): string {
+  // A NUMERIC column's value is a bare number we produced. It is never a
+  // formula, and guarding it turned 2,439 negative "days late" cells into text
+  // that Excel would not add up.
+  const guardable = type === undefined || !isNumeric(type);
+  const needsGuard =
+    guardable &&
+    (EXECUTED.test(value) ||
+      COERCED.test(value) ||
+      // A leading minus is only dangerous on something that is not a number.
+      // A lone "-" is neither, and guarding it stopped the file round-tripping.
+      (value.startsWith("-") && value.length > 1 && !NUMBER_ONLY.test(value)));
+
   const v = needsGuard ? `'${value}` : value;
   if (/[",\r\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
   return v;
@@ -42,9 +82,9 @@ function cell(value: string): string {
 
 export function toCsv(columns: ReportColumn[], rows: ReportRow[]): string {
   const lines: string[] = [];
-  lines.push(columns.map((c) => cell(c.label)).join(","));
+  lines.push(columns.map((c) => cell(c.label, "text")).join(","));
   for (const row of rows) {
-    lines.push(columns.map((c) => cell(csvValue(row[c.key], c.type))).join(","));
+    lines.push(columns.map((c) => cell(csvValue(row[c.key], c.type), c.type)).join(","));
   }
   return BOM + lines.join("\r\n") + "\r\n";
 }

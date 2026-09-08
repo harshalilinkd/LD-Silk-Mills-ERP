@@ -225,7 +225,10 @@ export function buildDashboard(
     views: [{ showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  for (let c = 1; c <= GRID + 1; c++) ws.getColumn(c).width = 12.6;
+  // GRID + 2, because the heat grid's Total column lands one past the band
+  // when the grid is at full width and otherwise keeps Excel's default,
+  // printing a seven-figure total as ####.
+  for (let c = 1; c <= GRID + 2; c++) ws.getColumn(c).width = 12.6;
   ws.getColumn(1).width = 2;
 
   const data = wb.addWorksheet(CHART_SHEET, { state: "hidden" });
@@ -272,7 +275,7 @@ export function buildDashboard(
   //
   // Built as a flat list first, then laid out, so the pairing does not have to
   // know what each one is.
-  type Pending = Omit<ChartSpec, "anchor">;
+  type Pending = Omit<ChartSpec, "anchor"> & { note?: string };
   const pending: Pending[] = [];
 
   if (a.trend && a.trend.points.length > 1) {
@@ -295,9 +298,20 @@ export function buildDashboard(
     const block = writeBlock(data, dataCol, a.trend.title, pts.map((p) => p.label), series);
     dataCol += series.length + 2;
 
+    // ── SAY SO WHEN MONTHS WERE DROPPED ─────────────────────────────────
+    //
+    // The chart takes the last fourteen points. Goods Return spans 24 months,
+    // so "What came back each month" summed to Rs 2.29 cr on a sheet whose
+    // Total said Rs 3.14 cr, with nothing anywhere saying why. The heat grid
+    // already admits its own truncation; this one has to as well, and the
+    // title is the only place a chart can say it.
+    const dropped = a.trend.points.length - pts.length;
     pending.push({
       kind: "column",
-      title: a.trend.title + main.suffix,
+      title:
+        a.trend.title +
+        (dropped > 0 ? ` — last ${pts.length} of ${a.trend.points.length} months` : "") +
+        main.suffix,
       catRef: block.catRef,
       categories: pts.map((p) => p.label),
       numFmt: main.fmt,
@@ -336,8 +350,30 @@ export function buildDashboard(
   }
 
   a.panels.slice(0, 5).forEach((panel, i) => {
-    if (!panel.rows.length) return;
-    const rows = panel.rows.slice(0, 12);
+    // A panel with nothing in it, or one whose every bar is zero — an ageing
+    // panel emits its five buckets whatever happens and a funnel its seven
+    // stages, so an empty period drew a chart of five zero bars. Not wrong,
+    // but noise dressed as information.
+    if (!panel.rows.length || !panel.rows.some((r) => r.value !== 0)) return;
+    let rows = panel.rows.slice(0, 12);
+
+    // ── A DOUGHNUT MUST BE THE WHOLE, OR ITS PERCENTAGES LIE ────────────
+    //
+    // Excel rebases pie labels over the points it is given, so the top five
+    // names were labelled as shares of each other: PR EXPO read 68.0% beside
+    // a KPI card saying 25.8%. Each row already knows its share of the whole,
+    // so the missing remainder is recoverable and gets its own slice.
+    if (panel.kind === "share") {
+      const shown = rows.reduce((s, r) => s + r.value, 0);
+      const sharePct = rows.reduce((s, r) => s + (r.share ?? 0), 0);
+      if (sharePct > 0 && sharePct < 99.5) {
+        const whole = shown / (sharePct / 100);
+        const rest = whole - shown;
+        if (rest > 0) {
+          rows = [...rows, { label: "Everyone else", value: rest, display: "", share: 100 - sharePct }];
+        }
+      }
+    }
     const labels = rows.map((x) => x.label);
     const money = isMoneyPanel(panel);
     const sc = scale(rows.map((x) => x.value), money);
@@ -352,6 +388,7 @@ export function buildDashboard(
 
     const showsUnits = kind !== "pie" && kind !== "doughnut";
     pending.push({
+      note: panel.note,
       kind,
       title: panel.title + (showsUnits ? sc.suffix : ""),
       catRef: block.catRef,
@@ -374,6 +411,9 @@ export function buildDashboard(
   });
 
   for (let i = 0; i < pending.length; i += 2) {
+    // The last two rows of each block belong to the panel's NOTE, not to the
+    // chart. Nine of the ten reports set one and it was going nowhere.
+    const plotRows = CHART_ROWS - 2;
     for (let rr = r; rr < r + CHART_ROWS; rr++) ws.getRow(rr).height = 15;
     pending.slice(i, i + 2).forEach((p, k) => {
       const c1 = 2 + k * CHART_COLS;
@@ -384,9 +424,18 @@ export function buildDashboard(
           fromCol: c1 - 1,
           fromRow: r - 1,
           toCol: c1 - 1 + CHART_COLS,
-          toRow: r - 1 + CHART_ROWS,
+          toRow: r - 1 + plotRows,
         },
       });
+
+      if (p.note) {
+        const noteRow = r + plotRows;
+        ws.mergeCells(noteRow, c1, noteRow + 1, c1 + CHART_COLS - 1);
+        const cell = ws.getCell(noteRow, c1);
+        cell.value = p.note;
+        cell.font = { name: BODY, size: 8.5, italic: true, color: { argb: C.ink3 } };
+        cell.alignment = { wrapText: true, vertical: "top" };
+      }
     });
     r += CHART_ROWS + 1;
   }
@@ -607,7 +656,7 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
     (m.note ? m.note + "  " : "") +
     (m.format === "money" ? "Figures in thousands of rupees. " : "") +
     (offset > 0
-      ? `Showing the last ${cols.length} months; Total is of all ${m.columns.length}. `
+      ? `Showing the last ${cols.length} of ${m.columns.length} months; the Total is of those ${m.columns.length}. `
       : "") +
     "Darker means more. A dash means nothing that month.";
   note.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };

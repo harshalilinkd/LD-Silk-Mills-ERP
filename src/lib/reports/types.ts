@@ -242,6 +242,13 @@ export type ReportResult = {
   analysis: ReportAnalysis;
   /** Rows before any display cap, so the workbook can say what it left out. */
   totalRows: number;
+  /**
+   * Set when the report ran but there is nothing to hand over and the reason
+   * needs saying — "your account has no Help Slip profile". The export route
+   * answers with this sentence rather than a file, because a CSV is one header
+   * row and no room to explain itself.
+   */
+  notice?: string;
 };
 
 export type ReportDefinition = {

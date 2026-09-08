@@ -70,10 +70,27 @@ function add(m: Map<string, number>, k: string, v: number) {
   m.set(k, (m.get(k) ?? 0) + v);
 }
 
+/**
+ * The charts on these pages group the report's ROWS, which are capped at
+ * MAX_EXPORT_ROWS; the KPI tiles beside them come from the analysis, which is
+ * computed over everything. Below the cap the two are identical. Above it they
+ * describe different populations, and the page has to say so rather than let
+ * somebody reconcile a chart against a tile and find a gap.
+ */
+function cappedNote(shown: number, total: number, noun: string): string | null {
+  if (shown >= total) return null;
+  return (
+    `The charts below cover the first ${shown.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")} ${noun}; ` +
+    `the figure tiles cover all of them. Narrow the period to bring the two together.`
+  );
+}
+
 // ─── Sales ─────────────────────────────────────────────────────────────────
 
 export type SalesDashboard = {
   analysis: ReportAnalysis;
+  /** Set when the charts cover fewer rows than the KPI tiles beside them. */
+  capped: string | null;
   orders: number;
   months: MonthPoint[];
   byStage: Slice[];
@@ -110,7 +127,11 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
     // Orders, not value — this is the "where is everything" donut, and one
     // ₹40 L order would otherwise make a stage look busy on its own.
     add(byStage, s(r.stage) || "Not started", 1);
-    add(byAgent, s(r.agent).trim() || "No agent", n(r.value));
+    // "Not recorded", the same word agent performance uses. The same six
+    // orders were bucketed under two different names in two files that go out
+    // together, so anyone reconciling the agent pie against the agent report
+    // found a row that existed on one and not the other.
+    add(byAgent, s(r.agent).trim() || "Not recorded", n(r.value));
     add(bySales, s(r.sales_person).trim() || "Not recorded", n(r.value));
     add(byTransport, s(r.transport).trim() || "Not recorded", n(r.value));
     const party = s(r.party_name).trim() || "Not recorded";
@@ -143,6 +164,7 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
 
   return {
     analysis: reg.analysis,
+    capped: cappedNote(reg.rows.length, reg.totalRows, "orders"),
     orders: reg.rows.length,
     months: [...months.values()].sort((a, b) => a.month.localeCompare(b.month)),
     byStage: rank(byStage),
@@ -192,6 +214,8 @@ export type PendingRow = {
 
 export type ProductionDashboard = {
   analysis: ReportAnalysis;
+  /** Set when the charts cover fewer rows than the KPI tiles beside them. */
+  capped: string | null;
   total: number;
   open: number;
   stages: StageRow[];
@@ -221,7 +245,12 @@ export async function productionDashboard(params: ReportParams): Promise<Product
       lost: 0,
     };
   });
-  for (let i = 1; i < stages.length; i++) stages[i].lost = stages[i - 1].done - stages[i].done;
+  // Never below zero. A later stage can carry MORE ticks than the one above it
+  // because stages get skipped — 33 lines have Dispatch ticked with an earlier
+  // stage never ticked — and a negative here rendered on the funnel as "−-22".
+  for (let i = 1; i < stages.length; i++) {
+    stages[i].lost = Math.max(0, stages[i - 1].done - stages[i].done);
+  }
 
   const openRows = rows.filter((r) => r.open === true);
   const waiting = new Map<string, number>();
@@ -259,6 +288,7 @@ export async function productionDashboard(params: ReportParams): Promise<Product
 
   return {
     analysis: prod.analysis,
+    capped: cappedNote(rows.length, prod.totalRows, "lines"),
     total,
     open: openRows.length,
     stages,
@@ -268,7 +298,10 @@ export async function productionDashboard(params: ReportParams): Promise<Product
     // Oldest last, so the bar chart reads left-to-right as time passing rather
     // than as a ranking.
     ageing: AGE_ORDER.filter((k) => ageing.has(k)).map((label) => ({ label, value: ageing.get(label) ?? 0 })),
-    byParty: rank(byParty, 10).filter((x) => x.label !== "Others"),
+    // "Others" is KEPT. rank() appends it so a chart still reconciles to the
+    // total; dropping it left a panel whose bars summed to ₹2.57 cr sitting
+    // under a subtitle that read ₹5.30 cr.
+    byParty: rank(byParty, 10),
     pending,
     pendingTotal: openRows.length,
   };

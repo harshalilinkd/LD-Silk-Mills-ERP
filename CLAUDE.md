@@ -1154,6 +1154,72 @@ with no doughnut — opened perfectly while the other five did not. Also fixed:
 negative `xdr:colOff`/`rowOff` in the anchor, which is schema-legal and which
 Excel treats as damage; offsets must be >= 0.
 
+**THE FULL AUDIT (Sep 2026) — 43 confirmed defects, all fixed.** The owner
+asked for the whole module to be checked: build, CSV, Dashboard, Data, Notes,
+figures, route, screens. Eight reviewers went at it in parallel and every
+finding was then handed to an adversarial verifier who had to REPRODUCE it or
+throw it out. The ones worth remembering, because each is a rule now:
+
+- **A mean of means is not an average.** "Avg order" carried `total: "avg"`
+  with no `avgWeightBy`, so the footer averaged 71 agents' own averages and
+  read ₹1.94 L where total-value-over-total-orders is ₹2.57 L — **24% low**, on
+  two files that go to the MD, under a note promising "the average order across
+  the whole file". Any per-row average needs `avgWeightBy` naming its
+  denominator column.
+- **The heat grid divided money by a thousand twice.** `matrixFrom` stored
+  thousands and the cell format `#,##0,` scaled by another thousand, so a
+  ₹85,15,000 month printed as **9**. The screen had the mirror bug. Values are
+  RUPEES everywhere now; only the number format scales.
+- **A doughnut rebases its percentage labels over the points it is given.** The
+  "share" panels are the top five, so Excel labelled PR EXPO **68.0%** on a
+  sheet whose KPI card beside it said 25.8%. Share panels now carry an
+  "Everyone else" slice.
+- **The month grid ranked and totalled over ALL time while drawing twelve
+  months**, so the biggest party sat at the top with every cell blank and
+  ₹13.4 L beside it. It ranks and totals over the months shown.
+- **The formula-injection guard fired on negative numbers**, turning 2,439
+  "days late" cells into text Excel would not add up — and it did NOT protect
+  the things that actually needed it: a design number `01` became 1 and merged
+  with a different design, and a cloth literally named `TRUE` became a boolean.
+  The guard is **type-aware** now: numeric columns are never guarded, text
+  columns are guarded when Excel would execute OR silently coerce them.
+- **`datetime` columns were text** carrying a date format, so Excel could not
+  sort or group by them. They are real date cells, shifted to IST.
+- **The autofilter covered the header row and nothing else** (`ref="A1:AM1"`).
+- **`Panel.note` was never written to the workbook** — "only customers who took
+  over 100 metres" existed on screen and nowhere in the file.
+- **"Everything on record" was printed over date-filtered files**, because the
+  label required BOTH bounds while the route and the SQL accept either. It also
+  never said WHICH date it filtered on, and that differs per report.
+- **Frozen numbers in caveat strings.** "26 of the returns carry no value" was
+  a constant printed whatever the period. Any number in a sentence must be
+  computed from the run.
+- **One typing slip moved an average 62%** — the return dated 2000-01-01, which
+  the same report flags as a slip, had been "waiting" 9,747 days. A row a report
+  calls wrong must not sit inside a figure it calls right.
+- **`current_date` is UTC; the rest of the ERP counts days in Asia/Kolkata.**
+  Between 18:30 and midnight IST they are different days. Every "counted to
+  today" column now uses `(now() at time zone 'Asia/Kolkata')::date`.
+- **A failed export replaced the Reports screen with raw JSON**, because the
+  download is a top-level navigation. It answers with a readable page, and
+  "not signed in" is 401 rather than 403.
+- **A part month against a whole month is not a fall.** On the 8th the
+  dashboard printed "fell 66.0%" as fact two lines above its own run-rate
+  sentence saying the opposite; the trend sentence now says the month is not
+  finished.
+
+**The regression suite that has to stay green** (`.scratch/` while it lasts):
+`verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
+independently-written SQL, byte-identical double runs; `filters-honest.ts` —
+every filter narrowed by an impossible value must return 0 rows, which is the
+only test that catches a dropdown the query ignores; `edge-zero.ts` — every
+report over a period with no data, which is where four reports used to print
+"the top five qualities are most of it"; `excel-check.ps1` — real Excel opens
+every workbook with exactly the chart count the zip holds; and a structural
+pass that re-reads every produced file and checks headers against the
+definitions, every Notes sheet against every column, and every chart's cached
+values against the cells they point at.
+
 **Three arithmetic traps this module already fell into**, all recorded in the
 code that avoids them:
 - **The join that inflates every count.** `customer_orders` joined to its lines

@@ -125,7 +125,7 @@ const REGISTER_SQL = `
     coalesce(pr.live_lines, 0)         as live_lines,
     coalesce(pr.finished_lines, 0)     as finished_lines,
     pr.last_tick,
-    (current_date - o.order_date)      as days_open,
+    ((now() at time zone 'Asia/Kolkata')::date - o.order_date)      as days_open,
     (o.crr_customer_id is not null)    as in_crr,
     o.remarks,
     o.created_by,
@@ -276,7 +276,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
     const party = r.party_name?.trim() || "Not recorded";
     byParty.set(party, (byParty.get(party) ?? 0) + v);
     partyOrders.set(party, (partyOrders.get(party) ?? 0) + 1);
-    byAgent.set(r.agent?.trim() || "No agent", (byAgent.get(r.agent?.trim() || "No agent") ?? 0) + v);
+    // "Not recorded", matching agent performance. The same six orders were
+    // bucketed as "No agent" here and "Not recorded" there, in two files
+    // that go out together.
+    byAgent.set(r.agent?.trim() || "Not recorded", (byAgent.get(r.agent?.trim() || "Not recorded") ?? 0) + v);
     bySales.set(r.sales_person?.trim() || "Not recorded", (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v);
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
@@ -379,8 +382,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows,
     analysis: {
-      headline:
-        conc.topShare !== null && conc.topLabel
+      headline: !raw.length
+        ? "No orders in this period."
+        : conc.topShare !== null && conc.topLabel
           ? `${inrShort(totalValue)} of orders from ${count(byParty.size)} customers — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.`
           : `${inrShort(totalValue)} of orders across ${count(raw.length)} orders.`,
       kpis: [
@@ -420,7 +424,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
         },
         {
           label: "Agents",
-          value: count(byAgent.size),
+          // The blank-agent bucket is a placeholder, not a name. Counting it
+          // overstated the agent count by one on every run that had an order
+          // with no agent on it.
+          value: count([...byAgent.keys()].filter((k) => k !== "Not recorded").length),
           tone: "neutral",
         },
         {
@@ -430,10 +437,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
           sub: raw.length ? `${pct((complete.length / raw.length) * 100, 0)} complete` : undefined,
         },
         {
-          label: "Money still owed to us",
+          label: "Still to deliver",
           value: inrShort(openValue),
           tone: "warn",
-          sub: totalValue > 0 ? `${pct((openValue / totalValue) * 100, 0)} of the book` : undefined,
+          sub: totalValue > 0 ? `${pct((openValue / totalValue) * 100, 0)} of the order book` : undefined,
         },
         {
           label: "Open over a month",
@@ -442,7 +449,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
           lowerIsBetter: true,
         },
         {
-          label: "Lines listed twice",
+          label: "Extra repeated lines",
           value: count(repeatedLines),
           tone: repeatedLines > 0 ? "warn" : "good",
           lowerIsBetter: true,
@@ -556,7 +563,7 @@ export const orderRegister: ReportDefinition = {
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
-    { key: "repeated_lines", label: "Listed twice", type: "int", note: "How many lines repeat a cloth and design already on this order. Allowed on purpose — the same cloth and design can go at two rates or for two lots — so this is a prompt to glance, not a fault. The order's totals are correct either way." },
+    { key: "repeated_lines", label: "Extra lines", type: "int", note: "How many EXTRA lines repeat a cloth and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same cloth and design can go at two rates or for two lots, and the order's totals are right either way." },
     { key: "qty_mtr", label: "Metres", type: "number", note: "Cancelled lines excluded." },
     { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },

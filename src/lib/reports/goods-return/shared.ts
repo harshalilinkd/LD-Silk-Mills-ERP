@@ -41,8 +41,17 @@ import { sql as pg } from "@/db";
 
 export { money2, n } from "../num";
 
-export const NO_VALUE_CAVEAT =
-  "26 of the returns on record carry no value — the cloth came back but nothing was entered against it. They are counted as returns and left out of every money figure, so a value total is never dragged down by a blank.";
+/**
+ * The count is passed in, never frozen into the sentence.
+ *
+ * It used to read "26 of the returns on record carry no value", printed on the
+ * Notes sheet of all three reports whatever period or filter was applied — a
+ * number that was right on one run in September and wrong on every run after
+ * it, sitting two lines above genuinely recomputed caveats.
+ */
+export const noValueCaveat = (withoutValue: number, of: number) =>
+  `${withoutValue.toLocaleString("en-IN")} of the ${of.toLocaleString("en-IN")} returns in this file carry no value — the cloth came back but nothing was entered against it. ` +
+  `They are counted as returns and left out of every money figure, so a value total is never dragged down by a blank.`;
 
 export const BACKDATED_CAVEAT =
   "Some returns were entered after the fact while the old system was being caught up, so their received date falls before the return's own date. “Days to receive” is left blank for those rather than printed as a negative, and the dashboard says how many.";

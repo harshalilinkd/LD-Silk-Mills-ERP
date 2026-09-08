@@ -70,7 +70,12 @@ export default async function ProductionDashboardPage({
   const period = `${formatDate(q.from)} to ${formatDate(q.to)}`;
   const finished = d.total - d.open;
   const started = d.stages[0]?.done ?? 0;
-  const onTime = a.kpis.find((k) => k.label === "Ticked on time")?.value ?? "—";
+  // The KPI prints an em dash when no stage has been ticked in the period.
+  // Reverse-parsing that string gave NaN, and `|| 0` turned it into a
+  // confident red 0% beside a KPI card that was honestly showing "—".
+  const onTimeText = a.kpis.find((k) => k.label === "Ticked on time")?.value ?? "—";
+  const onTimeParsed = Number(String(onTimeText).replace("%", ""));
+  const onTime = Number.isFinite(onTimeParsed) ? onTimeParsed : null;
   const openValue = a.kpis.find((k) => k.label === "Open value")?.value ?? "—";
 
   return (
@@ -100,6 +105,11 @@ export default async function ProductionDashboardPage({
         agents={agents}
       />
 
+      {d.capped && (
+        <p className="rounded-card border border-status-amber/40 bg-status-amber-dim px-4 py-3 text-[12.5px] leading-snug text-text-2">
+          {d.capped}
+        </p>
+      )}
       {d.total === 0 ? (
         <EmptyState
           title="Nothing in this period"
@@ -134,14 +144,18 @@ export default async function ProductionDashboardPage({
                 <Gauge
                   value={d.total ? (finished / d.total) * 100 : 0}
                   label="Finished"
-                  sub={`${count(finished)} lines dispatched and out of the mill`}
+                  sub={`${count(finished)} lines through the last stage and out of the mill`}
                   tone={finished >= d.total / 2 ? "good" : "warn"}
                 />
                 <Gauge
-                  value={Number(String(onTime).replace("%", "")) || 0}
+                  value={onTime ?? 0}
                   label="Ticked on time"
-                  sub="Stages ticked on or before their planned date — read the note at the foot"
-                  tone="bad"
+                  sub={
+                    onTime === null
+                      ? "Nothing has been ticked in this period, so there is nothing to measure"
+                      : "Stages ticked on or before their planned date — read the note at the foot"
+                  }
+                  tone={onTime === null ? "accent" : "bad"}
                 />
               </div>
             </Card>
@@ -167,7 +181,7 @@ export default async function ProductionDashboardPage({
             <Card
               title="Whose money is still in the mill"
               sub={openValue}
-              note="The value of the lines that have not been dispatched, by party."
+              note="The value of the lines that have not reached the last stage, by party. The final bar gathers everybody outside the top ten, so the bars add up to the figure above."
             >
               <RankedBars data={d.byParty} />
             </Card>

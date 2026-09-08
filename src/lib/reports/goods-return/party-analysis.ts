@@ -13,7 +13,7 @@ import {
   filterArgs,
   money2,
   n,
-  NO_VALUE_CAVEAT,
+  noValueCaveat,
   RETURN_FILTER_SQL,
 } from "./shared";
 
@@ -56,7 +56,7 @@ const SQL = `
         + coalesce(sum(r.bhiwandi_charges), 0)  as cost,
       min(r.dated)                            as first_return,
       max(r.dated)                            as last_return,
-      (current_date - max(r.dated))           as days_since_last,
+      ((now() at time zone 'Asia/Kolkata')::date - max(r.dated))           as days_since_last,
       max(b.name)                             as a_broker,
       count(distinct b.name)                  as brokers,
       count(distinct r.return_reason)         as reasons,
@@ -123,7 +123,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
     pieces: n(r.pieces),
     value: money2(r.value),
     share: total > 0 ? (n(r.value) / total) * 100 : null,
-    avg_return: n(r.returns) > 0 ? money2(n(r.value) / n(r.returns)) : null,
+    // Divided by the returns that HAVE a value, not by all of them. The
+    // value-less ones are excluded from the numerator by the caveat on this
+    // very sheet, so counting them in the denominator halved the average for
+    // any party that had one.
+    avg_return:
+      n(r.returns) - n(r.no_value) > 0
+        ? money2(n(r.value) / (n(r.returns) - n(r.no_value)))
+        : null,
     no_value: n(r.no_value),
     cost: money2(r.cost),
     cost_share: n(r.value) > 0 ? (n(r.cost) / n(r.value)) * 100 : null,
@@ -137,6 +144,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
     days_since_last: n(r.days_since_last),
   }));
 
+  const totalReturns = raw.reduce((s, r) => s + n(r.returns), 0);
+  const noValueTotal = raw.reduce((s, r) => s + n(r.no_value), 0);
   const conc = concentration(raw.map((r) => ({ label: r.party ?? "Not recorded", value: n(r.value) })));
   const repeat = raw.filter((r) => n(r.returns) > 1);
   const totalCost = raw.reduce((s, r) => s + n(r.cost), 0);
@@ -211,8 +220,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
       ],
       insights,
       caveats: [
-        NO_VALUE_CAVEAT,
-        "This report does NOT show what each party bought, on purpose. The comparison was built and removed: the two systems keep separate party lists with no shared id, so the only join is on the name and it matched 22 of 212 parties — and their histories barely overlap, since returns go back to June 2024 while Orders holds from May 2026. The figure it produced was confidently wrong. It comes back the day the two systems share a customer id.",
+        noValueCaveat(noValueTotal, totalReturns),
+        "This report does NOT show what each party bought, on purpose. The comparison was built and removed: the two systems keep separate party lists with no shared id, so the only join is on the NAME, and it matched fewer than one party in nine. Their histories barely overlap either — Goods Return holds years that the Orders database does not. The figure it produced was confidently wrong, so it is not offered at all. It comes back the day the two systems share a customer id.",
         "Everything here is of the PERIOD this file covers. Run it for one month and “share” means share of that month.",
         BACKDATED_CAVEAT,
       ],
@@ -238,7 +247,7 @@ export const partyAnalysis: ReportDefinition = {
     { key: "pieces", label: "Pieces", type: "int" },
     { key: "value", label: "Value returned", type: "money" },
     { key: "share", label: "Share of returns", type: "percent", note: "Of everything returned in this file's period." },
-    { key: "avg_return", label: "Avg return", type: "money", total: "avg", note: "Value divided by returns. The foot recomputes it across the file rather than adding the rows." },
+    { key: "avg_return", label: "Avg return", type: "money", total: "avg", avgWeightBy: "returns", note: "Value divided by the returns that carry a value — the value-less ones are excluded from both sides, the same as everywhere else on this sheet. The foot is the file-wide average, weighted by how many returns each party sent." },
     { key: "no_value", label: "With no value", type: "int", note: "Returns from this party where no figure was entered." },
     { key: "cost", label: "Cost of moving it", type: "money" },
     { key: "cost_share", label: "Cost as % of value", type: "percent", total: "avg", avgWeightBy: "value", note: "What moving the cloth cost, against what the cloth was worth. The foot is weighted by value, not a plain average of the rows." },

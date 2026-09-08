@@ -69,8 +69,6 @@ function buildData(
     fill(cell, C.indigo);
     cell.alignment = { vertical: "middle", horizontal: "left" };
   });
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
-
   for (const row of rows) {
     const out: Record<string, unknown> = {};
     for (const c of columns) {
@@ -81,7 +79,10 @@ function buildData(
         // A real date cell, not text — so Excel can group and sort by month.
         out[c.key] = new Date(`${String(v).slice(0, 10)}T00:00:00Z`);
       } else if (c.type === "datetime") {
-        out[c.key] = isoToKolkata(String(v));
+        const t = Date.parse(String(v));
+        out[c.key] = Number.isFinite(t)
+          ? new Date(t + 5.5 * 3_600_000) // IST, so the cell reads like the app
+          : isoToKolkata(String(v));
       } else if (c.type === "boolean") {
         out[c.key] = v ? "Yes" : "No";
       } else if (isNumeric(c.type)) {
@@ -92,6 +93,14 @@ function buildData(
     }
     ws.addRow(out);
   }
+
+  // Over the header AND every data row. Set here rather than before the rows
+  // are added, because `to: { row: 1 }` produced ref="A1:AM1" — buttons that
+  // filtered nothing. It deliberately stops above the Total row.
+  ws.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: Math.max(1, rows.length + 1), column: columns.length },
+  };
 
   // Banding, so the eye keeps its place across thirty columns.
   for (let i = 2; i <= rows.length + 1; i += 2) {
@@ -154,7 +163,10 @@ function buildData(
               `${w}2:${w}${last})/SUBTOTAL(109,${w}2:${w}${last}),"")`,
           }
         : { formula: `IFERROR(SUBTOTAL(101,${col}2:${col}${last}),"")` };
-      cell.numFmt = excelFormat(c.type) ?? "#,##0.00";
+      // An `int` column formats as `#,##0`, which rounds the average away —
+      // 3.89 stages printed as "4", which is the one digit that made it an
+      // average rather than a count.
+      cell.numFmt = c.type === "int" ? "#,##0.0" : (excelFormat(c.type) ?? "#,##0.00");
     });
 
     // Said out loud, because a blank cell under a column of numbers otherwise
@@ -162,8 +174,8 @@ function buildData(
     const noteRow = ws.addRow({});
     const note = noteRow.getCell(1);
     note.value =
-      "Blank cells above are columns that cannot be added up — percentages, averages already worked out, ages, and counts of distinct things. " +
-      "Totals follow the filter buttons.";
+      "This row follows the filter buttons. A cell holding an AVERAGE rather than a total is marked in the column notes on the Notes sheet. " +
+      "A BLANK cell is a column that cannot honestly be added up or averaged — a count of distinct things, or a share that is already a share.";
     note.font = { name: BODY, size: 8.5, italic: true, color: { argb: C.ink3 } };
     ws.mergeCells(noteRow.number, 1, noteRow.number, Math.min(columns.length, 12));
   }
@@ -177,6 +189,7 @@ function buildNotes(
   params: ReportParams,
   analysis: ReportAnalysis,
   meta: { runBy: string; runAt: Date; rowsShown: number; totalRows: number },
+  filterLabels: Record<string, string> = {},
 ) {
   const ws = wb.addWorksheet("Notes", { views: [{ showGridLines: false }] });
   ws.getColumn(1).width = 2.2;
@@ -212,14 +225,14 @@ function buildNotes(
   heading("How this was run");
   line("Run by", meta.runBy);
   line("Run at", isoToKolkata(meta.runAt.toISOString()) + " (Asia/Kolkata)");
-  line(
-    "Period",
-    params.from && params.to ? `${params.from} to ${params.to}` : "Everything on record",
-  );
+  line("Period", periodLabel(report, params));
   for (const f of report.filters) {
     if (f.kind === "dateRange") continue;
     const v = params[f.key];
-    if (v) line(f.label, v);
+    // The LABEL the person picked, not the code behind it. The cash book was
+    // recording "DEBIT" for a filter the picker calls "Money out" and the Data
+    // sheet also calls "Money out".
+    if (v) line(f.label, filterLabels[f.key] ?? v);
   }
   line(
     "Rows",
@@ -237,15 +250,51 @@ function buildNotes(
 
   heading("What each column means");
   for (const c of report.columns) {
-    line(c.label, c.note ?? TYPE_NOTE[c.type] ?? "");
+    line(c.label, columnNote(c));
   }
+}
+
+/**
+ * What the period line should say.
+ *
+ * One-sided ranges are real — the route accepts `from` without `to` and every
+ * report applies each bound separately — so "Everything on record" was printed
+ * over files that were filtered. It also names the DATE the filter is on,
+ * which is the order date on one report and the call-due date on another.
+ */
+function periodLabel(report: ReportDefinition, params: ReportParams): string {
+  const what = report.filters.find((f) => f.kind === "dateRange")?.label ?? "Date";
+  const on = what.toLowerCase();
+  if (params.from && params.to) return `${on} from ${params.from} to ${params.to}`;
+  if (params.from) return `${on} from ${params.from} onwards`;
+  if (params.to) return `${on} up to ${params.to}`;
+  return "Everything on record";
+}
+
+/**
+ * The column's own note, or a description of its type — and never one that
+ * promises a total the footer does not produce.
+ */
+function columnNote(c: ReportColumn): string {
+  const how = c.total ?? (isNumeric(c.type) ? "sum" : "none");
+  const foot =
+    how === "sum"
+      ? " Added up at the foot."
+      : how === "avg"
+        ? c.avgWeightBy
+          ? " The foot is a WEIGHTED average, not a total."
+          : " The foot is an AVERAGE, not a total."
+        : isNumeric(c.type)
+          ? " Deliberately NOT totalled — adding this column up would not mean anything."
+          : "";
+  return (c.note ?? TYPE_NOTE[c.type] ?? "") + foot;
 }
 
 const TYPE_NOTE: Record<ReportColumn["type"], string> = {
   text: "Text.",
   int: "A whole count.",
   number: "A measured quantity.",
-  money: "Rupees. Adds up down the column.",
+  money: "Rupees.",
   date: "A calendar day.",
   datetime: "A moment, in Asia/Kolkata time.",
   percent: "A percentage — 38.3 means 38.3%.",
@@ -274,14 +323,39 @@ export async function toWorkbook(
     (rows.length < meta.totalRows ? ` of ${meta.totalRows.toLocaleString("en-IN")} (truncated)` : "") +
     `  ·  run ${isoToKolkata(meta.runAt.toISOString())}`;
 
+  if (rows.length < meta.totalRows) {
+    analysis = {
+      ...analysis,
+      caveats: [
+        `Only the first ${rows.length.toLocaleString("en-IN")} of ${meta.totalRows.toLocaleString("en-IN")} rows are on the Data sheet — the file name says PARTIAL. Every figure on this Dashboard still covers all ${meta.totalRows.toLocaleString("en-IN")}, so the sheet and the dashboard describe different numbers of rows. Narrow the period and run it again for the rest.`,
+        ...analysis.caveats,
+      ],
+    };
+  }
+
   const charts = buildDashboard(wb, report.title, subtitle, analysis);
   buildData(wb, columns, rows);
+  // Resolve the chosen option back to its label. Only for filters that were
+  // actually applied, so an unfiltered run costs nothing.
+  const filterLabels: Record<string, string> = {};
+  for (const f of report.filters) {
+    const v = params[f.key];
+    if (!v || f.kind === "dateRange" || !f.options) continue;
+    try {
+      const found = (await f.options()).find((o) => o.value === v);
+      if (found && found.label !== v) filterLabels[f.key] = `${found.label} (${v})`;
+    } catch {
+      // A dropdown that cannot be resolved is not a reason to fail an export;
+      // the raw value is still recorded.
+    }
+  }
+
   buildNotes(wb, report, params, analysis, {
     runBy: meta.runBy,
     runAt: meta.runAt,
     rowsShown: rows.length,
     totalRows: meta.totalRows,
-  });
+  }, filterLabels);
 
   // The charts are written into the FINISHED zip. ExcelJS has no chart API, so
   // the four OOXML parts a native chart needs are added afterwards - see

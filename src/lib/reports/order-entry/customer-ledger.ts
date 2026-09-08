@@ -41,7 +41,7 @@ const SQL = `
     count(distinct o.agent)                                         as agents,
     min(o.order_date)                                               as first_order,
     max(o.order_date)                                               as last_order,
-    (current_date - max(o.order_date))                              as days_since_last,
+    ((now() at time zone 'Asia/Kolkata')::date - max(o.order_date))                              as days_since_last,
     max(o.agent)                                                    as an_agent,
     max(o.sales_person)                                             as a_sales_person,
     bool_or(o.crr_customer_id is not null)                          as in_crr
@@ -122,8 +122,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     rows,
     totalRows: raw.length,
     analysis: {
-      headline:
-        conc.topLabel && conc.top5Share !== null
+      headline: !raw.length
+        ? "No customers ordered in this period."
+        : conc.topLabel && conc.top5Share !== null
           ? `${count(raw.length)} customers, ${inrShort(total)} between them — but the top five are ${pct(conc.top5Share)} of it.`
           : `${count(raw.length)} customers, ${inrShort(total)} between them.`,
       kpis: [
@@ -182,7 +183,7 @@ export const customerLedger: ReportDefinition = {
     { key: "qty_mtr", label: "Metres", type: "number" },
     { key: "value", label: "Value", type: "money" },
     { key: "share", label: "Share", type: "percent", note: "Of the total value in this file's period." },
-    { key: "avg_order", label: "Avg order", type: "money", total: "avg", note: "Value divided by orders. The foot shows the average order across the whole file." },
+    { key: "avg_order", label: "Avg order", type: "money", total: "avg", avgWeightBy: "orders", note: "Value divided by orders. The foot is the average order across the whole file, WEIGHTED by how many orders each customer placed — a plain mean of this column counts a one-order customer the same as a ninety-order one, and read 24% low." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres. The foot is weighted by metres." },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "cancelled_value", label: "Cancelled value", type: "money" },
