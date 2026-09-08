@@ -1189,6 +1189,15 @@ different things on page two is not a pack:
 - **ONE BAR IS NOT A CHART.** A panel with a single category becomes a summary
   card. This is what the owner reported: the Checklist drew three charts each
   showing one bar of length 1. It now draws none and prints three cards.
+- **A PAGE WITH NO CHARTS IS STILL A FINISHED PAGE.** That rule left Petty
+  Cash, the Checklist and Help Slip — one row each, so every panel a single
+  category — as figures, three cards, and a wide empty band where every other
+  report has charts. The owner reported that too. The band now carries a line
+  saying what a chart needs before it can appear, and then the ROWS, in the
+  management table the pack is meant to end with: first ten rows, first twelve
+  non-optional columns, Data-sheet styling and formats, and a footnote saying
+  where the rest live. It draws ONLY when `specs.length === 0`, so the ten
+  reports that do have charts are untouched.
 - **Labels are readable on the fill they sit on.** A doughnut writes its label
   INSIDE the slice, so those labels are WHITE; bar labels sit outside on white
   paper and stay dark. That was the owner's other complaint.
@@ -1288,6 +1297,16 @@ throw it out. The ones worth remembering, because each is a rule now:
   dashboard printed "fell 66.0%" as fact two lines above its own run-rate
   sentence saying the opposite; the trend sentence now says the month is not
   finished.
+- **An argument with a default is not a wired argument.** `buildDashboard`
+  took `filters: string[] = []` from the day the strip was written and NOTHING
+  EVER PASSED IT — the labels were resolved after the dashboard was built and
+  handed only to Notes. So every workbook, including one narrowed to a single
+  customer, printed "No filters applied — this is the whole period" over
+  figures covering one party: the exact sentence the strip exists to prevent,
+  and it read as correct because it is a correct-looking sentence.
+  `.scratch/filters-strip.ts` now requires a filtered and an unfiltered run to
+  produce DIFFERENT pages. A default parameter hides a missing caller; when one
+  carries meaning, test the two cases apart.
 
 **The regression suite that has to stay green** (`.scratch/` while it lasts):
 `verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
