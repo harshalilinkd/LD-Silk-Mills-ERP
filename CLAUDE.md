@@ -861,7 +861,7 @@ chart is always the real last six months ending today (`getMonthlyTrend`,
 `src/lib/petty-cash/queries.ts` — ONE `GROUP BY to_char(transaction_date,
 'YYYY-MM-01')`, months with no activity filled in as zero so the X axis stays
 continuous), while the figure strip, the two breakdown charts and the calendar
-all describe whichever month the picker is set to. Navigating to March does
+all describe whichever month the RAIL is set to. Navigating to March does
 not also rewrite the trend chart into being about March.
 
 The two charts (`src/app/(app)/petty-cash/charts.tsx`) are Recharts, the same
@@ -871,11 +871,75 @@ no JS colour plumbing and no re-render. A negative axis tick carries U+2212
 (minus sign), not a hyphen — the same rule as every other figure in the
 module.
 
-**The calendar itself is a grid above `sm` and a LIST below it**, unchanged
-from before: a seven-column grid with rupee figures in it is a desktop layout;
-at 390px each cell is 45px and "+ ₹10,000" wraps onto three lines. The list
-shows only the days that had activity and opens the same filtered ledger when
-tapped.
+**A NEGATIVE `margin.left` ON A RECHARTS PLOT CLIPS ITS OWN AXIS LABELS.** The
+cash-flow chart carried `margin={{ left: -14 }}` to pull the plot in tight
+against a 44px `YAxis`, and the top tick of a ₹10,000 month printed
+**"0.0k"** — the leading digit cut off — above a baseline also reading "0".
+An axis that disagrees with itself is worse than a wider gutter, and nothing
+warns: the label is simply painted outside the clip. The margin is 0 and the
+axis is 52px, which is the width of the widest string `compact()` can produce
+(`−10.0Cr`), because the axis must not resize with the data.
+
+**RED IS FOR EXCEPTIONS ON THE SCREENS TOO, not only in the workbook.** The Top
+payees bars were `bg-status-red/70` — so the biggest payee, usually the
+canteen, was drawn in the colour this ERP uses for "late, critical, act on
+this", while the donut two cards above drew the same money in teal. One figure
+looked like two. They are `bg-primary/70` now. The rule is the one the reports
+follow: green completed, teal normal, amber pending, red critical, and a
+ranking is not a warning.
+
+**The calendar itself is a grid above `sm` and a LIST below it**: a
+seven-column grid with rupee figures in it is a desktop layout; at 390px each
+cell is 45px and "+ ₹10,000" wraps onto three lines. The list shows only the
+days that had activity and opens the same filtered ledger when tapped.
+
+**IT IS BUILT TO THE OLD SYSTEM'S SHAPE, IN THIS SYSTEM'S COLOURS** (Sep 2026,
+on the owner's instruction after showing the Apps Script screen it replaces).
+Year and twelve months down the left, the month and what you are looking at
+across the top, that period's total on the right of the same line, and the grid
+under it running **Sunday to Saturday**. What did NOT come across is the
+palette: credit is the green this ERP uses for money in everywhere, debit the
+red it uses for money out, and today keeps the primary ring rather than a
+filled disc.
+
+- **The rail replaced three controls with one list.** A month dropdown, a year
+  dropdown and a pair of step arrows became a rail you can see all of, so
+  August is one click from September instead of a select you have to open. The
+  year sits above it with its own arrows. **All twelve months are always
+  listed**, including empty ones and ones still to come — an empty February is
+  an answer, and a rail that changes length as entries arrive is one nobody can
+  build a habit on.
+- **On a phone the same rail lies on its side** as a scrolling strip of short
+  names, because a twelve-row column would push the calendar off the screen.
+  The chosen month is scrolled INTO VIEW on mount — the strip starts at January
+  and September was off the right edge, which is the one thing the rail exists
+  to tell you. It scrolls the container directly rather than calling
+  `scrollIntoView`, which on the desktop rail would scroll the whole page to
+  reach a month already visible.
+- **The buttons are Credit / Debit / Net**, not "Money in / Money out / Both".
+  The entry form still says Money in and Money out, because somebody recording
+  a payment is not thinking in ledger terms; an analysis screen whose figures
+  are already headed CREDIT and DEBIT should not call the same thing something
+  else two inches below. The heading follows the button — "September — Credit
+  Analysis" — so one word means one thing on the screen.
+- **`getActiveYears` is gone from this page.** It existed only to fill the year
+  dropdown, and the rail steps a year at a time from wherever you are. Five
+  queries now, not six, on the heaviest page in the module.
+- **ONE CONTINUOUS GRID, NOT THIRTY FLOATING TILES.** The days were separate
+  rounded cards with a gap between them and a visible border only on the days
+  that had money, so an empty week read as blank paper and the eye had nothing
+  to follow across a row. A calendar is a TABLE: every date gets the same
+  bordered cell whether anything happened in it or not, and the days either
+  side of the month keep their cell, shaded, because a hole in a grid is a
+  broken table.
+  **The lines are a 1px `gap-px` over a `bg-border` panel, never a border on
+  each cell.** Per-cell borders double up where two cells meet — 2px inside,
+  1px at the edges — and fixing that needs `nth-child` rules that break the
+  moment a month starts on a different weekday. A gap cannot double. Today is
+  an INSET ring (`shadow-[inset_0_0_0_2px_var(--primary)]`) rather than a
+  `ring`, which would glow over the two cells beside it. Day numbers sit top
+  RIGHT, the way a wall calendar numbers them, which also leaves the left edge
+  clear for the figures.
 
 **`/masters` is ADMIN only and refuses rather than hides** — a non-admin is
 sent back to the ledger, the same shape as CRM rules and four of the six
@@ -1080,7 +1144,8 @@ asking.
   quote. That last one is not theoretical: party names come from a shared list
   anybody with Masters can edit, and a name beginning `=` is a live formula the
   moment the file opens.
-- **XLSX** is three sheets — Dashboard, Data, Notes. The Notes sheet records
+- **XLSX** is three sheets — Dashboard, Data, Notes — plus **Receipts** on a
+  report that carries attachments (only Petty Cash today). The Notes sheet records
   who ran it, when, with which filters, what every column means, and the
   caveats. A caveat nobody reads is a caveat that did not happen, so they also
   print under the dashboard.
@@ -1094,9 +1159,46 @@ them, so the workbook is built with ExcelJS exactly as before and then the
 finished zip is opened with `jszip` and the chart, drawing, relationship and
 content-type parts are added. The result is native: right-click → Edit Data
 works, it redraws when the numbers change, it prints, and it opens in Google
-Sheets and LibreOffice. **Still no images** — a PNG is a photograph that starts
-lying the moment anybody touches a filter, and it would need a rasteriser on a
+Sheets and LibreOffice. **No images IN A CHART** — a PNG of a chart is a photograph that starts lying
+the moment anybody touches a filter, and it would need a rasteriser on a
 serverless function for decoration.
+
+**THE RECEIPTS ARE A DIFFERENT QUESTION, AND THEY ARE EMBEDDED** (Sep 2026,
+owner: the Receipt column showed *"only attached image name not the actual
+image"*). A receipt is not a rendering of data that can go stale — it is the
+document, and it is the evidence the figure beside it happened. So a report
+may declare `ReportResult.images` (`rowKey`, `columns`, `byRow`, `load`) and
+the workbook grows a **Receipts** sheet: one row per attachment, the picture
+beside the entry's reference, date, payee, amount and reason.
+
+- **It is a SHEET, not a tall cell on Data, and that is not a style choice.**
+  An embedded picture FLOATS over cells; it does not belong to a row. Excel
+  moves floating pictures when rows are inserted or filtered and does **not**
+  move them when a range is sorted — so one click on the Data sheet's sort
+  button would leave every receipt sitting over somebody else's payment, with
+  nothing on the page to say so. A receipt over the wrong payment is worse
+  than no receipt.
+- **Bytes are fetched LATE.** `byRow` carries names and opaque references out
+  of the report's own query; `load` is called by the workbook builder alone.
+  A CSV export and a dashboard run never touch storage, and a 5,000-entry
+  period does not pull 5,000 photographs to print a table.
+- **The storage path is NEVER written into the file.** The workbook draws the
+  picture and throws the path away — the whole attachment design refuses to
+  hand out anything that works without a permission check.
+- **It is capped, loudly**: 200 pictures and 20 MB, because a picture is
+  stored WHOLE (Excel scales the display, not the bytes) and there is no
+  rasteriser here to shrink one. What did not fit is counted on the sheet with
+  where to find it, and a file that is not a picture Excel can draw — a PDF
+  bill, a .tif — gets its line saying what it is. Nothing is silently dropped.
+- **Sizes come from the file's own header** (`image-size.ts`: PNG IHDR, GIF
+  screen descriptor, JPEG SOF walk), so a portrait photo of a bill is not
+  squashed into a landscape box, and a small thumbnail is never blown up.
+- **`injectCharts` may no longer assume `drawing1.xml` is free.** ExcelJS
+  writes that name for the Receipts sheet's pictures, so the hardcoded name
+  overwrote the receipts with the chart drawing and left that sheet pointing
+  at a part that no longer described it — a damaged file, the same class of
+  bug as reusing an rId. Both the drawing and the chart parts now take the
+  next free number.
 
 Three things must be right or Excel refuses the whole file with "we found a
 problem with some content" and names no part:
@@ -1177,12 +1279,33 @@ different things on page two is not a pack:
   ranking is one colour: its third bar is not more amber than its second. The
   ONE exception is a panel marked `tone: "severity"` — only `ageing()` sets it,
   because its rows genuinely run best to worst.
-- **Two chart shapes, and the choice is not a guess.** A time series is a
-  LINE. Everything else — rankings, comparisons, funnels, ageing — is a
-  HORIZONTAL BAR, read against a common baseline with room for a thirty-
-  character party name. The column chart is gone: it used to be picked by a
-  heuristic on label length, so the same question was drawn two ways in one
-  workbook depending on whose name was short.
+- **Three chart shapes, and the choice is never a guess.** A time series is a
+  LINE. A FIXED-CATEGORY COMPARISON — money in against money out, done against
+  still to do, settled against still open — is a clustered COLUMN. Everything
+  else — rankings, funnels, ageing — is a HORIZONTAL BAR, read against a common
+  baseline with room for a thirty-character party name.
+  The column chart was removed once and came back on a stated rule, which is
+  the distinction that matters: it used to be picked by a HEURISTIC ON LABEL
+  LENGTH, so the same question was drawn two ways in one workbook depending on
+  whose name was short. It is now picked by `Panel.fixedCategories`, which the
+  report itself sets to declare that its categories come from the question and
+  not from the data. A panel therefore draws the same way in every period and
+  under every filter — the property that was actually missing.
+- **Every chart carries a SUBTITLE, and it is written from the panel.** A title
+  asks the question ("Where the money came from"); the subtitle says what the
+  answer is OF ("By value — the top 10 of 24, highest first"). It is a second
+  `a:p` inside the chart's own `c:rich` title, so it travels with the chart
+  rather than sitting in a cell somebody can move away from it. **It must never
+  say "all".** A ranking panel is already a top-N — `rank()` cuts at ten — so
+  the panel cannot see how many customers there were, and "All 10" over the ten
+  biggest of two hundred is exactly the sentence that gets quoted.
+- **Colour carries STATUS on a fixed-category comparison, through
+  `RankRow.tone`.** There the categories ARE the statuses, so "Done" is green
+  and "Past their day" is red and the house palette is doing its job. It is
+  never set on a ranking: a customer is not "good" for being third. "Still
+  ahead" is grey rather than amber — a duty whose day has not come round is not
+  late, and colouring it as a warning puts the checklist in the red on the
+  first of every month.
 - **A doughnut only for a composition, and only with 2–5 slices.** Share
   panels are the top FOUR plus "Everyone else", which also keeps the
   percentages honest (Excel rebases pie labels over the points it is given).
@@ -1193,14 +1316,49 @@ different things on page two is not a pack:
   Cash, the Checklist and Help Slip — one row each, so every panel a single
   category — as figures, three cards, and a wide empty band where every other
   report has charts. The owner reported that too. The band now carries a line
-  saying what a chart needs before it can appear, and then the ROWS, in the
-  management table the pack is meant to end with: first ten rows, first twelve
-  non-optional columns, Data-sheet styling and formats, and a footnote saying
-  where the rest live. It draws ONLY when `specs.length === 0`, so the ten
-  reports that do have charts are untouched.
+  saying what a chart needs before it can appear.
+- **EVERY PAGE ENDS IN THE MANAGEMENT TABLE**, not only the pages with nothing
+  to chart. It was drawn only on the thin reports at first, which made it read
+  as an apology for a thin report rather than the closing section of a pack —
+  and it left the ten pages that DO have charts ending on a sentence, with
+  nothing on them a manager could point at and say "show me one of those". Ten
+  rows, drawn to the Data sheet's own rules (Indian grouping, DD MMM YYYY,
+  units inside the cell, status badges), with a footnote naming what was left
+  out.
+  **Its columns take the width their content needs.** Every column of the
+  dashboard is 12.6 characters, because the same twelve carry the KPI tiles and
+  the charts — fine for a date, and it CLIPS a party name: "777 THE PREMIUM
+  STORE" arrived as "777 THE PREMIUM", which on a page a manager reads is a
+  different customer. Text and datetime columns take two of the twelve and
+  their cells are merged, so the table shows about seven columns and every one
+  of them is legible. The split is by column TYPE, never by the length of the
+  values in this period — that is the label-length heuristic again, and it
+  would redraw the table differently every month.
 - **Labels are readable on the fill they sit on.** A doughnut writes its label
   INSIDE the slice, so those labels are WHITE; bar labels sit outside on white
   paper and stay dark. That was the owner's other complaint.
+- **ALL TEXT IS DARK. Hierarchy comes from size, weight and case, never from
+  fading text towards the paper.** Chart axis and legend text defaulted to a
+  light grey chosen so a chart "does not shout over its own title", and the
+  sheet's captions and notes used two more greys. On a printed page and on a
+  projector they do not sit quietly, they disappear — the owner reported text
+  they could not read. `txPr` now defaults to near-black, and `C.ink2` /
+  `C.ink3` were darkened (#464B56 → #23272F, #7A8291 → #3C424E). A 20pt bold
+  figure over an 8pt uppercase label is enough hierarchy on its own.
+- **A ranking is one HUE, shaded dark-to-light by rank** (`RANK_RAMP`). This
+  does not break the rule above it: every bar is the same teal and only its
+  depth changes, so the shading carries the one thing the chart is about — the
+  order. The owner's complaint was that every chart in the pack looked like
+  the same chart; the answer is NOT a hue per chart (reverted in the Sep
+  audit, because the same fact then changes colour page to page) but a ramp
+  that means something inside one chart. Shades are spread across the ramp
+  rather than taken in order, so two bars get the darkest and the lightest
+  instead of two neighbours nobody can tell apart.
+- **A subtitle leads with the value label, with no preposition in front of
+  it.** "By ${valueLabel}" was tried and produced *"By paid out, highest
+  first"* — the labels are noun phrases written for a column heading ("Paid
+  out", "Value", "Entries"), and a preposition in front of one is a sentence
+  nobody would say.
 - **Empty period → "No data available for the selected period"**, not a blank
   half page.
 - **The page reads top-down the way a manager asks questions:** title and
@@ -1208,7 +1366,7 @@ different things on page two is not a pack:
   one "Also —" line, because the eye stops at about six) → the primary trend
   full width → paired analysis charts → **Needs attention** (built from the
   KPIs the report already marks `bad`/`warn` — not a new judgement) → the month
-  grid → what this says → caveats.
+  grid → the management table → what this says → caveats.
 
 **THE DATA SHEET IS THE MANAGEMENT TABLE.** Indian digit grouping
 (`83,42,172.64`, via `indianFormat()` — the commas are ESCAPED so Excel prints
@@ -1218,7 +1376,36 @@ cell (`900.00 MTR`, `2 PCS`) via `ReportColumn.unit`, so a column read out of
 context still says what it measures; and compact **status badges** via
 `ReportColumn.badge`, an explicit value→meaning map. Never infer a badge from
 the type: "Cancelled: Yes" is bad and "Received: Yes" is good, and nothing but
-the column knows which. **The CSV is untouched by all of this** — ISO dates,
+the column knows which.
+
+**EVERY REPORT WAS GONE THROUGH FOR BADGES** (Sep 2026). Six of the twelve had
+none at all and the other six had exactly one — nearly always the `Age`
+bucket — so the same kind of column was tinted on one sheet and plain on the
+next. Twenty-one maps were added across nine reports. Two rules came out of
+doing it:
+
+- **A MAP NAMES THE EXCEPTION, NOT THE STATE.** A tint on the majority value is
+  not a highlight, it is a background, and the page stops meaning anything. So
+  `Complete` carries `{Yes: "good"}` and nothing for No (264 of 337 orders are
+  open — that is what a live book looks like); `Cancelled` carries
+  `{Yes: "bad"}` and nothing for No; `Reached` colours only `Not started`,
+  because an order at Challan is not doing worse than one at Bill. **The seven
+  `stage — done` columns on production-status carry NOTHING**: either tone
+  would paint thousands of cells across seven columns, and `Reached` and
+  `Waiting on` beside them already say the same thing once.
+- **`.scratch/badge-density.ts` measures it against the real data** and flags
+  any column tinting over 70% of its rows. Seven do, and all seven were argued
+  rather than waved through: the three `Age`/`How overdue` columns are severity
+  SCALES (0–7 days green through over-60 red), which are meant to cover every
+  row; the Checklist's is one row; and CRM's `Called` (100% amber) and `On time
+  (our dates)` (96% red) are the truth — nobody has rung anybody and 72 of 75
+  deliveries were late. Colouring an ordinary state is the defect; colouring a
+  sheet that genuinely is a problem is the point.
+
+**One fact is coloured ONCE.** Goods Return's `Received` boolean is badged and
+its `Status` twin ("Sent, not yet received") is left plain — the terse column
+is the one a reader has to interpret. The Checklist's `On time` carries only
+the red, because `Where it stands` beside it already carries the green. **The CSV is untouched by all of this** — ISO dates,
 bare numbers, no units — because it is the machine's copy.
 
 **VALIDATE WITH REAL EXCEL, NOT WITH A LIBRARY.** This cost a shipped
@@ -1348,6 +1535,16 @@ moderate advisory about a missing bounds check when a caller supplies `buf` —
 neither we nor ExcelJS ever does. Note that `npm install` PRUNES Playwright,
 which lives here extraneous on purpose; reinstall it with
 `npm install playwright --no-save` and check `git diff package.json` afterwards.
+
+The same prune takes **`server-only`** with it, and nothing in the app notices
+until a `.scratch/` script is run: every report file imports it, so `tsx` stops
+at `Cannot find module 'server-only'` and no verification script can run. Do
+NOT fix that with `npm install` — it prunes Playwright again, and the real
+package's `index.js` THROWS outside a React Server Component, which is correct
+for a Next build and useless for a script. Drop an empty stub into
+`node_modules/server-only` (a `package.json` with `"main": "index.js"` and an
+empty `index.js`); node_modules is gitignored, so it costs nothing and
+disturbs nobody.
 
 ## Known gotchas (hit these once already — don't re-discover them)
 - **A Server Component's `new Date()` is the SERVER's clock, which on Vercel
