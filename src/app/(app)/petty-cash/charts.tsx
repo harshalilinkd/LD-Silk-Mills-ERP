@@ -138,7 +138,11 @@ export function CashFlowChart({
       <ResponsiveContainer width="100%" height={TREND_HEIGHT}>
         <ComposedChart
           data={data}
-          margin={{ left: -14, right: 8, top: 8, bottom: 0 }}
+          // Left margin was -14, which pulled the plot over the Y axis and
+          // CUT THE LEADING DIGIT OFF THE TOP TICK: a 10,000 month printed
+          // "0.0k" above a baseline also reading "0". A chart whose axis
+          // disagrees with itself is worse than one with a wider gutter.
+          margin={{ left: 0, right: 8, top: 8, bottom: 0 }}
           barGap={4}
         >
           <defs>
@@ -191,7 +195,9 @@ export function CashFlowChart({
             tick={{ fontSize: 11, fill: "var(--text-3)" }}
             tickLine={false}
             axisLine={false}
-            width={44}
+            // Room for the widest label this formatter can produce
+            // ("-10.0Cr"), because the axis must not resize with the data.
+            width={52}
             tickFormatter={compact}
           />
           {/* Where the axis crosses zero — the line a negative net has to fall

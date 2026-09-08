@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { endOfMonth, isIsoDate, startOfMonth, todayIso } from "@/lib/dates";
 import { resolvePettyCashViewer } from "@/lib/petty-cash/authz";
 import {
-  getActiveYears,
   getDailyTotals,
   getMonthlySummary,
   getMonthlyTrend,
@@ -30,7 +29,7 @@ const TREND_MONTHS = 6;
  * fills its own empty days, which is cheaper than making Postgres generate a
  * series to return zeroes.
  *
- * SIX QUERIES, AWAITED IN TURN. The pool is five connections wide and
+ * FIVE QUERIES, AWAITED IN TURN. The pool is five connections wide and
  * pipelined statements stall under the transaction pooler, so nothing here is
  * a `Promise.all`. It is the heaviest page in the module by some way; if it
  * ever feels slow, fold the trend and the summary into one statement rather
@@ -59,9 +58,13 @@ export default async function PettyCashAnalysisPage({
   const view: "CREDIT" | "DEBIT" | "NET" =
     viewRaw === "CREDIT" || viewRaw === "DEBIT" ? viewRaw : "NET";
 
+  // FIVE queries now, not six. The year dropdown was the only caller of
+  // `getActiveYears`, and the month rail that replaced it needs no list of
+  // which years hold data - it steps a year at a time from wherever you are.
+  // This is the heaviest page in the module; a query it no longer needs is
+  // worth removing rather than leaving to answer nobody.
   const days = await getDailyTotals(from, to);
   const totals = await getTotals({ from, to });
-  const years = await getActiveYears();
   const summary = await getMonthlySummary(from, to);
   const trend = await getMonthlyTrend(TREND_MONTHS);
   const payees = await getPayeesWithUse();
@@ -73,7 +76,6 @@ export default async function PettyCashAnalysisPage({
       from={from}
       to={to}
       view={view}
-      years={years}
       today={todayIso()}
       summary={summary}
       trend={trend}
