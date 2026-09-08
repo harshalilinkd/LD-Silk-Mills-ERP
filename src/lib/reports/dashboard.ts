@@ -426,7 +426,17 @@ export function buildDashboard(
     // drew three charts each showing a single bar of length 1 — half a page
     // spent on three facts a line of text carries better. A panel with one
     // category becomes a summary card instead.
-    if (rows.filter((x) => x.value !== 0).length < 2) {
+    //
+    // Counting NON-ZERO categories is right for a ranking and wrong for a
+    // panel whose categories come from the question: `Money in ₹0 · Money out
+    // ₹5,000` has one non-zero bar and is still a real comparison, and it was
+    // this line — not the panels — that kept the thin dashboards empty after
+    // the fixed-category panels were added. `fixedCategories` says which is
+    // which; the all-zero guard above still drops a genuinely empty period.
+    const drawable = panel.fixedCategories
+      ? rows.length
+      : rows.filter((x) => x.value !== 0).length;
+    if (drawable < 2) {
       const only = rows.find((x) => x.value !== 0)!;
       summaries.push({ title: panel.title, label: only.label, value: only.display || String(only.value) });
       return;

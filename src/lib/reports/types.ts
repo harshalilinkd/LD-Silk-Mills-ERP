@@ -203,6 +203,22 @@ export type Panel = {
   valueLabel: string;
   rows: RankRow[];
   kind?: PanelKind;
+  /**
+   * The categories come from the QUESTION, not from the data — money in and
+   * money out, done and still to do, settled and still open. Both sides exist
+   * whether the answer is 40 and 12 or 1 and 0.
+   *
+   * It matters because the "one bar is not a chart" rule counts categories
+   * that are NOT ZERO, which is right for a ranking (a customer who bought
+   * nothing is not a bar) and wrong here: `Money in ₹0 · Money out ₹5,000` is
+   * a real comparison, and `Still open: 0` is the single figure a coordinator
+   * opens the file to see. A zero is an answer on these panels, so they draw
+   * as long as SOMETHING in them is non-zero.
+   *
+   * Not a licence to keep empty panels — a panel whose every bar is zero is
+   * still dropped, because that is an empty period rather than an answer.
+   */
+  fixedCategories?: boolean;
   /** One line under the panel saying what to take from it. */
   note?: string;
 };

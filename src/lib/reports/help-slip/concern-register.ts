@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 
 import { NotProvisionedError, withCurrentUser } from "@/lib/help-slip/authz";
 import { todayIso } from "@/lib/dates";
-import { rank, spread } from "../analysis";
+import { fillMonths, rank, spread, trend } from "../analysis";
 import { count, pct, plural } from "../format";
 import { n } from "../num";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
@@ -204,6 +204,16 @@ async function run(params: ReportParams): Promise<ReportResult> {
     resolved.map((r) => (Date.parse(r.resolved_at!) - Date.parse(r.created_at)) / 86_400_000),
   );
 
+  // Filled across the period, so quiet months read as quiet rather than
+  // disappearing off the axis — which is what left this dashboard with a
+  // single unplottable point and therefore no chart at all.
+  const byMonth = new Map<string, number>();
+  for (const r of filtered) {
+    const m = r.created_at?.slice(0, 7);
+    if (m) byMonth.set(m, (byMonth.get(m) ?? 0) + 1);
+  }
+  const t = trend(fillMonths(byMonth, params), count);
+
   const byDept = new Map<string, number>();
   const byStatus = new Map<string, number>();
   const byPriority = new Map<string, number>();
@@ -262,7 +272,37 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Came with a fix", value: count(withSolutions.length), tone: "good", sub: `${count(usedTheirs)} were adopted` },
         { label: "Confidential", value: count(confidential), sub: "you are allowed to see these" },
       ],
+      trend: t.points.length > 1
+        ? { title: "Concerns raised each month", valueLabel: "Concerns", points: t.points, averageLabel: "Average month in this period" }
+        : undefined,
       panels: [
+        // ── A PANEL THAT CANNOT COLLAPSE TO ONE BAR ────────────────────
+        //
+        // The three panels below rank whatever happens to be in the data, so
+        // one concern gives each of them one category and they become cards.
+        // This one asks a question with two fixed sides, both of which exist
+        // whether the answer is 1 and 0 or 40 and 12 — and it is the only
+        // question a coordinator opens this file to answer.
+        {
+          title: "Settled against still open",
+          fixedCategories: true,
+          valueLabel: "Concerns",
+          rows: [
+            { label: "Resolved or closed", value: filtered.length - open.length, display: count(filtered.length - open.length) },
+            { label: "Still open", value: open.length, display: count(open.length) },
+          ],
+          note: "Of the concerns you are allowed to see. A withdrawn concern counts as settled.",
+        },
+        {
+          title: "Answered against waiting for a first reply",
+          fixedCategories: true,
+          valueLabel: "Concerns",
+          rows: [
+            { label: "Someone has replied", value: answered.length, display: count(answered.length) },
+            { label: "No reply yet", value: unanswered.length, display: count(unanswered.length) },
+          ],
+          note: "A first reply is the first response recorded against the concern, not the first time somebody opened it.",
+        },
         {
           title: "Where the concerns stand",
           valueLabel: "Concerns",

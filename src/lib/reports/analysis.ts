@@ -86,6 +86,73 @@ export type Trend = {
   recentAverage: number | null;
 };
 
+/**
+ * ── A MONTH WITH NOTHING IN IT IS STILL A MONTH ───────────────────────────
+ *
+ * `byMonth` only ever holds the months that had a row, so a module with one
+ * entry produces one point and no line chart at all — which is what left Petty
+ * Cash, the Checklist and Help Slip with no chart on their dashboards while
+ * every other report had five.
+ *
+ * The gap is in the map, not in the truth: a month with no petty cash spending
+ * genuinely spent zero, and saying so is information — it is what tells a
+ * manager the box was opened once in six months rather than steadily. The
+ * module's own Analysis screen has always filled months this way; the reports
+ * simply never did.
+ *
+ * Which months to fill:
+ *
+ *   · The period was ASKED FOR — fill every month of it, up to this month.
+ *     Somebody who chose April to September is owed six columns, and the five
+ *     empty ones are the answer, not a gap.
+ *   · No period given ("everything on record") — start at the first month that
+ *     has something, because inventing empty months before the business began
+ *     is not a fact about the business.
+ *
+ * Twelve months at most, keeping the newest, for the same reason the heat grid
+ * caps: thirty columns on an axis is not a chart anybody reads.
+ */
+export function fillMonths(
+  byMonth: Map<string, number>,
+  period: { from?: string; to?: string },
+  max = 12,
+): Map<string, number> {
+  const key = (d: Date) => d.toISOString().slice(0, 7);
+  const present = [...byMonth.keys()].filter(Boolean).sort();
+  const thisMonth = key(new Date());
+
+  // Never run the axis into the future: a month that has not happened cannot
+  // be reported as zero.
+  const askedTo = period.to?.slice(0, 7);
+  const end = [askedTo && askedTo < thisMonth ? askedTo : thisMonth, present.at(-1) ?? ""]
+    .filter(Boolean)
+    .sort()
+    .at(-1)!;
+
+  const askedFrom = period.from?.slice(0, 7);
+  const start = askedFrom && askedFrom > "1900-01" ? askedFrom : (present[0] ?? end);
+  if (!start || start > end) return byMonth;
+
+  const out = new Map<string, number>();
+  const cur = new Date(`${start}-01T00:00:00Z`);
+  const stop = new Date(`${end}-01T00:00:00Z`);
+  // A guard, not a limit anybody should reach: an unclamped loop over a
+  // 1999–2100 period would build 1,200 entries before the slice threw them
+  // away.
+  for (let i = 0; cur <= stop && i < 600; i++) {
+    const k = key(cur);
+    out.set(k, byMonth.get(k) ?? 0);
+    cur.setUTCMonth(cur.getUTCMonth() + 1);
+  }
+
+  // Anything the caller recorded outside the window still belongs in the file.
+  for (const [k, v] of byMonth) if (!out.has(k)) out.set(k, v);
+
+  const keys = [...out.keys()].sort();
+  const kept = keys.slice(-max);
+  return new Map(kept.map((k) => [k, out.get(k)!]));
+}
+
 export function trend(
   byMonth: Map<string, number>,
   display: (n: number) => string,

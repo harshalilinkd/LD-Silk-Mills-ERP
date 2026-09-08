@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import { todayIso } from "@/lib/dates";
-import { rank, spread } from "../analysis";
+import { fillMonths, rank, spread, trend } from "../analysis";
 import { count, pct, plural } from "../format";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
@@ -117,6 +117,22 @@ async function run(params: ReportParams): Promise<ReportResult> {
   });
 
   // ── the figures ─────────────────────────────────────────────────────────
+  // ── HOW MANY DUTIES FELL IN EACH MONTH ────────────────────────────
+  //
+  // Filled across the period, so a month in which nothing was scheduled
+  // shows as zero rather than vanishing from the axis. With one duty this is
+  // what turns a single unplottable point into a line that honestly says
+  // "one duty, one month, nothing either side".
+  const byMonthPlanned = new Map<string, number>();
+  const byMonthDone = new Map<string, number>();
+  for (const r of raw) {
+    const m = r.planned_date?.slice(0, 7);
+    if (!m) continue;
+    byMonthPlanned.set(m, (byMonthPlanned.get(m) ?? 0) + 1);
+    if (r.status === "Done") byMonthDone.set(m, (byMonthDone.get(m) ?? 0) + 1);
+  }
+  const t = trend(fillMonths(byMonthPlanned, params), count);
+
   const done = raw.filter((r) => r.status === "Done");
   const comeRound = raw.filter((r) => (r.planned_date?.slice(0, 10) ?? "") <= today);
   const doneOfComeRound = comeRound.filter((r) => r.status === "Done");
@@ -198,7 +214,39 @@ async function run(params: ReportParams): Promise<ReportResult> {
         { label: "Worst delay", value: lateness.max !== null && lateness.max > 0 ? `${lateness.max.toFixed(0)} d` : "—" },
         { label: "People with duties", value: count(byDoer.size) },
       ],
+      trend: t.points.length > 1
+        ? { title: "Duties due each month", valueLabel: "Duties", points: t.points, averageLabel: "Average month in this period" }
+        : undefined,
       panels: [
+        // ── TWO PANELS THAT CANNOT COLLAPSE TO ONE BAR ─────────────────
+        //
+        // Every panel below is a "top N" over the doers, the frequencies or
+        // the departments, so with one duty on record each has one category
+        // and becomes a card. These two are different in kind: their
+        // categories come from the QUESTION, not from the data, so both bars
+        // exist whether the answer is 1 and 0 or 400 and 37. Zero is an
+        // answer, and on a checklist it is the answer that matters.
+        {
+          title: "Done against still to do",
+          fixedCategories: true,
+          valueLabel: "Duties",
+          rows: [
+            { label: "Done", value: doneOfComeRound.length, display: count(doneOfComeRound.length) },
+            { label: "Past their day", value: delayed.length, display: count(delayed.length) },
+            { label: "Still ahead", value: raw.length - comeRound.length, display: count(raw.length - comeRound.length) },
+          ],
+          note: "Of every duty in the period. Still ahead has not come round yet, so it is not late.",
+        },
+        {
+          title: "On time against late",
+          fixedCategories: true,
+          valueLabel: "Duties",
+          rows: [
+            { label: "On time", value: onTime.length, display: count(onTime.length) },
+            { label: "Done late", value: done.length - onTime.length, display: count(done.length - onTime.length) },
+          ],
+          note: "Only duties that were actually completed. A duty not yet done is neither on time nor late.",
+        },
         { title: "Who carries the most duties", valueLabel: "Duties", rows: rank([...byDoer].map(([label, value]) => ({ label, value, meta: `${doneByDoer.get(label) ?? 0} done` })), count) },
         {
           title: "How often each duty comes round",

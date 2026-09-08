@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sql as pg } from "@/db";
-import { matrixFrom, rank, spread, trend, trendInsight } from "../analysis";
+import { fillMonths, matrixFrom, rank, spread, trend, trendInsight } from "../analysis";
 import { count, inr, inrShort, pct, plural } from "../format";
 import { money2, n } from "../num";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
@@ -135,7 +135,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     byPayee.set(r.to_name?.trim() || "Not recorded", (byPayee.get(r.to_name?.trim() || "Not recorded") ?? 0) + n(r.amount));
   }
 
-  const t = trend(byMonth, inrShort);
+  // Filled across the period, so six months with one payment in them draw a
+  // line that says exactly that, instead of a single point that draws nothing.
+  const t = trend(fillMonths(byMonth, params), inrShort);
   const insights: string[] = [];
   const ti = trendInsight(t, "spending");
   if (ti) insights.push(ti);
@@ -190,6 +192,36 @@ async function run(params: ReportParams): Promise<ReportResult> {
         ? { title: "What went out each month", valueLabel: "Paid out", points: t.points, averageLabel: "Average month in this period" }
         : undefined,
       panels: [
+        // ── ALWAYS TWO BARS, WHATEVER THE ROW COUNT ────────────────────
+        //
+        // Every other panel here is a "top N", which collapses to one bar —
+        // and therefore to a card — the moment there is one entry. This one
+        // cannot: money in and money out are two sides of the same box and
+        // both exist even when one of them is zero. It is also the first
+        // thing anybody asks of a cash box.
+        {
+          title: "Money in against money out",
+          fixedCategories: true,
+          valueLabel: "Rupees",
+          rows: [
+            { label: "Money in", value: inTotal, display: inrShort(inTotal) },
+            { label: "Money out", value: outTotal, display: inrShort(outTotal) },
+          ],
+          note: "The difference between these two is the net for the period, not the balance in the box.",
+        },
+        // The third question anybody asks of a cash box, after how much and
+        // on what: can we prove it. Both sides always exist, so it draws.
+        {
+          title: "How well the paperwork is kept",
+          fixedCategories: true,
+          valueLabel: "Entries",
+          rows: [
+            { label: "Receipt attached", value: raw.length - noReceipt, display: count(raw.length - noReceipt) },
+            { label: "No receipt", value: noReceipt, display: count(noReceipt) },
+            { label: "No proof recorded", value: noProof, display: count(noProof) },
+          ],
+          note: "A receipt is the scanned bill; proof is what kind of slip was kept. An entry can have one without the other.",
+        },
         { title: "What the money went on", valueLabel: "Paid out", rows: rank([...byCategory].map(([label, value]) => ({ label, value })), inrShort) },
         {
           title: "Which group it belongs to",
