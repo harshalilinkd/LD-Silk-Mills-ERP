@@ -61,7 +61,7 @@ const VIEW_META: Record<View, { label: string; help: string }> = {
  * The Petty Cash Dashboard — formerly "Analysis", one calendar and nothing
  * else. It answered "which day did that go out on" well and nothing beyond
  * it: no trend, no share-of-spend, no sense of whether this month is better
- * or worse than the last one. Everything below the calendar is new.
+ * or worse than the last one. Everything except the calendar is new.
  *
  * ── WHAT "IN DEPTH" MEANS HERE, SPECIFICALLY ─────────────────────────────
  *
@@ -80,11 +80,17 @@ const VIEW_META: Record<View, { label: string; help: string }> = {
  * drilling into March 2026 does not also rewrite the trend chart underneath
  * it into something about March.
  *
- * ── THE CALENDAR SURVIVES, DEMOTED ────────────────────────────────────────
+ * ── THE CALENDAR IS SECOND, NOT LAST ─────────────────────────────────────
  *
- * It is still the only shape that answers "which day", and there is no
- * reason to trade a well-reasoned feature for a new one when both jobs are
- * real. It moves under "Day by day", after the read of the whole month.
+ * It was put below the charts when this screen grew from one calendar into a
+ * dashboard, reasoning that the month as a whole should be read before any
+ * single day of it. The owner reads it the other way round, and they are the
+ * one using it: the figure strip says what the month DID, and the very next
+ * question is WHICH DAY. The trend, the split and the payee ranking are all
+ * follow-ups to that, so they come after it.
+ *
+ * Order on the page: figures → the calendar → six-month trend → category and
+ * group split → top payees.
  */
 export function DashboardScreen({
   days,
@@ -257,102 +263,6 @@ export function DashboardScreen({
           }
         />
       </div>
-
-      {/* ── the trend, always the real last six months ──────────────────── */}
-      <section className="rounded-card border border-border bg-surface">
-        <div className="border-b border-border px-4 py-3">
-          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            Cash flow
-          </div>
-          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-            Last six months
-          </h2>
-        </div>
-        <div className="px-2 pt-3 pb-1 sm:px-4">
-          <CashFlowChart data={trendData} />
-        </div>
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* ── where this period's money went ─────────────────────────────── */}
-        <section className="rounded-card border border-border bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-              This period
-            </div>
-            <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Spend by category
-            </h2>
-          </div>
-          <div className="px-4 py-4">
-            <CategoryDonut data={categoryDonutData} />
-          </div>
-        </section>
-
-        {/* ── the same money, ranked by heading instead of sliced ─────────── */}
-        <section className="rounded-card border border-border bg-surface">
-          <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-              This period
-            </div>
-            <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-              Spend by group
-            </h2>
-          </div>
-          <div className="px-4 py-4">
-            <GroupBarChart data={groupBarData} />
-          </div>
-        </section>
-      </div>
-
-      {/* ── who it mostly goes to ──────────────────────────────────────── */}
-      <section className="rounded-card border border-border bg-surface">
-        <div className="border-b border-border px-4 py-3">
-          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-            All time
-          </div>
-          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
-            Top payees
-          </h2>
-        </div>
-        {topPayees.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12.5px] text-text-3">
-            Nothing paid out yet.
-          </p>
-        ) : (
-          <div className="flex flex-col divide-y divide-border">
-            {topPayees.map((p) => {
-              const paid = toNumber(p.paid) ?? 0;
-              const pct = topPayeesTotal
-                ? Math.round((paid / topPayeesTotal) * 100)
-                : 0;
-              return (
-                <div key={p.id} className="px-4 py-2.5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="truncate text-[13px] font-semibold text-text-1">
-                      {p.name}
-                    </span>
-                    <span className="num shrink-0 text-[12.5px] font-bold text-text-1">
-                      {formatMoney(paid)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
-                      <div
-                        className="h-full rounded-pill bg-status-red/70"
-                        style={{ width: `${Math.max(4, pct)}%` }}
-                      />
-                    </div>
-                    <span className="num shrink-0 text-[11px] text-text-3">
-                      {p.used} {p.used === 1 ? "entry" : "entries"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
 
       {/* ── which day, exactly ───────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
@@ -607,6 +517,103 @@ export function DashboardScreen({
           </p>
         </section>
       </section>
+
+      {/* ── the trend, always the real last six months ──────────────────── */}
+      <section className="rounded-card border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            Cash flow
+          </div>
+          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+            Last six months
+          </h2>
+        </div>
+        <div className="px-2 pt-3 pb-1 sm:px-4">
+          <CashFlowChart data={trendData} />
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* ── where this period's money went ─────────────────────────────── */}
+        <section className="rounded-card border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+              This period
+            </div>
+            <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+              Spend by category
+            </h2>
+          </div>
+          <div className="px-4 py-4">
+            <CategoryDonut data={categoryDonutData} />
+          </div>
+        </section>
+
+        {/* ── the same money, ranked by heading instead of sliced ─────────── */}
+        <section className="rounded-card border border-border bg-surface">
+          <div className="border-b border-border px-4 py-3">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+              This period
+            </div>
+            <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+              Spend by group
+            </h2>
+          </div>
+          <div className="px-4 py-4">
+            <GroupBarChart data={groupBarData} />
+          </div>
+        </section>
+      </div>
+
+      {/* ── who it mostly goes to ──────────────────────────────────────── */}
+      <section className="rounded-card border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            All time
+          </div>
+          <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
+            Top payees
+          </h2>
+        </div>
+        {topPayees.length === 0 ? (
+          <p className="px-4 py-8 text-center text-[12.5px] text-text-3">
+            Nothing paid out yet.
+          </p>
+        ) : (
+          <div className="flex flex-col divide-y divide-border">
+            {topPayees.map((p) => {
+              const paid = toNumber(p.paid) ?? 0;
+              const pct = topPayeesTotal
+                ? Math.round((paid / topPayeesTotal) * 100)
+                : 0;
+              return (
+                <div key={p.id} className="px-4 py-2.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="truncate text-[13px] font-semibold text-text-1">
+                      {p.name}
+                    </span>
+                    <span className="num shrink-0 text-[12.5px] font-bold text-text-1">
+                      {formatMoney(paid)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-3">
+                      <div
+                        className="h-full rounded-pill bg-status-red/70"
+                        style={{ width: `${Math.max(4, pct)}%` }}
+                      />
+                    </div>
+                    <span className="num shrink-0 text-[11px] text-text-3">
+                      {p.used} {p.used === 1 ? "entry" : "entries"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
     </div>
   );
 }
