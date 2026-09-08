@@ -518,8 +518,25 @@ export function OrderForm({
       return `Order number "${header.order_no.trim()}" already exists.`;
     const payload = buildPayload();
     if (payload.fabrics.length === 0) return "Add at least one fabric block.";
+    // `fabricOptionsFor` only PRUNES the dropdown for a fabric already picked
+    // elsewhere — typed or pasted free text still slips past it and saves as
+    // two blocks of the same fabric at two different rates. This is the actual
+    // gate; the dropdown pruning is just a nudge toward not needing it.
+    //
+    // A DESIGN NUMBER IS NOT CHECKED, deliberately. MILANO A12 and FLAMINGO
+    // A12 are two different cloths carrying the same printed design, and the
+    // owner also allows the same design twice within one fabric — two rates,
+    // or two lots. The reports count repeats instead; see the schema's own
+    // note in `lib/order-entry/validation.ts`.
+    const seenFabrics = new Map<string, number>();
     for (const [i, f] of payload.fabrics.entries()) {
       if (!f.fabric) return `Fabric block ${i + 1}: fabric is required.`;
+      const fabricKey = f.fabric.toLowerCase();
+      const firstBlock = seenFabrics.get(fabricKey);
+      if (firstBlock !== undefined) {
+        return `Fabric block ${i + 1}: "${f.fabric}" is already used in block ${firstBlock}.`;
+      }
+      seenFabrics.set(fabricKey, i + 1);
       if (f.designs.length === 0)
         return `Fabric block ${i + 1}: add at least one design row.`;
       for (const d of f.designs) {

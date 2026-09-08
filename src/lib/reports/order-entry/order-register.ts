@@ -352,7 +352,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
   if (repeatedLines > 0) {
     insights.push(
       `${count(repeatedOrders)} orders list the same cloth and design more than once — ${count(repeatedLines)} extra lines in all. ` +
-        `The totals are right either way, but it is usually a slip during entry and worth checking before an order is quoted.`,
+        `That is allowed — the same cloth and design can go at two rates or for two lots. The totals are right either way; it is worth a glance only where the two lines look identical.`,
     );
   }
 
@@ -556,7 +556,7 @@ export const orderRegister: ReportDefinition = {
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
     { key: "qualities", label: "Qualities", type: "int", total: "none", note: "Distinct qualities on this order. Not added up at the foot — the same quality on two orders is one quality." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
-    { key: "repeated_lines", label: "Listed twice", type: "int", note: "How many lines repeat a quality and design already on this order. Usually a slip during entry. The order's totals are correct either way." },
+    { key: "repeated_lines", label: "Listed twice", type: "int", note: "How many lines repeat a cloth and design already on this order. Allowed on purpose — the same cloth and design can go at two rates or for two lots — so this is a prompt to glance, not a fault. The order's totals are correct either way." },
     { key: "qty_mtr", label: "Metres", type: "number", note: "Cancelled lines excluded." },
     { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },

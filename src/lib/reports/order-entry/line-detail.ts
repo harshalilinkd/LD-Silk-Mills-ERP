@@ -260,7 +260,7 @@ export const lineDetail: ReportDefinition = {
     { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Per metre, as written on the line. The foot shows the rate across the whole file, weighted by metres." },
     { key: "line_total", label: "Line value", type: "money" },
     { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
-    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same quality and design appears more than once on this order. Usually a slip during entry — worth checking before quoting the order." },
+    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same cloth and design appears more than once on this order. Allowed on purpose — two rates, or two lots — so this is a prompt to glance, not a fault." },
     { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },

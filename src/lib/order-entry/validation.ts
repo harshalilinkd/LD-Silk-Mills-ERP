@@ -56,10 +56,49 @@ const orderHeaderSchema = z.object({
   remarks: z.string().trim().max(2000).optional().nullable(),
 });
 
-export const orderPayloadSchema = z.object({
-  order: orderHeaderSchema,
-  fabrics: z.array(fabricSchema).min(1, "Add at least one fabric block"),
-});
+export const orderPayloadSchema = z
+  .object({
+    order: orderHeaderSchema,
+    fabrics: z.array(fabricSchema).min(1, "Add at least one fabric block"),
+  })
+  /**
+   * ── ONE BLOCK PER FABRIC, AND THAT IS THE WHOLE RULE ──────────────────
+   *
+   * The form's dropdown only PRUNES a fabric already picked in another block;
+   * typed or pasted free text slips straight past it and saves as two blocks
+   * of the same fabric at two different rates. This is the actual gate — the
+   * pruning is a nudge toward not needing it. A route handler runs without
+   * the form above it, so the check has to live here as well as on screen.
+   *
+   * ── A DESIGN NUMBER MAY REPEAT, AND THAT IS DELIBERATE ────────────────
+   *
+   * A design number means something different inside each fabric: MILANO's
+   * A12 and FLAMINGO's A12 are two different cloths carrying the same printed
+   * design, and an order for both is an ordinary order. The owner also chose
+   * to allow the same design twice within ONE fabric — the same cloth and
+   * design at two rates, or for two lots, is a real thing they do.
+   *
+   * So nothing here checks design numbers. The reports still COUNT repeats
+   * (the "Listed twice" columns on the order register and line detail), which
+   * is the right place for it: a report can say "worth a glance" where a
+   * form can only say "no".
+   */
+  .superRefine((data, ctx) => {
+    const seenFabrics = new Map<string, number>();
+    data.fabrics.forEach((f, i) => {
+      const fabricKey = f.fabric.toLowerCase();
+      const firstBlock = seenFabrics.get(fabricKey);
+      if (firstBlock !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${f.fabric}" is already used in fabric block ${firstBlock}`,
+          path: ["fabrics", i, "fabric"],
+        });
+      } else {
+        seenFabrics.set(fabricKey, i + 1);
+      }
+    });
+  });
 
 export type OrderPayload = z.infer<typeof orderPayloadSchema>;
 
