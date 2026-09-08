@@ -214,8 +214,8 @@ export function PageHead({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-start justify-between gap-3 sm:items-end">
+      <div className="min-w-0 flex-1">
         {eyebrow && (
           <div className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
             {eyebrow}
@@ -321,10 +321,12 @@ export function Toolbar({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <div className="relative w-full sm:min-w-[200px] sm:flex-1">{search}</div>
+    <div className="flex flex-row items-center gap-2">
+      <div className="relative min-w-0 flex-1 sm:min-w-[200px]">{search}</div>
       {children && (
-        <div className="flex items-center gap-2 sm:contents">{children}</div>
+        <div className="flex shrink-0 items-center gap-2 sm:contents">
+          {children}
+        </div>
       )}
     </div>
   );

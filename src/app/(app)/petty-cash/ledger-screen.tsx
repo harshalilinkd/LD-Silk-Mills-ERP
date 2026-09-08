@@ -172,7 +172,7 @@ export function LedgerScreen({
       )}
 
       {/* ── the whole box, never filtered ────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <Kpi
           icon={<IconScale className="size-4" />}
           label="Current balance"
@@ -222,7 +222,9 @@ export function LedgerScreen({
           </form>
         }
       >
-        <span className="shrink-0 text-[12px] whitespace-nowrap text-text-3">
+        {/* The same range prints at the foot of the table; on a phone it was
+            the one thing stopping search and Filters sharing a row. */}
+        <span className="hidden shrink-0 text-[12px] whitespace-nowrap text-text-3 sm:inline">
           {ledger.total === 0
             ? "0 records"
             : `${firstRow.toLocaleString("en-IN")}–${lastRow.toLocaleString("en-IN")} of ${ledger.total.toLocaleString("en-IN")}`}
@@ -749,13 +751,13 @@ function Kpi({
   return (
     <div
       className={cn(
-        "rounded-card border bg-surface p-3.5",
+        "min-w-0 rounded-card border bg-surface p-2.5 sm:p-3.5",
         emphasise ? "border-primary/30" : "border-border",
       )}
     >
       <span
         className={cn(
-          "grid size-7 place-items-center rounded-field",
+          "hidden size-7 place-items-center rounded-field sm:grid",
           tone === "green" && "bg-status-green-dim text-status-green",
           tone === "red" && "bg-status-red-dim text-status-red",
           tone === "blue" && "bg-accent text-accent-text",
@@ -766,8 +768,8 @@ function Kpi({
       </span>
       <div
         className={cn(
-          "num mt-2 leading-none font-bold tracking-[-0.02em]",
-          emphasise ? "text-[28px]" : "text-[24px]",
+          "num leading-none font-bold tracking-[-0.02em] sm:mt-2",
+          emphasise ? "text-[20px] sm:text-[28px]" : "text-[18px] sm:text-[24px]",
           tone === "red" && !emphasise ? "text-status-red" : "text-text-1",
         )}
       >
@@ -776,7 +778,11 @@ function Kpi({
       <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
         {label}
       </div>
-      <div className="mt-0.5 text-[11.5px] leading-snug text-text-3">{sub}</div>
+      {/* Desktop only, as StatCard does: the explanation is worth having
+          and is not worth a third of a phone screen. */}
+      <div className="mt-0.5 hidden text-[11.5px] leading-snug text-text-3 sm:block">
+        {sub}
+      </div>
     </div>
   );
 }

@@ -309,14 +309,21 @@ export function FilterSheet({
       <Button
         type="button"
         variant="outline"
+        aria-label="Filters"
         onClick={() => {
           onOpen();
           setOpen(true);
         }}
-        className="h-11 shrink-0"
+        // THE WORD COSTS A DATE. On a 390px phone this button shares its row
+        // with a from/to pair, and a native date control clips its YEAR below
+        // about 135px — the one part of a date nobody can infer. The label
+        // returns from `sm`; the funnel, the count badge and the sheet's own
+        // "Filters" heading carry it below that, and `aria-label` means a
+        // screen reader never loses it.
+        className="h-11 shrink-0 px-2.5"
       >
         <IconFilter className="size-4" stroke={1.6} aria-hidden />
-        Filters
+        <span className="hidden sm:inline">Filters</span>
         {activeCount > 0 ? (
           <span className="num ml-1 rounded-pill bg-accent px-1.5 py-px text-[11px] font-semibold text-accent-text">
             {activeCount}

@@ -207,18 +207,76 @@ export function DashboardScreen({
         }
       />
 
+      {/* ── the six figures ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        {CARDS.map((c) => {
+          const body = (
+            <>
+              <span
+                className={cn(
+                  "hidden size-7 place-items-center rounded-field sm:grid",
+                  c.tone === "green" && "bg-status-green-dim text-status-green",
+                  c.tone === "red" && "bg-status-red-dim text-status-red",
+                  c.tone === "amber" && "bg-status-amber-dim text-status-amber",
+                  c.tone === "blue" && "bg-status-blue-dim text-status-blue",
+                  c.tone === "grey" && "bg-chip text-text-2",
+                )}
+              >
+                {c.icon}
+              </span>
+              <div
+                className={cn(
+                  "num text-[21px] leading-none font-bold tracking-[-0.02em] sm:mt-1.5 sm:text-[26px]",
+                  c.tone === "red" ? "text-status-red" : "text-text-1",
+                )}
+              >
+                {c.value}
+              </div>
+              <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+                {c.label}
+              </div>
+              {/* Desktop only, as StatCard does: the explanation is worth
+                  having and is not worth a third of a phone screen. */}
+              <div className="mt-0.5 hidden text-[11.5px] leading-snug text-text-3 sm:block">
+                {c.sub}
+              </div>
+            </>
+          );
+          return "href" in c && c.href ? (
+            <Link
+              key={c.label}
+              href={c.href}
+              className="min-w-0 rounded-card border border-border bg-surface p-2.5 transition-colors hover:bg-surface-2 sm:p-3"
+            >
+              {body}
+            </Link>
+          ) : (
+            <div
+              key={c.label}
+              className="min-w-0 rounded-card border border-border bg-surface p-2.5 sm:p-3"
+            >
+              {body}
+            </div>
+          );
+        })}
+      </div>
+
       {/* ── one compact row, the shape Order Entry's dashboard uses ──── */}
       {/* No captions: four controls whose own text says what they are
           ("All doers", "All departments", a date) do not need a label above
           each one, and the labels were costing a whole extra line of height
           before any figure appeared. The panel pattern with captions is for
           screens where the filters fold away; this bar is always on. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-field border border-border bg-surface p-2.5">
+      {/* `order-2` below sm: two dropdowns and two date fields filled the
+          phone screen before a single figure appeared. The figures are what
+          the page is for; the controls are how you change them. Unchanged
+          from sm up, where both fit above the fold anyway. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-field border border-border bg-surface p-2 sm:p-2.5">
         {viewer.isAdmin && (
           <>
             <Select
               aria-label="Doer"
-              className="w-auto min-w-[150px] flex-1 sm:flex-none"
+              className="w-auto min-w-0 flex-1 basis-[130px] sm:min-w-[150px] sm:flex-none sm:basis-auto"
               value={params.get("doer") ?? ""}
               onChange={(e) => setParam({ doer: e.target.value || null })}
             >
@@ -231,7 +289,7 @@ export function DashboardScreen({
             </Select>
             <Select
               aria-label="Department"
-              className="w-auto min-w-[150px] flex-1 sm:flex-none"
+              className="w-auto min-w-0 flex-1 basis-[130px] sm:min-w-[150px] sm:flex-none sm:basis-auto"
               value={params.get("dept") ?? ""}
               onChange={(e) => setParam({ dept: e.target.value || null })}
             >
@@ -245,11 +303,14 @@ export function DashboardScreen({
           </>
         )}
 
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
+        {/* Full width on a phone: a native date control clips its YEAR
+            below about 135px, and the year is the one part of a date
+            nobody can infer from the rest. */}
+        <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto sm:flex-1 sm:flex-none">
           <Input
             type="date"
             aria-label="From date"
-            className="num min-w-0 flex-1 sm:w-[150px] sm:flex-none"
+            className="num min-w-[130px] flex-1 sm:w-[150px] sm:flex-none"
             value={params.get("from") ?? ""}
             max={params.get("to") || undefined}
             onChange={(e) => setParam({ from: e.target.value || null })}
@@ -258,7 +319,7 @@ export function DashboardScreen({
           <Input
             type="date"
             aria-label="To date"
-            className="num min-w-0 flex-1 sm:w-[150px] sm:flex-none"
+            className="num min-w-[130px] flex-1 sm:w-[150px] sm:flex-none"
             value={params.get("to") ?? ""}
             min={params.get("from") || undefined}
             onChange={(e) => setParam({ to: e.target.value || null })}
@@ -269,7 +330,7 @@ export function DashboardScreen({
           <strong className="num font-semibold text-text-2">
             {t.total.toLocaleString("en-IN")}
           </strong>{" "}
-          rows
+          {t.total === 1 ? "row" : "rows"}
         </span>
         {activeFilters > 0 && (
           <button
@@ -280,58 +341,6 @@ export function DashboardScreen({
             Clear
           </button>
         )}
-      </div>
-
-      {/* ── the six figures ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        {CARDS.map((c) => {
-          const body = (
-            <>
-              <span
-                className={cn(
-                  "grid size-7 place-items-center rounded-field",
-                  c.tone === "green" && "bg-status-green-dim text-status-green",
-                  c.tone === "red" && "bg-status-red-dim text-status-red",
-                  c.tone === "amber" && "bg-status-amber-dim text-status-amber",
-                  c.tone === "blue" && "bg-status-blue-dim text-status-blue",
-                  c.tone === "grey" && "bg-chip text-text-2",
-                )}
-              >
-                {c.icon}
-              </span>
-              <div
-                className={cn(
-                  "num mt-1.5 text-[26px] leading-none font-bold tracking-[-0.02em]",
-                  c.tone === "red" ? "text-status-red" : "text-text-1",
-                )}
-              >
-                {c.value}
-              </div>
-              <div className="mt-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
-                {c.label}
-              </div>
-              <div className="mt-0.5 text-[11.5px] leading-snug text-text-3">
-                {c.sub}
-              </div>
-            </>
-          );
-          return "href" in c && c.href ? (
-            <Link
-              key={c.label}
-              href={c.href}
-              className="rounded-card border border-border bg-surface p-3 transition-colors hover:bg-surface-2"
-            >
-              {body}
-            </Link>
-          ) : (
-            <div
-              key={c.label}
-              className="rounded-card border border-border bg-surface p-3"
-            >
-              {body}
-            </div>
-          );
-        })}
       </div>
 
       {/* `items-start`, not the grid default `stretch`: a department list with
@@ -378,7 +387,8 @@ export function DashboardScreen({
                         {d.department}
                       </span>
                       <span className="text-[11.5px] whitespace-nowrap text-text-3">
-                        {d.total.toLocaleString("en-IN")} rows
+                        {d.total.toLocaleString("en-IN")}{" "}
+                        {d.total === 1 ? "duty" : "duties"}
                       </span>
                     </div>
                     <span

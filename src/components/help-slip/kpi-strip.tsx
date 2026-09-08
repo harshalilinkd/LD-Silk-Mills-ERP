@@ -106,10 +106,15 @@ export function KpiStrip({
   return (
     <div
       className={cn(
-        // Scrolls horizontally below 768 rather than wrapping: five cells in a
-        // grid at 360px gives 72px each, which is not a card. The last one
-        // peeking IS the scroll hint — never a scrollbar.
-        "flex gap-2.5 overflow-x-auto pb-1 md:grid md:overflow-visible md:pb-0",
+        // TWO ACROSS ON A PHONE, not a horizontal scroll.
+        //
+        // It used to scroll sideways on the reasoning that five cells in one
+        // row at 360px gives 72px each. True — but the answer to that is two
+        // rows, not a sideways scroll: a scroll hides cells behind a gesture
+        // nobody is told about, so "Overdue" was off-screen on the one screen
+        // whose job is to say what needs attention. Two columns gives each
+        // cell ~168px, which is a card, and every figure is visible at once.
+        "grid grid-cols-2 gap-2 md:gap-2.5",
         items.length === 5 ? "md:grid-cols-5" : "md:grid-cols-4",
         className,
       )}
@@ -166,9 +171,10 @@ function KpiCard({
 
   return (
     <StatCard
-      // `min-w-40 shrink-0` is the horizontal-scroll half of the strip above;
+      // `min-w-0` so a grid cell can be narrower than its own figure; the old
+      // `min-w-40 shrink-0` belonged to the horizontal scroll that is gone.
       // StatCard has no opinion about how it is laid out, which is the point.
-      className="min-w-40 shrink-0 md:min-w-0"
+      className="min-w-0"
       icon={Glyph ? <Glyph stroke={1.6} /> : undefined}
       label={item.labelEn}
       value={value}

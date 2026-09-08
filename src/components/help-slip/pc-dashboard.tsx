@@ -26,9 +26,12 @@ import {
 } from "@/components/help-slip/badges";
 import { BarList, TrendChart } from "@/components/help-slip/charts";
 import {
+  CheckRow,
   DateRangeFields,
   FILTER_TOOLBAR,
+  FilterGroup,
   FilterSelect,
+  FilterSheet,
   departmentOptions,
   priorityOptions,
 } from "@/components/help-slip/filters";
@@ -56,7 +59,6 @@ import {
   departmentOf,
   relativeTime,
   shortAge,
-  startOfMonthKey,
 } from "@/lib/help-slip/format";
 import { useDebouncedValue } from "@/lib/help-slip/use-debounced-value";
 import { HELP_SLIP_STALE_TIME } from "@/lib/help-slip/use-unread-count";
@@ -210,6 +212,11 @@ export function PcDashboard() {
     },
   ];
 
+  // The sheet edits a DRAFT and commits on Apply. Applying on every tap would
+  // fire a query per change while somebody made their mind up, and the page
+  // behind the sheet would flicker through states nobody asked to see.
+  const [draft, setDraft] = React.useState<QueueFilters>(filters);
+
   const clearAll = () =>
     write(
       {
@@ -235,79 +242,6 @@ export function PcDashboard() {
         />
       </Reveal>
 
-      {/* ═══ 1. filters ═════════════════════════════════════════════ *
-       * The ERP toolbar CARD (filters.tsx's FILTER_TOOLBAR, verbatim from
-       * crm/followup-queue.tsx): p-2.5 and shadow-sm, because a filter row is
-       * controls, not prose. A bare row of controls beside carded content is
-       * the loudest "floating on the page background" tell there is — and
-       * `ListFallback` already draws a carded toolbar skeleton, so a bare row
-       * would also mean the page changed shape when the data landed.        */}
-      <Reveal index={1}>
-        <div className={FILTER_TOOLBAR}>
-          <FilterSelect
-            ariaLabel="Department"
-            value={filters.departmentId ?? ""}
-            onChange={(v) => apply({ ...filters, departmentId: v || null })}
-            options={departmentOptions(
-              first?.departments ?? [],
-              "All departments",
-            )}
-          />
-          <FilterSelect
-            ariaLabel="Priority"
-            value={filters.priority[0] ?? ""}
-            onChange={(v) =>
-              apply({
-                ...filters,
-                priority: v ? [v as ConcernPriority] : [],
-              })
-            }
-            options={priorityOptions("All priorities")}
-          />
-
-          {/* 44px tap row below md: the minimum touch target for a phone
-              held on the factory floor. ERP density (36px) from md up. */}
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 md:min-h-9">
-            <input
-              type="checkbox"
-              checked={filters.needsReassignment}
-              onChange={(e) =>
-                apply({ ...filters, needsReassignment: e.target.checked })
-              }
-              className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
-            />
-            <span className={cn("text-text-2", T.body)}>
-              Needs reassignment
-            </span>
-          </label>
-
-          <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-
-          <DateRangePresets
-            from={range.from}
-            to={range.to}
-            today={today}
-            onChange={setRange}
-          />
-
-          {filtered || activeQueueFilterCount(filters) > 0 ? (
-            <button
-              type="button"
-              onClick={clearAll}
-              // Hard right, as the ERP's filter well puts its Clear. A text
-              // button is still an interactive control: 44px below md, the
-              // ERP's 36px from md up.
-              className={cn(
-                "ml-auto inline-flex h-11 shrink-0 cursor-pointer items-center text-accent-text underline underline-offset-2 md:h-9",
-                T.bodySm,
-              )}
-            >
-              Clear filters
-            </button>
-          ) : null}
-        </div>
-      </Reveal>
-
       {/* ═══ 2. the five cells, each a filter ═══════════════════════ */}
       <Reveal index={2}>
         <KpiStrip
@@ -331,6 +265,167 @@ export function PcDashboard() {
             });
           }}
         />
+      </Reveal>
+
+      {/* ═══ 1. filters ═════════════════════════════════════════════ *
+       * The ERP toolbar CARD (filters.tsx's FILTER_TOOLBAR, verbatim from
+       * crm/followup-queue.tsx): p-2.5 and shadow-sm, because a filter row is
+       * controls, not prose. A bare row of controls beside carded content is
+       * the loudest "floating on the page background" tell there is — and
+       * `ListFallback` already draws a carded toolbar skeleton, so a bare row
+       * would also mean the page changed shape when the data landed.        */}
+      <Reveal index={1}>
+        <div className={FILTER_TOOLBAR}>
+          {/* ── ON A PHONE: ONE ROW, AND THE REST BEHIND A BUTTON ────────
+              Everything below used to be inline, which is two dropdowns, a
+              checkbox and two dates stacked down the screen before the first
+              figure. The dates stay out because a date range is the one
+              filter people change constantly here; the rest go in the sheet,
+              which edits a draft and commits on Apply. */}
+          <div className="flex w-full flex-wrap items-center gap-2 md:hidden">
+            <FilterSheet
+              activeCount={activeQueueFilterCount(filters)}
+              onOpen={() => setDraft(filters)}
+              onApply={() => apply(draft)}
+              onReset={() =>
+                setDraft({
+                  bucket: draft.bucket,
+                  departmentId: null,
+                  priority: [],
+                  needsReassignment: false,
+                })
+              }
+            >
+              <FilterGroup labelEn="Department">
+                <FilterSelect
+                  ariaLabel="Department"
+                  value={draft.departmentId ?? ""}
+                  onChange={(v) =>
+                    setDraft({ ...draft, departmentId: v || null })
+                  }
+                  options={departmentOptions(
+                    first?.departments ?? [],
+                    "All departments",
+                  )}
+                  className="w-full"
+                />
+              </FilterGroup>
+              <FilterGroup labelEn="Priority">
+                <FilterSelect
+                  ariaLabel="Priority"
+                  value={draft.priority[0] ?? ""}
+                  onChange={(v) =>
+                    setDraft({
+                      ...draft,
+                      priority: v ? [v as ConcernPriority] : [],
+                    })
+                  }
+                  options={priorityOptions("All priorities")}
+                  className="w-full"
+                />
+              </FilterGroup>
+              <FilterGroup labelEn="Assignment">
+                <CheckRow
+                  checked={draft.needsReassignment}
+                  onToggle={() =>
+                    setDraft({
+                      ...draft,
+                      needsReassignment: !draft.needsReassignment,
+                    })
+                  }
+                  labelEn="Needs reassignment"
+                />
+              </FilterGroup>
+            </FilterSheet>
+
+            <DateRangeFields
+              from={range.from}
+              to={range.to}
+              maxDate={today}
+              onChange={(next) =>
+                setRange(next.from ?? range.from, next.to ?? range.to)
+              }
+              // `basis` + `flex-1`, so the pair shares the row with the
+              // Filters button where there is room and drops to its own line
+              // where there is not — rather than clipping the year on a
+              // small phone to keep a one-row layout that was never the
+              // point. `min-w` on each field is the width a native date
+              // control needs to print dd-mm-yyyy in full.
+              // Wrapping all the way down: on a 320px phone the two fields
+              // cannot sit side by side AND print their years, so they stack
+              // instead. Side by side from ~360px, where there is room for
+              // both. A clipped year is not a smaller layout, it is a wrong
+              // date.
+              className="flex-1 basis-[250px] gap-1 [&>input]:w-auto [&>input]:min-w-[136px] [&>input]:flex-1 [&>input]:px-1.5 [&>span]:hidden"
+            />
+          </div>
+
+          {/* ── FROM md UP: THE ERP TOOLBAR, UNCHANGED ─────────────────── */}
+          <div className="hidden w-full flex-wrap items-center gap-2 md:flex">
+            <FilterSelect
+              ariaLabel="Department"
+              value={filters.departmentId ?? ""}
+              onChange={(v) => apply({ ...filters, departmentId: v || null })}
+              options={departmentOptions(
+                first?.departments ?? [],
+                "All departments",
+              )}
+            />
+            <FilterSelect
+              ariaLabel="Priority"
+              value={filters.priority[0] ?? ""}
+              onChange={(v) =>
+                apply({
+                  ...filters,
+                  priority: v ? [v as ConcernPriority] : [],
+                })
+              }
+              options={priorityOptions("All priorities")}
+            />
+
+            <label className="flex min-h-9 cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.needsReassignment}
+                onChange={(e) =>
+                  apply({ ...filters, needsReassignment: e.target.checked })
+                }
+                className="size-[17px] shrink-0 cursor-pointer rounded-[5px] accent-primary"
+              />
+              <span className={cn("text-text-2", T.body)}>
+                Needs reassignment
+              </span>
+            </label>
+
+            <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+
+            {/* The Today / 7 days / 30 days / This month pills are gone, on
+                the owner's instruction: the calendar already sets any range
+                those four could, and on a phone they were a second row of
+                controls above the figures. */}
+            <DateRangeFields
+              from={range.from}
+              to={range.to}
+              maxDate={today}
+              onChange={(next) =>
+                setRange(next.from ?? range.from, next.to ?? range.to)
+              }
+            />
+
+            {filtered || activeQueueFilterCount(filters) > 0 ? (
+              <button
+                type="button"
+                onClick={clearAll}
+                className={cn(
+                  "ml-auto inline-flex h-9 shrink-0 cursor-pointer items-center text-accent-text underline underline-offset-2",
+                  T.bodySm,
+                )}
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+        </div>
       </Reveal>
 
       {/* ═══ 3. what has been happening ═════════════════════════════ */}
@@ -806,80 +901,6 @@ function StatTile({
         {value ?? "No data yet"}
       </span>
       <p className={cn("mt-1.5 text-text-3", T.caption)}>{helpEn}</p>
-    </div>
-  );
-}
-
-// ─── the date-range presets ────────────────────────────────────────────────
-
-/**
- * Today / 7 days / 30 days / This month, plus two dates for anything else.
- *
- * Presets set BOTH dates at once and are highlighted by matching the current
- * from/to against what each one WOULD set — so there is no separate "which
- * preset is active" state that can fall out of sync with the actual range.
- */
-function DateRangePresets({
-  from,
-  to,
-  today,
-  onChange,
-}: {
-  from: string;
-  to: string;
-  today: string;
-  onChange: (from: string, to: string) => void;
-}) {
-  const presets = [
-    { key: "today", label: "Today", from: today, to: today },
-    { key: "7d", label: "7 days", from: dayKeyMinus(6), to: today },
-    { key: "30d", label: "30 days", from: dayKeyMinus(29), to: today },
-    {
-      key: "month",
-      label: "This month",
-      from: startOfMonthKey(),
-      to: today,
-    },
-  ];
-  const activeKey =
-    presets.find((p) => p.from === from && p.to === to)?.key ?? null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap gap-2">
-        {presets.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            aria-pressed={activeKey === p.key}
-            onClick={() => onChange(p.from, p.to)}
-            // The ERP's own range pill (order-entry/dashboard/filter-bar.tsx):
-            // the active one is a SOLID primary fill, not a washed outline.
-            // Help Slip had the outline, so the same control on two dashboards
-            // one sidebar entry apart looked like two different controls.
-            //
-            // 44px + 16px text below md is kept on top of it: the minimum touch
-            // target for a phone held on the factory floor, and anything under
-            // 16px makes iOS Safari auto-zoom on focus and never zoom back.
-            className={cn(
-              "inline-flex h-11 cursor-pointer items-center rounded-pill px-3 text-base font-semibold transition-colors outline-none md:h-8 md:text-[12.5px]",
-              "focus-visible:ring-3 focus-visible:ring-ring/40",
-              activeKey === p.key
-                ? "bg-primary text-primary-foreground"
-                : "border border-border bg-surface-2 text-text-2 hover:text-text-1",
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      <DateRangeFields
-        from={from}
-        to={to}
-        maxDate={today}
-        onChange={(next) => onChange(next.from ?? from, next.to ?? to)}
-      />
     </div>
   );
 }
