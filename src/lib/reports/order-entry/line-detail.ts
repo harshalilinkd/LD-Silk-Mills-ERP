@@ -274,9 +274,19 @@ export const lineDetail: ReportDefinition = {
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "rate", label: "Rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Rupees a metre. The foot is weighted by metres, not a plain average of the rates — and it covers EVERY row in this sheet including the cancelled ones, so it differs slightly from the dashboard's Average rate, which is live lines only." },
     { key: "line_total", label: "Line value", type: "money" },
-    { key: "is_cancelled", label: "Cancelled", type: "boolean", note: "Cancelled lines are listed but excluded from every total above." },
-    { key: "repeated", label: "Listed twice", type: "boolean", note: "The same fabric and design appears more than once on this order. Every member of the pair is flagged here, so a pair shows as two rows — the order register counts the EXTRA lines instead, so the same 29 repeats read as 29 there and 58 here. Allowed on purpose: two rates, or two lots." },
-    { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage this LINE has finished." },
+    { key: "is_cancelled", label: "Cancelled", type: "boolean",
+      // The house example of why a badge is never inferred from the type:
+      // "Cancelled: Yes" is bad where "Received: Yes" is good, and only the
+      // column knows which.
+      badge: { Yes: "bad" },
+      note: "Cancelled lines are listed but excluded from every total above." },
+    { key: "repeated", label: "Listed twice", type: "boolean",
+      // Allowed, but worth a look — two rates or two lots, or a slip.
+      badge: { Yes: "warn" },
+      note: "The same fabric and design appears more than once on this order. Every member of the pair is flagged here, so a pair shows as two rows — the order register counts the EXTRA lines instead, so the same 29 repeats read as 29 there and 58 here. Allowed on purpose: two rates, or two lots." },
+    { key: "stage", label: "Reached", type: "text", width: 17,
+      badge: { "Not started": "warn" },
+      note: "The furthest stage this LINE has finished." },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },
     { key: "remarks", label: "Remarks", type: "text", width: 32 },

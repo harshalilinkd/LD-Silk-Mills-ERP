@@ -335,21 +335,37 @@ export const returnRegister: ReportDefinition = {
     { key: "qty", label: "Metres", type: "number", unit: "MTR" },
     { key: "pieces", label: "Pieces", type: "int", unit: "PCS", note: "Blank where no item on the return recorded a piece count — a blank is not a zero." },
     { key: "value", label: "Value", type: "money", note: "Blank where nothing was entered. A blank is not a zero." },
-    { key: "no_value", label: "No value entered", type: "boolean", note: "Filter this to Yes to find the returns still waiting for a figure." },
+    { key: "no_value", label: "No value entered", type: "boolean",
+      // 26 of 341 today, and every one of them is left out of every money
+      // figure in the pack. That is worth a colour.
+      badge: { Yes: "warn" },
+      note: "Filter this to Yes to find the returns still waiting for a figure." },
     { key: "transport_value", label: "Transport charge", type: "money" },
     { key: "other_charges", label: "Other charges", type: "money" },
     { key: "bhiwandi_transport_value", label: "Bhiwandi transport", type: "money", note: "Paid at the receiving end, so it is only known once it arrives." },
     { key: "bhiwandi_charges", label: "Bhiwandi charges", type: "money" },
     { key: "total_cost", label: "Cost of moving it", type: "money", note: "The four charge columns added together." },
-    { key: "received", label: "Received", type: "boolean", note: "Filter this to No for the day's chase list." },
+    { key: "received", label: "Received", type: "boolean",
+      // The chase list, coloured. Only "No" — a return that arrived is the
+      // ordinary outcome and does not need telling. The Status column beside
+      // this one says the same thing in words and is deliberately left plain:
+      // one fact, coloured once.
+      badge: { No: "warn" },
+      note: "Filter this to No for the day's chase list." },
     { key: "status_label", label: "Status", type: "text", width: 22 },
     { key: "posted_on", label: "Posted on", type: "date" },
     { key: "received_on", label: "Received on", type: "date" },
-    { key: "received_no_date", label: "Received, date missing", type: "boolean", note: "Marked received but nobody recorded when." },
+    { key: "received_no_date", label: "Received, date missing", type: "boolean",
+      badge: { Yes: "warn" },
+      note: "Marked received but nobody recorded when. Days to receive is blank on these rather than guessed." },
     { key: "days_to_receive", label: "Days to receive", type: "int", total: "avg", note: "From the return's date to the day Bhiwandi received it. Blank where the receipt was entered before the return date. The foot shows the average, not a sum." },
     { key: "days_waiting", label: "Days waiting", type: "int", total: "avg", note: "For the ones not yet received, counted to today. Blank where the return's own date is a typing slip — one return dated 2000-01-01 would otherwise sit in this average at 9,747 days." },
     { key: "age", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Received": "good", "Unknown": "neutral" } },
-    { key: "date_looks_wrong", label: "Date looks wrong", type: "boolean", note: `Dated before ${EARLIEST_SANE}, so almost certainly a typing slip.` },
+    { key: "date_looks_wrong", label: "Date looks wrong", type: "boolean",
+      // Red, not amber: a row this report calls wrong must not sit inside a
+      // figure it calls right, and this is the flag that says so.
+      badge: { Yes: "bad" },
+      note: `Dated before ${EARLIEST_SANE}, so almost certainly a typing slip.` },
     { key: "has_attachment", label: "Photo kept", type: "boolean" },
     { key: "receiving_notes", label: "Receiving notes", type: "text", width: 30, optional: true },
     { key: "created_at", label: "Entered at", type: "datetime" },

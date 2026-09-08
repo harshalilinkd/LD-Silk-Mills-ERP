@@ -2,11 +2,13 @@ import ExcelJS from "exceljs";
 
 import { C, buildDashboard } from "./dashboard";
 
-import { excelFormat, excelWidth, isNumeric, isoToKolkata, plural } from "./format";
+import { excelFormat, excelWidth, isNumeric, isoToKolkata, plural, unitFormat } from "./format";
+import { excelImageKind, fitBox, imageSize } from "./image-size";
 import type {
   ReportAnalysis,
   ReportColumn,
   ReportDefinition,
+  ReportImages,
   ReportParams,
   ReportRow,
 } from "./types";
@@ -211,20 +213,193 @@ function buildData(
   }
 }
 
+// --- the receipts sheet ---------------------------------------------------
+
 /**
- * The column's number format, with its unit written into it.
+ * ===========================================================================
+ *  The bills themselves
+ * ===========================================================================
  *
- * `1,250.00 MTR` rather than `1,250.00`, so a column read out of context —
- * pasted, printed, screenshotted — still says what it is measuring. The value
- * stays a number: only the display changes, so it still sums.
+ * One row per attachment: the entry it belongs to, then the picture. The
+ * owner's words were that the Receipt column showed "only the attached image
+ * name, not the actual image" - this is the actual image, and `ReportImages`
+ * in `types.ts` records why it is a sheet of its own rather than a tall cell
+ * on the Data sheet (short version: a floating picture does not move when a
+ * range is sorted, and a receipt over the wrong payment is worse than none).
+ *
+ * -- IT IS CAPPED, AND IT SAYS SO ------------------------------------------
+ *
+ * An embedded picture is stored WHOLE. Excel scales it for display; the bytes
+ * are the bytes, so fifty phone photographs of bills is a fifty-megabyte
+ * workbook nobody can mail. There is no rasteriser here to shrink them with -
+ * the same reason chart images were refused - so the honest control is a
+ * budget, loudly declared: the first MAX_IMAGES of them, and never more than
+ * MAX_BYTES in total. What did not fit is counted on the sheet, with where to
+ * find it.
+ *
+ * A file that is not a picture - a PDF bill, a scanned .tif - gets its line
+ * and says what it is. Nothing is silently dropped.
  */
-function unitFormat(c: ReportColumn): string | undefined {
-  const base = excelFormat(c.type);
-  if (!base || !c.unit) return base;
-  return base
-    .split(";")
-    .map((part) => (part ? `${part}" ${c.unit}"` : part))
-    .join(";");
+const RECEIPTS_SHEET = "Receipts";
+/** Pixels. Wide enough to read a printed amount, short enough to scroll. */
+const IMAGE_BOX = { width: 260, height: 150 };
+const MAX_IMAGES = 200;
+const MAX_BYTES = 20 * 1024 * 1024;
+
+async function buildReceipts(
+  wb: ExcelJS.Workbook,
+  columns: ReportColumn[],
+  rows: ReportRow[],
+  images: ReportImages,
+): Promise<void> {
+  // Only the columns the report asked for, in the order it asked for them,
+  // and only the ones it actually has.
+  const beside = images.columns
+    .map((k) => columns.find((c) => c.key === k))
+    .filter((c): c is ReportColumn => !!c);
+
+  type Job = { row: ReportRow; name: string; ref: string; mime: string | null };
+  const jobs: Job[] = [];
+  for (const row of rows) {
+    const key = String(row[images.rowKey] ?? "");
+    for (const f of images.byRow[key] ?? []) {
+      jobs.push({ row, name: f.name, ref: f.ref, mime: f.mime });
+    }
+  }
+  if (!jobs.length) return;
+
+  const ws = wb.addWorksheet(RECEIPTS_SHEET, {
+    views: [{ state: "frozen", ySplit: 1, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  beside.forEach((c, i) => {
+    ws.getColumn(i + 1).width = excelWidth(c);
+  });
+  const fileCol = beside.length + 1;
+  const imgCol = beside.length + 2;
+  ws.getColumn(fileCol).width = 28;
+  // About 7 pixels to the character, plus a margin either side of the box.
+  ws.getColumn(imgCol).width = Math.ceil(IMAGE_BOX.width / 7) + 2;
+
+  const header = ws.getRow(1);
+  header.height = 22;
+  [...beside.map((c) => c.label), "File", "Receipt"].forEach((label, i) => {
+    const cell = header.getCell(i + 1);
+    cell.value = label;
+    cell.font = { name: BODY, size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+    fill(cell, C.indigo);
+    cell.alignment = { vertical: "middle", horizontal: "left" };
+  });
+
+  let r = 2;
+  let drawn = 0;
+  let bytes = 0;
+  let skippedForBudget = 0;
+  const notPictures: string[] = [];
+
+  for (const job of jobs) {
+    const kind = excelImageKind(job.mime, job.name);
+    const overBudget = drawn >= MAX_IMAGES || bytes >= MAX_BYTES;
+
+    let data: Buffer | null = null;
+    if (kind && !overBudget) {
+      try {
+        data = await images.load(job.ref);
+      } catch {
+        // A receipt the bucket will not hand back is a line on the sheet, not
+        // a failed export. The rest of the pack is still correct.
+        data = null;
+      }
+      // Never let the LAST picture be the one that blows the budget, and never
+      // let the budget stop the first one - a single 30 MB scan should still
+      // arrive, alone, rather than leave the sheet empty with no explanation.
+      if (data && drawn > 0 && bytes + data.length > MAX_BYTES) {
+        data = null;
+        skippedForBudget++;
+      }
+    } else if (kind) {
+      skippedForBudget++;
+    } else {
+      notPictures.push(job.name);
+    }
+
+    const row = ws.getRow(r);
+    beside.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      const v = job.row[c.key];
+      if (v === null || v === undefined) cell.value = null;
+      else if (c.type === "date") cell.value = new Date(`${String(v).slice(0, 10)}T00:00:00Z`);
+      else if (c.type === "boolean") cell.value = v ? "Yes" : "No";
+      else if (isNumeric(c.type)) cell.value = Number(v);
+      else cell.value = String(v);
+      const fmt = unitFormat(c);
+      if (fmt) cell.numFmt = fmt;
+      cell.font = { name: BODY, size: 9.5, color: { argb: C.ink2 } };
+      cell.alignment = { vertical: "middle", horizontal: isNumeric(c.type) ? "right" : "left" };
+    });
+
+    const nameCell = row.getCell(fileCol);
+    nameCell.value = job.name;
+    nameCell.font = { name: BODY, size: 9, color: { argb: C.ink2 } };
+    nameCell.alignment = { vertical: "middle", wrapText: true };
+
+    if (data && kind) {
+      const fit = fitBox(imageSize(data), IMAGE_BOX);
+      const id = wb.addImage({ buffer: data as unknown as ExcelJS.Buffer, extension: kind });
+      ws.addImage(id, {
+        // Zero-based, and a fraction of a cell in from the corner so the
+        // picture does not sit on the gridline of the column beside it.
+        tl: { col: imgCol - 1 + 0.06, row: r - 1 + 0.06 },
+        ext: { width: fit.width, height: fit.height },
+      } as unknown as Parameters<ExcelJS.Worksheet["addImage"]>[1]);
+      // Points, not pixels: 0.75 pt to the pixel, plus a little air.
+      row.height = Math.max(20, Math.round(fit.height * 0.75) + 8);
+      drawn++;
+      bytes += data.length;
+    } else {
+      const cell = row.getCell(imgCol);
+      cell.value = !kind
+        ? "Not a picture Excel can draw - open this one in the app"
+        : overBudget
+          ? "Left out to keep this file a sensible size - open it in the app"
+          : "Could not be read from storage";
+      cell.font = { name: BODY, size: 9, italic: true, color: { argb: C.ink3 } };
+      cell.alignment = { vertical: "middle", wrapText: true };
+      row.height = 20;
+    }
+
+    if (r % 2 === 1) {
+      for (let c = 1; c <= imgCol; c++) {
+        const cell = row.getCell(c);
+        if (!cell.fill) fill(cell, C.paper);
+      }
+    }
+    r++;
+  }
+
+  // -- SAY WHAT IS NOT HERE ------------------------------------------------
+  const said: string[] = [plural(drawn, "receipt") + " drawn on this sheet."];
+  if (skippedForBudget) {
+    said.push(
+      `${plural(skippedForBudget, "picture")} left out: a workbook stops being mailable somewhere past ${Math.round(MAX_BYTES / (1024 * 1024))} MB, and receipts are stored at full size because there is nothing here that can shrink them. Open those entries in Petty Cash to see them.`,
+    );
+  }
+  if (notPictures.length) {
+    const kinds = [...new Set(notPictures.map((n) => n.split(".").pop()?.toUpperCase() ?? "?"))];
+    said.push(
+      `${plural(notPictures.length, "attachment")} is not a picture Excel can draw (${kinds.join(", ")}). They are listed above and open in the app.`,
+    );
+  }
+  said.push(
+    "Each picture belongs to the reference on its own row. They are deliberately NOT on the Data sheet: Excel does not move a floating picture when a range is sorted, so one sort would put every receipt over the wrong entry.",
+  );
+
+  ws.mergeCells(r + 1, 1, r + 1, Math.max(2, imgCol));
+  const note = ws.getCell(r + 1, 1);
+  note.value = said.join("  ");
+  note.font = { name: BODY, size: 8.5, italic: true, color: { argb: C.ink2 } };
+  note.alignment = { wrapText: true, vertical: "top" };
+  ws.getRow(r + 1).height = 44;
 }
 
 // ─── the notes sheet ──────────────────────────────────────────────────────
@@ -356,6 +531,8 @@ export async function toWorkbook(
   rows: ReportRow[],
   analysis: ReportAnalysis,
   meta: { runBy: string; runAt: Date; totalRows: number },
+  /** From `ReportResult.images`. Draws the Receipts sheet; CSV never sees it. */
+  images?: ReportImages,
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "LD Silk Mills ERP";
@@ -416,6 +593,11 @@ export async function toWorkbook(
     rows,
   });
   buildData(wb, columns, rows);
+
+  // After Data, before Notes: the annexure sits behind the table it belongs
+  // to. It costs one storage read per receipt, so it is only reached when a
+  // report actually declares attachments.
+  if (images) await buildReceipts(wb, columns, rows, images);
 
   buildNotes(wb, report, params, analysis, {
     runBy: meta.runBy,

@@ -69,6 +69,15 @@ export type ChartSeries = {
 export type ChartSpec = {
   kind: "column" | "bar" | "pie" | "doughnut";
   title: string;
+  /**
+   * One short line under the title, in business language, saying what the
+   * chart is OF — "Top 5 of 212 customers, by value" under a ranking whose
+   * title asks who buys most. A title names the question; a manager also has
+   * to know the scope of the answer before quoting it, and the alternative is
+   * a caption in a cell that gets separated from its chart the moment anybody
+   * moves one.
+   */
+  subtitle?: string;
   /** Absolute reference to the category labels. */
   catRef: string;
   categories: string[];
@@ -128,11 +137,21 @@ function numCache(values: number[], fmt: string): string {
 const solidFill = (argb: string) => `<a:solidFill><a:srgbClr val="${rgb(argb)}"/></a:solidFill>`;
 
 const INK = "16181D";
-const INK3 = "7A8291";
+const INK2 = "323844";
 const RULE = "DDDFE3";
 
-/** Small grey axis/label text, so a chart does not shout over its own title. */
-function txPr(size = 900, colour = INK3, bold = false): string {
+/**
+ * Axis, legend and label text.
+ *
+ * ── IT DEFAULTS TO BLACK, AND THAT WAS A CORRECTION ─────────────────────
+ *
+ * It used to default to INK3, a light grey chosen so a chart "does not shout
+ * over its own title". On paper and on a projector that grey is not quiet, it
+ * is UNREADABLE — the owner reported axis figures they could not make out.
+ * Hierarchy on this page comes from SIZE and WEIGHT (a 11pt bold title over
+ * 9pt regular labels), never from fading the text towards the background.
+ */
+function txPr(size = 900, colour = INK, bold = false): string {
   return (
     `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>` +
     `<a:defRPr sz="${size}" b="${bold ? 1 : 0}">${solidFill(colour)}<a:latin typeface="Aptos Narrow"/></a:defRPr>` +
@@ -140,11 +159,28 @@ function txPr(size = 900, colour = INK3, bold = false): string {
   );
 }
 
-function titleXml(text: string): string {
+/**
+ * The title, and under it an optional subtitle.
+ *
+ * A chart title is rich text and rich text is PARAGRAPHS, so a subtitle is a
+ * second `a:p` inside the same `c:rich` — not a second title element, which
+ * the schema has no room for, and not a text box, which would not travel with
+ * the chart. It carries its own run properties rather than inheriting the
+ * heading's, so it reads as a caption and not as a title that wrapped.
+ */
+function titleXml(text: string, subtitle?: string): string {
+  const head =
+    `<a:p><a:pPr><a:defRPr sz="1100" b="1">${solidFill(INK)}<a:latin typeface="Aptos Display"/></a:defRPr></a:pPr>` +
+    `<a:r><a:rPr lang="en-IN" sz="1100" b="1"/><a:t>${esc(text)}</a:t></a:r></a:p>`;
+  const sub = subtitle
+    ? `<a:p><a:pPr><a:defRPr sz="800" b="0">${solidFill(INK2)}<a:latin typeface="Aptos Narrow"/></a:defRPr></a:pPr>` +
+      `<a:r><a:rPr lang="en-IN" sz="800" b="0">${solidFill(INK2)}<a:latin typeface="Aptos Narrow"/></a:rPr>` +
+      `<a:t>${esc(subtitle)}</a:t></a:r></a:p>`
+    : "";
   return (
     `<c:title><c:tx><c:rich><a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" vert="horz" wrap="square" anchor="ctr" anchorCtr="1"/><a:lstStyle/>` +
-    `<a:p><a:pPr><a:defRPr sz="1100" b="1">${solidFill(INK)}<a:latin typeface="Aptos Display"/></a:defRPr></a:pPr>` +
-    `<a:r><a:rPr lang="en-IN" sz="1100" b="1"/><a:t>${esc(text)}</a:t></a:r></a:p>` +
+    head +
+    sub +
     `</c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
   );
 }
@@ -342,7 +378,7 @@ function chartXml(spec: ChartSpec, n: number): string {
     `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}">` +
     `<c:date1904 val="0"/><c:lang val="en-IN"/><c:roundedCorners val="0"/>` +
     `<c:chart>` +
-    titleXml(spec.title) +
+    titleXml(spec.title, spec.subtitle) +
     `<c:plotArea><c:layout/>${plot}<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>` +
     legend +
     `<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>` +
@@ -426,21 +462,42 @@ export async function injectCharts(
   const sheetPath = await resolveSheetPath(zip, sheetName);
   const sheetFile = sheetPath.split("/").pop()!;
 
+  // ── 0. WHICH DRAWING NUMBER IS FREE ────────────────────────────────────
+  //
+  // This used to write `drawing1.xml` unconditionally, which was safe only
+  // while nothing else in the workbook had a drawing. The Receipts sheet has
+  // one — ExcelJS writes `drawing1.xml` for its embedded images — so the
+  // hardcoded name OVERWROTE the receipts with the chart drawing and left
+  // that sheet pointing at a part that no longer described it. Excel calls
+  // that a damaged file, and it is the same class of bug as reusing an rId.
+  const taken = Object.keys(zip.files)
+    .map((n) => /^xl\/drawings\/drawing(\d+)\.xml$/.exec(n)?.[1])
+    .filter((n): n is string => !!n)
+    .map(Number);
+  const dn = (taken.length ? Math.max(...taken) : 0) + 1;
+
+  // Chart parts are numbered the same way, for the same reason.
+  const existingCharts = Object.keys(zip.files)
+    .map((n) => /^xl\/charts\/chart(\d+)\.xml$/.exec(n)?.[1])
+    .filter((n): n is string => !!n)
+    .map(Number);
+  const c0 = existingCharts.length ? Math.max(...existingCharts) : 0;
+
   // ── 1. the chart parts ─────────────────────────────────────────────────
   specs.forEach((spec, i) => {
-    zip.file(`xl/charts/chart${i + 1}.xml`, chartXml(spec, i));
+    zip.file(`xl/charts/chart${c0 + i + 1}.xml`, chartXml(spec, i));
   });
 
   // ── 2. the drawing, and what it points at ──────────────────────────────
-  zip.file("xl/drawings/drawing1.xml", drawingXml(specs));
+  zip.file(`xl/drawings/drawing${dn}.xml`, drawingXml(specs));
   zip.file(
-    "xl/drawings/_rels/drawing1.xml.rels",
+    `xl/drawings/_rels/drawing${dn}.xml.rels`,
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n` +
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       specs
         .map(
           (_, i) =>
-            `<Relationship Id="rId${i + 1}" Type="${REL_CHART}" Target="../charts/chart${i + 1}.xml"/>`,
+            `<Relationship Id="rId${i + 1}" Type="${REL_CHART}" Target="../charts/chart${c0 + i + 1}.xml"/>`,
         )
         .join("") +
       `</Relationships>`,
@@ -459,7 +516,7 @@ export async function injectCharts(
       relPath,
       existing.replace(
         "</Relationships>",
-        `<Relationship Id="${drawingRid}" Type="${REL_DRAWING}" Target="../drawings/drawing1.xml"/></Relationships>`,
+        `<Relationship Id="${drawingRid}" Type="${REL_DRAWING}" Target="../drawings/drawing${dn}.xml"/></Relationships>`,
       ),
     );
   } else {
@@ -467,7 +524,7 @@ export async function injectCharts(
       relPath,
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n` +
         `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-        `<Relationship Id="${drawingRid}" Type="${REL_DRAWING}" Target="../drawings/drawing1.xml"/>` +
+        `<Relationship Id="${drawingRid}" Type="${REL_DRAWING}" Target="../drawings/drawing${dn}.xml"/>` +
         `</Relationships>`,
     );
   }
@@ -489,9 +546,9 @@ export async function injectCharts(
   const overrides =
     specs
       .map(
-        (_, i) => `<Override PartName="/xl/charts/chart${i + 1}.xml" ContentType="${CT_CHART}"/>`,
+        (_, i) => `<Override PartName="/xl/charts/chart${c0 + i + 1}.xml" ContentType="${CT_CHART}"/>`,
       )
-      .join("") + `<Override PartName="/xl/drawings/drawing1.xml" ContentType="${CT_DRAWING}"/>`;
+      .join("") + `<Override PartName="/xl/drawings/drawing${dn}.xml" ContentType="${CT_DRAWING}"/>`;
   ct = ct.replace("</Types>", overrides + "</Types>");
   zip.file("[Content_Types].xml", ct);
 

@@ -288,21 +288,40 @@ export const followupRegister: ReportDefinition = {
     { key: "due_on", label: "Call due on", type: "date" },
     { key: "days_overdue", label: "Days overdue", type: "int", total: "avg", note: "Past the due date and still not rung. Blank once somebody has called. The foot shows the average, not a sum." },
     { key: "age", label: "How overdue", type: "text", width: 14, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Not due yet": "good" } },
-    { key: "contacted", label: "Called", type: "boolean", note: "Filter this to No for the day's call list." },
+    { key: "contacted", label: "Called", type: "boolean",
+      // The call list, coloured. Amber on the ones nobody has rung — which is
+      // every row today, and that IS the finding this report exists to make.
+      // An honest column of amber beats a colourless one that hides it.
+      badge: { No: "warn" },
+      note: "Filter this to No for the day's call list." },
     { key: "contacted_on", label: "Called on", type: "date" },
     { key: "days_to_contact", label: "Days to call", type: "int", total: "avg", note: "From the due date to the day it was actually rung. Negative means it was rung early." },
     { key: "attempts", label: "Attempts", type: "int" },
     { key: "contact_person", label: "Contact", type: "text", width: 22 },
     { key: "contact_phone", label: "Phone", type: "text", width: 16 },
-    { key: "system_on_time", label: "On time (our dates)", type: "boolean", note: "Computed from our own dispatch and transit dates." },
-    { key: "customer_says_on_time", label: "On time (customer)", type: "boolean", note: "What they answered when rung. Blank until somebody rings." },
-    { key: "they_disagree", label: "We disagree", type: "boolean", note: "Our dates and the customer's answer differ. Blank until both are known." },
+    { key: "system_on_time", label: "On time (our dates)", type: "boolean",
+      // Both sides coloured here, unlike most columns: late delivery is the
+      // thing being measured, so "on time" is a result and not the background.
+      badge: { Yes: "good", No: "bad" },
+      note: "Computed from our own dispatch and transit dates." },
+    { key: "customer_says_on_time", label: "On time (customer)", type: "boolean",
+      badge: { Yes: "good", No: "bad" },
+      note: "What they answered when rung. Blank until somebody rings, and a blank is not a No." },
+    { key: "they_disagree", label: "We disagree", type: "boolean",
+      // Our record and the customer's memory do not match. Nothing else on the
+      // sheet is a reason to pick up the phone the way this is.
+      badge: { Yes: "bad" },
+      note: "Our dates and the customer's answer differ. Blank until both are known." },
     { key: "delay_reason", label: "Delay reason", type: "text", width: 24 },
     { key: "rating_overall", label: "Rating", type: "int", total: "avg", note: "Out of 5. The foot shows the average of the ones that have been rated." },
     { key: "rating_source", label: "Rating from", type: "text", width: 14, optional: true },
     { key: "reorder_intent", label: "Will reorder", type: "text", width: 14 },
     { key: "reorder_note", label: "Reorder note", type: "text", width: 28, optional: true },
-    { key: "is_escalated", label: "Escalated", type: "boolean" },
+    { key: "is_escalated", label: "Escalated", type: "boolean",
+      // Only Yes. An escalation is the exception; not being escalated is what
+      // every ordinary follow-up looks like.
+      badge: { Yes: "bad" },
+      note: "Raised beyond the person who owns the follow-up." },
     { key: "notes", label: "Notes", type: "text", width: 32, optional: true },
     { key: "created_by", label: "Raised by", type: "text", width: 22 },
     { key: "completed_by", label: "Closed by", type: "text", width: 22 },

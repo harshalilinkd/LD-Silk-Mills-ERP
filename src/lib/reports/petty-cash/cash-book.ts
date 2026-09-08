@@ -1,10 +1,25 @@
 import "server-only";
 
 import { sql as pg } from "@/db";
-import { fillMonths, matrixFrom, rank, spread, trend, trendInsight } from "../analysis";
+import { fetchAttachmentBytes } from "@/lib/petty-cash/attachments";
+import {
+  fillMonths,
+  matrixFrom,
+  rank,
+  spread,
+  trend,
+  trendInsight,
+} from "../analysis";
 import { count, inr, inrShort, pct, plural } from "../format";
 import { money2, n } from "../num";
-import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
+import type {
+  ReportDefinition,
+  ReportImageRef,
+  ReportImages,
+  ReportParams,
+  ReportResult,
+  ReportRow,
+} from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 
 /**
@@ -49,8 +64,33 @@ const SQL = `
     t.amount,
     t.proof_type::text  as proof_type,
     t.proof_other,
-    (t.attachment_path is not null and t.attachment_path <> '') as has_receipt,
-    t.attachment_name,
+    (
+      select count(*)::int from ld_petty_cash.entry_attachments ea where ea.transaction_id = t.id
+    ) + (case when t.attachment_path is not null and t.attachment_path <> '' then 1 else 0 end)
+      as receipt_count,
+    coalesce(
+      (
+        select string_agg(ea.file_name, '; ' order by ea.id)
+        from ld_petty_cash.entry_attachments ea where ea.transaction_id = t.id
+      ),
+      t.attachment_name
+    ) as receipt_files,
+    -- The storage paths, for the Receipts sheet. They are NEVER printed: the
+    -- workbook draws the picture and throws the path away. A path in a file is
+    -- a path somebody tries, and this bucket answers to nothing but the proxy
+    -- route with its own permission check.
+    coalesce(
+      (
+        select json_agg(
+                 json_build_object('name', ea.file_name, 'ref', ea.file_path, 'mime', ea.mime_type)
+                 order by ea.id
+               )
+        from ld_petty_cash.entry_attachments ea where ea.transaction_id = t.id
+      ),
+      '[]'::json
+    ) as receipt_list,
+    t.attachment_path as legacy_path,
+    t.attachment_name as legacy_name,
     t.created_at
   from ld_petty_cash.transactions t
   left join ld_petty_cash.categories c on c.id = t.category_id
@@ -66,11 +106,25 @@ const SQL = `
 `;
 
 type Raw = {
-  uid: string; transaction_date: string; kind: string; from_name: string | null;
-  to_name: string | null; employee: string | null; category_snapshot: string | null;
-  category_now: string | null; category_group: string | null; reason: string | null;
-  amount: string; proof_type: string | null; proof_other: string | null;
-  has_receipt: boolean; attachment_name: string | null; created_at: string;
+  uid: string;
+  transaction_date: string;
+  kind: string;
+  from_name: string | null;
+  to_name: string | null;
+  employee: string | null;
+  category_snapshot: string | null;
+  category_now: string | null;
+  category_group: string | null;
+  reason: string | null;
+  amount: string;
+  proof_type: string | null;
+  proof_other: string | null;
+  receipt_count: number;
+  receipt_files: string | null;
+  receipt_list: { name: string; ref: string; mime: string | null }[] | null;
+  legacy_path: string | null;
+  legacy_name: string | null;
+  created_at: string;
 };
 
 const PROOF: Record<string, string> = {
@@ -100,7 +154,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     category_now: r.category_now,
     category_group: r.category_group,
     renamed_since:
-      !!r.category_snapshot && !!r.category_now && r.category_snapshot !== r.category_now,
+      !!r.category_snapshot &&
+      !!r.category_now &&
+      r.category_snapshot !== r.category_now,
     reason: r.reason,
     // In and out as separate columns, the way a cash book is written. One
     // signed column would need every reader to remember which sign is which.
@@ -109,19 +165,63 @@ async function run(params: ReportParams): Promise<ReportResult> {
     amount: money2(r.amount),
     proof_type: r.proof_type ? (PROOF[r.proof_type] ?? r.proof_type) : null,
     proof_other: r.proof_other,
-    has_receipt: r.has_receipt,
-    attachment_name: r.attachment_name,
+    has_receipt: r.receipt_count > 0,
+    receipt_count: r.receipt_count,
+    receipt_files: r.receipt_files,
     created_at: r.created_at,
   }));
 
-  // ── the figures ─────────────────────────────────────────────────────────
+  // ── THE RECEIPTS THEMSELVES ─────────────────────────────────────────
+  //
+  // Names and paths only, straight out of the query above — no bytes. The
+  // workbook builder calls `load` for the ones it draws, so a CSV export and a
+  // dashboard run never touch storage, and a five-thousand-entry period does
+  // not pull five thousand photographs to print a table.
+  //
+  // An entry saved before `entry_attachments` existed carries its one file on
+  // the transaction row itself. Both shapes are the same thing to a reader, so
+  // they arrive in one list.
+  const byRow: Record<string, ReportImageRef[]> = {};
+  for (const r of raw.slice(0, MAX_EXPORT_ROWS)) {
+    const files: ReportImageRef[] = (r.receipt_list ?? []).map((f) => ({
+      name: f.name,
+      ref: f.ref,
+      mime: f.mime,
+    }));
+    if (r.legacy_path) {
+      files.push({
+        name: r.legacy_name ?? "receipt",
+        ref: r.legacy_path,
+        mime: null,
+      });
+    }
+    if (files.length) byRow[r.uid] = files;
+  }
+
+  const images: ReportImages | undefined = Object.keys(byRow).length
+    ? {
+        rowKey: "uid",
+        // What a person needs beside a bill to know which payment it proves.
+        columns: ["uid", "transaction_date", "to_name", "amount", "reason"],
+        byRow,
+        load: async (ref) => {
+          const got = await fetchAttachmentBytes(ref);
+          if (!got?.body) return null;
+          return Buffer.from(await new Response(got.body).arrayBuffer());
+        },
+      }
+    : undefined;
+
+  // ── the figures ────────────────────────────────────────────────────────────
   const credits = raw.filter((r) => r.kind === "CREDIT");
   const debits = raw.filter((r) => r.kind === "DEBIT");
   const inTotal = credits.reduce((s, r) => s + n(r.amount), 0);
   const outTotal = debits.reduce((s, r) => s + n(r.amount), 0);
   const sizes = spread(debits.map((r) => n(r.amount)));
-  const noProof = raw.filter((r) => !r.proof_type || r.proof_type === "NONE").length;
-  const noReceipt = raw.filter((r) => !r.has_receipt).length;
+  const noProof = raw.filter(
+    (r) => !r.proof_type || r.proof_type === "NONE",
+  ).length;
+  const noReceipt = raw.filter((r) => r.receipt_count === 0).length;
 
   const byMonth = new Map<string, number>();
   const byCategory = new Map<string, number>();
@@ -130,9 +230,20 @@ async function run(params: ReportParams): Promise<ReportResult> {
   for (const r of debits) {
     const m = r.transaction_date?.slice(0, 7);
     if (m) byMonth.set(m, (byMonth.get(m) ?? 0) + n(r.amount));
-    byCategory.set(r.category_snapshot?.trim() || "Not recorded", (byCategory.get(r.category_snapshot?.trim() || "Not recorded") ?? 0) + n(r.amount));
-    byGroup.set(r.category_group?.trim() || "Not grouped", (byGroup.get(r.category_group?.trim() || "Not grouped") ?? 0) + n(r.amount));
-    byPayee.set(r.to_name?.trim() || "Not recorded", (byPayee.get(r.to_name?.trim() || "Not recorded") ?? 0) + n(r.amount));
+    byCategory.set(
+      r.category_snapshot?.trim() || "Not recorded",
+      (byCategory.get(r.category_snapshot?.trim() || "Not recorded") ?? 0) +
+        n(r.amount),
+    );
+    byGroup.set(
+      r.category_group?.trim() || "Not grouped",
+      (byGroup.get(r.category_group?.trim() || "Not grouped") ?? 0) +
+        n(r.amount),
+    );
+    byPayee.set(
+      r.to_name?.trim() || "Not recorded",
+      (byPayee.get(r.to_name?.trim() || "Not recorded") ?? 0) + n(r.amount),
+    );
   }
 
   // Filled across the period, so six months with one payment in them draw a
@@ -174,23 +285,61 @@ async function run(params: ReportParams): Promise<ReportResult> {
   return {
     rows,
     totalRows: raw.length,
+    images,
     analysis: {
       headline: raw.length
         ? `${inrShort(outTotal)} paid out and ${inrShort(inTotal)} put in over ${plural(raw.length, "entry", "entries")}.`
         : "No petty cash entries in this period.",
       kpis: [
         { label: "Entries", value: count(raw.length) },
-        { label: "Money in", value: inrShort(inTotal), tone: "good", sub: plural(credits.length, "entry", "entries") },
-        { label: "Money out", value: inrShort(outTotal), tone: "bad", sub: plural(debits.length, "entry", "entries") },
-        { label: "Net for the period", value: inrShort(inTotal - outTotal), tone: inTotal - outTotal < 0 ? "bad" : "good" },
-        { label: "Middle payment", value: sizes.median !== null ? inr(sizes.median) : "—", sub: "half are bigger, half smaller" },
-        { label: "Largest payment", value: sizes.max !== null ? inr(sizes.max) : "—" },
-        { label: "No proof recorded", value: count(noProof), tone: noProof ? "warn" : "good", lowerIsBetter: true },
-        { label: "No receipt attached", value: count(noReceipt), tone: noReceipt ? "warn" : "good", lowerIsBetter: true },
+        {
+          label: "Money in",
+          value: inrShort(inTotal),
+          tone: "good",
+          sub: plural(credits.length, "entry", "entries"),
+        },
+        {
+          label: "Money out",
+          value: inrShort(outTotal),
+          tone: "bad",
+          sub: plural(debits.length, "entry", "entries"),
+        },
+        {
+          label: "Net for the period",
+          value: inrShort(inTotal - outTotal),
+          tone: inTotal - outTotal < 0 ? "bad" : "good",
+        },
+        {
+          label: "Middle payment",
+          value: sizes.median !== null ? inr(sizes.median) : "—",
+          sub: "half are bigger, half smaller",
+        },
+        {
+          label: "Largest payment",
+          value: sizes.max !== null ? inr(sizes.max) : "—",
+        },
+        {
+          label: "No proof recorded",
+          value: count(noProof),
+          tone: noProof ? "warn" : "good",
+          lowerIsBetter: true,
+        },
+        {
+          label: "No receipt attached",
+          value: count(noReceipt),
+          tone: noReceipt ? "warn" : "good",
+          lowerIsBetter: true,
+        },
       ],
-      trend: t.points.length > 1
-        ? { title: "What went out each month", valueLabel: "Paid out", points: t.points, averageLabel: "Average month in this period" }
-        : undefined,
+      trend:
+        t.points.length > 1
+          ? {
+              title: "What went out each month",
+              valueLabel: "Paid out",
+              points: t.points,
+              averageLabel: "Average month in this period",
+            }
+          : undefined,
       panels: [
         // ── ALWAYS TWO BARS, WHATEVER THE ROW COUNT ────────────────────
         //
@@ -203,9 +352,21 @@ async function run(params: ReportParams): Promise<ReportResult> {
           title: "Money in against money out",
           fixedCategories: true,
           valueLabel: "Rupees",
+          // The same two colours the KPI band gives these two figures, so the
+          // chart and the tiles above it cannot disagree about which is which.
           rows: [
-            { label: "Money in", value: inTotal, display: inrShort(inTotal) },
-            { label: "Money out", value: outTotal, display: inrShort(outTotal) },
+            {
+              label: "Money in",
+              value: inTotal,
+              display: inrShort(inTotal),
+              tone: "good",
+            },
+            {
+              label: "Money out",
+              value: outTotal,
+              display: inrShort(outTotal),
+              tone: "bad",
+            },
           ],
           note: "The difference between these two is the net for the period, not the balance in the box.",
         },
@@ -215,22 +376,58 @@ async function run(params: ReportParams): Promise<ReportResult> {
           title: "How well the paperwork is kept",
           fixedCategories: true,
           valueLabel: "Entries",
+          // Green, amber, red — the paperwork getting worse down the list. A
+          // missing receipt is a chase; a missing PROOF is an entry nobody can
+          // substantiate at all, which is the one an auditor stops on.
           rows: [
-            { label: "Receipt attached", value: raw.length - noReceipt, display: count(raw.length - noReceipt) },
-            { label: "No receipt", value: noReceipt, display: count(noReceipt) },
-            { label: "No proof recorded", value: noProof, display: count(noProof) },
+            {
+              label: "Receipt attached",
+              value: raw.length - noReceipt,
+              display: count(raw.length - noReceipt),
+              tone: "good",
+            },
+            {
+              label: "No receipt",
+              value: noReceipt,
+              display: count(noReceipt),
+              tone: "warn",
+            },
+            {
+              label: "No proof recorded",
+              value: noProof,
+              display: count(noProof),
+              tone: "bad",
+            },
           ],
           note: "A receipt is the scanned bill; proof is what kind of slip was kept. An entry can have one without the other.",
         },
-        { title: "What the money went on", valueLabel: "Paid out", rows: rank([...byCategory].map(([label, value]) => ({ label, value })), inrShort) },
+        {
+          title: "What the money went on",
+          valueLabel: "Paid out",
+          rows: rank(
+            [...byCategory].map(([label, value]) => ({ label, value })),
+            inrShort,
+          ),
+        },
         {
           title: "Which group it belongs to",
           valueLabel: "Paid out",
           kind: "share",
-          rows: rank([...byGroup].map(([label, value]) => ({ label, value })), inrShort, 6),
+          rows: rank(
+            [...byGroup].map(([label, value]) => ({ label, value })),
+            inrShort,
+            6,
+          ),
           note: "Categories rolled up the way the monthly summary rolls them up.",
         },
-        { title: "Who was paid the most", valueLabel: "Paid out", rows: rank([...byPayee].map(([label, value]) => ({ label, value })), inrShort) },
+        {
+          title: "Who was paid the most",
+          valueLabel: "Paid out",
+          rows: rank(
+            [...byPayee].map(([label, value]) => ({ label, value })),
+            inrShort,
+          ),
+        },
       ],
       matrix: matrixFrom(
         debits.map((r) => ({
@@ -238,7 +435,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
           month: r.transaction_date?.slice(0, 7) ?? "",
           value: n(r.amount),
         })),
-        { title: "What was spent on what, and when", format: "money", display: inrShort },
+        {
+          title: "What was spent on what, and when",
+          format: "money",
+          display: inrShort,
+        },
       ),
       insights,
       caveats: [
@@ -259,23 +460,97 @@ export const cashBook: ReportDefinition = {
   defaultMonthsBack: 6,
   columns: [
     { key: "uid", label: "Reference", type: "text", width: 16 },
-    { key: "transaction_date", label: "Date", type: "date", note: "The day it happened, as written down — not the day it was typed in." },
+    {
+      key: "transaction_date",
+      label: "Date",
+      type: "date",
+      note: "The day it happened, as written down — not the day it was typed in.",
+    },
     { key: "kind", label: "Type", type: "text", width: 12 },
     { key: "from_name", label: "From", type: "text", width: 22 },
     { key: "to_name", label: "To", type: "text", width: 24 },
-    { key: "employee", label: "Employee", type: "text", width: 22, optional: true },
-    { key: "category", label: "Category", type: "text", width: 22, note: "As written at the time." },
-    { key: "category_now", label: "Category now", type: "text", width: 22, optional: true },
+    {
+      key: "employee",
+      label: "Employee",
+      type: "text",
+      width: 22,
+      optional: true,
+    },
+    {
+      key: "category",
+      label: "Category",
+      type: "text",
+      width: 22,
+      note: "As written at the time.",
+    },
+    {
+      key: "category_now",
+      label: "Category now",
+      type: "text",
+      width: 22,
+      optional: true,
+    },
     { key: "category_group", label: "Group", type: "text", width: 20 },
-    { key: "renamed_since", label: "Renamed since", type: "boolean", note: "The category has been renamed since this entry was made. Both names are carried." },
+    {
+      key: "renamed_since",
+      label: "Renamed since",
+      type: "boolean",
+      // Not a fault - the snapshot is deliberately kept - but it tells a reader
+      // which rows the two category columns disagree on, and why.
+      badge: { Yes: "warn" },
+      note: "The category has been renamed since this entry was made. Both names are carried.",
+    },
     { key: "reason", label: "What for", type: "text", width: 36 },
     { key: "money_in", label: "Money in", type: "money" },
     { key: "money_out", label: "Money out", type: "money" },
-    { key: "amount", label: "Amount", type: "money", total: "none", note: "The same figure as the in or out column beside it, whichever applies. NOT totalled — adding it up mixes money in with money out." },
-    { key: "proof_type", label: "Proof", type: "text", width: 16, note: "What KIND of slip was kept. Separate from whether a photo is attached." },
-    { key: "proof_other", label: "Proof, in their words", type: "text", width: 22, optional: true },
-    { key: "has_receipt", label: "Receipt attached", type: "boolean" },
-    { key: "attachment_name", label: "Receipt file", type: "text", width: 26, optional: true },
+    {
+      key: "amount",
+      label: "Amount",
+      type: "money",
+      total: "none",
+      note: "The same figure as the in or out column beside it, whichever applies. NOT totalled — adding it up mixes money in with money out.",
+    },
+    {
+      key: "proof_type",
+      label: "Proof",
+      type: "text",
+      width: 16,
+      // Only the entry with NOTHING behind it. A voucher is not better or worse
+      // than a bill - both are proof - so neither is coloured.
+      badge: { "No proof kept": "bad" },
+      note: "What KIND of slip was kept. Separate from whether a photo is attached.",
+    },
+    {
+      key: "proof_other",
+      label: "Proof, in their words",
+      type: "text",
+      width: 22,
+      optional: true,
+    },
+    {
+      key: "has_receipt",
+      label: "Receipt attached",
+      type: "boolean",
+      // Amber where there is no scan. Not red: a missing PHOTO is a chase, a
+      // missing PROOF is an entry nobody can substantiate, and the two must not
+      // read as the same severity.
+      badge: { No: "warn" },
+      note: "Whether a file is attached. The pictures themselves are on the Receipts sheet.",
+    },
+    {
+      key: "receipt_count",
+      label: "Files attached",
+      type: "number",
+      optional: true,
+    },
+    {
+      key: "receipt_files",
+      label: "Receipt file(s)",
+      type: "text",
+      width: 30,
+      optional: true,
+      note: "The uploaded file names. The PICTURES themselves are on the Receipts sheet, one row per file beside the entry it proves — they are not in this cell because Excel does not move a floating picture when a range is sorted, and a receipt over the wrong payment is worse than no receipt.",
+    },
     { key: "created_at", label: "Entered at", type: "datetime" },
   ],
   filters: [
@@ -289,7 +564,10 @@ export const cashBook: ReportDefinition = {
           `select distinct category_name as v from ld_petty_cash.transactions
             where deleted_at is null and category_name is not null order by 1`,
         );
-        return (rows as unknown as { v: string }[]).map((r) => ({ value: r.v, label: r.v }));
+        return (rows as unknown as { v: string }[]).map((r) => ({
+          value: r.v,
+          label: r.v,
+        }));
       },
     },
     {

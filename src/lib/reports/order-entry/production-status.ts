@@ -346,9 +346,23 @@ export const productionStatus: ReportDefinition = {
     { key: "design_no", label: "Design no", type: "text", width: 15 },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "line_total", label: "Line value", type: "money" },
-    { key: "open", label: "Still open", type: "boolean", note: "Filter this to Yes for the day's action list — the lines that have not finished." },
-    { key: "reached", label: "Reached", type: "text", width: 17 },
-    { key: "waiting_on", label: "Waiting on", type: "text", width: 17, note: "The next stage that has not been ticked. A dash means it has finished." },
+    { key: "open", label: "Still open", type: "boolean",
+      // Green on the FINISHED ones. Two thirds of this sheet is still open —
+      // that is what a production report is — so tinting "Yes" would amber the
+      // whole page and say nothing. The Age column beside it is where an open
+      // line that is ALSO old gets its colour.
+      badge: { No: "good" },
+      note: "Filter this to Yes for the day's action list — the lines that have not finished." },
+    { key: "reached", label: "Reached", type: "text", width: 17,
+      // Only "Not started" is coloured. A stage name is not good or bad — a
+      // line at Challan is not doing worse than one at Bill — but a line with
+      // nothing ticked at all is the one somebody has to chase.
+      badge: { "Not started": "warn" },
+      note: "The furthest stage this line has finished." },
+    { key: "waiting_on", label: "Waiting on", type: "text", width: 17,
+      // The dash is the good news: nothing is waiting, the line is out.
+      badge: { "—": "good" },
+      note: "The next stage that has not been ticked. A dash means it has finished." },
     { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today \u2014 what the customer is experiencing. Averaged at the foot." },
     { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Finished": "good" } },
     { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },

@@ -231,9 +231,12 @@ async function run(params: ReportParams): Promise<ReportResult> {
           fixedCategories: true,
           valueLabel: "Duties",
           rows: [
-            { label: "Done", value: doneOfComeRound.length, display: count(doneOfComeRound.length) },
-            { label: "Past their day", value: delayed.length, display: count(delayed.length) },
-            { label: "Still ahead", value: raw.length - comeRound.length, display: count(raw.length - comeRound.length) },
+            { label: "Done", value: doneOfComeRound.length, display: count(doneOfComeRound.length), tone: "good" },
+            { label: "Past their day", value: delayed.length, display: count(delayed.length), tone: "bad" },
+            // Neutral, not amber: a duty whose day has not come round is not
+            // late and colouring it as a warning would put the whole checklist
+            // permanently in the red on the first of every month.
+            { label: "Still ahead", value: raw.length - comeRound.length, display: count(raw.length - comeRound.length), tone: "neutral" },
           ],
           note: "Of every duty in the period. Still ahead has not come round yet, so it is not late.",
         },
@@ -242,8 +245,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
           fixedCategories: true,
           valueLabel: "Duties",
           rows: [
-            { label: "On time", value: onTime.length, display: count(onTime.length) },
-            { label: "Done late", value: done.length - onTime.length, display: count(done.length - onTime.length) },
+            { label: "On time", value: onTime.length, display: count(onTime.length), tone: "good" },
+            { label: "Done late", value: done.length - onTime.length, display: count(done.length - onTime.length), tone: "warn" },
           ],
           note: "Only duties that were actually completed. A duty not yet done is neither on time nor late.",
         },
@@ -284,10 +287,19 @@ export const dutyRegister: ReportDefinition = {
     { key: "actual_date", label: "Done on", type: "date" },
     { key: "status", label: "Status", type: "text", width: 12, note: "Only Scheduled and Done are stored. Everything else is worked out when the report runs." },
     { key: "state", label: "Where it stands", type: "text", width: 14, badge: { "Done": "good", "Due today": "warn", "Delayed": "bad", "Upcoming": "neutral" }, note: "Done, Due today, Delayed or Upcoming — derived from the due date at the moment this file was made." },
-    { key: "on_time", label: "On time", type: "boolean", note: "Done on or before the day it was due. Blank until it is done." },
+    { key: "on_time", label: "On time", type: "boolean",
+      // Only the late ones. "Where it stands" beside this already carries the
+      // green for Done, and two green columns side by side is a page that
+      // looks reassuring rather than one that reads.
+      badge: { No: "bad" },
+      note: "Done on or before the day it was due. Blank until it is done." },
     { key: "days_late", label: "Days late", type: "int", total: "avg", note: "Only for duties that were done. The foot shows the average lateness, not a sum." },
     { key: "days_overdue", label: "Days overdue", type: "int", total: "avg", note: "For duties past their day and not ticked, counted to today." },
-    { key: "task_active", label: "Duty still active", type: "boolean", note: "A switched-off duty keeps its history; it just stops generating new days." },
+    { key: "task_active", label: "Duty still active", type: "boolean",
+      // Grey, not amber: a switched-off duty is not a failure, but a reader
+      // counting rows needs to know this one will never come round again.
+      badge: { No: "neutral" },
+      note: "A switched-off duty keeps its history; it just stops generating new days." },
     { key: "assigned_by", label: "Assigned by", type: "text", width: 22 },
     { key: "notes", label: "Notes", type: "text", width: 32, optional: true },
     { key: "updated_at", label: "Last touched", type: "datetime" },

@@ -288,8 +288,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
           fixedCategories: true,
           valueLabel: "Concerns",
           rows: [
-            { label: "Resolved or closed", value: filtered.length - open.length, display: count(filtered.length - open.length) },
-            { label: "Still open", value: open.length, display: count(open.length) },
+            { label: "Resolved or closed", value: filtered.length - open.length, display: count(filtered.length - open.length), tone: "good" },
+            { label: "Still open", value: open.length, display: count(open.length), tone: "warn" },
           ],
           note: "Of the concerns you are allowed to see. A withdrawn concern counts as settled.",
         },
@@ -298,8 +298,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
           fixedCategories: true,
           valueLabel: "Concerns",
           rows: [
-            { label: "Someone has replied", value: answered.length, display: count(answered.length) },
-            { label: "No reply yet", value: unanswered.length, display: count(unanswered.length) },
+            { label: "Someone has replied", value: answered.length, display: count(answered.length), tone: "good" },
+            // Red, not amber: a concern nobody has answered is the one thing
+            // this module exists to prevent.
+            { label: "No reply yet", value: unanswered.length, display: count(unanswered.length), tone: "bad" },
           ],
           note: "A first reply is the first response recorded against the concern, not the first time somebody opened it.",
         },
@@ -335,9 +337,20 @@ export const concernRegister: ReportDefinition = {
     { key: "title", label: "Concern", type: "text", width: 40 },
     { key: "category", label: "Category", type: "text", width: 20 },
     { key: "department", label: "Department", type: "text", width: 18 },
-    { key: "priority", label: "Priority", type: "text", width: 12 },
+    { key: "priority", label: "Priority", type: "text", width: 12,
+      // The values arrive from the enum in lower case, which is what lands in
+      // the cell, so that is what the map is keyed on. Only the two above
+      // normal are coloured: a low-priority concern is not good news, it is
+      // just not urgent.
+      badge: { urgent: "bad", high: "warn" },
+      note: "As the person raising it marked it: low, normal, high or urgent." },
     { key: "status", label: "Status", type: "text", width: 18, badge: { "Resolved": "good", "Closed": "good", "Being worked on": "neutral", "Waiting": "warn", "New": "warn" } },
-    { key: "confidential", label: "Confidential", type: "boolean", note: "An HR-only concern. It is in your file because you are allowed to see it." },
+    { key: "confidential", label: "Confidential", type: "boolean",
+      // The one flag on this sheet that is about the FILE rather than the
+      // concern: a spreadsheet is a thing that gets forwarded, and this row is
+      // the one that must not be.
+      badge: { Yes: "bad" },
+      note: "An HR-only concern. It is in your file because you are allowed to see it — be careful who you send this file to." },
     { key: "wait_reason", label: "Waiting on", type: "text", width: 20 },
     { key: "raised_by", label: "Raised by", type: "text", width: 24 },
     { key: "raised_by_code", label: "Employee code", type: "text", width: 14 },
@@ -345,7 +358,11 @@ export const concernRegister: ReportDefinition = {
     { key: "assigned_to", label: "Assigned to", type: "text", width: 24 },
     { key: "resolved_by", label: "Resolved by", type: "text", width: 24 },
     { key: "solutions_offered", label: "Fixes they proposed", type: "int", note: "Up to three, written by the person raising it. This is the point of the slip." },
-    { key: "used_their_solution", label: "Their fix was used", type: "boolean" },
+    { key: "used_their_solution", label: "Their fix was used", type: "boolean",
+      // Green only. This is the module working as intended — the person who
+      // raised the concern also solved it — and it is worth being able to find.
+      badge: { Yes: "good" },
+      note: "The fix the person proposed is the one that was applied. This is the point of the slip." },
     { key: "replies", label: "Replies", type: "int", note: "Comments the employee can see. Internal coordinator notes are not counted." },
     { key: "photos", label: "Photos", type: "int" },
     { key: "raised_at", label: "Raised at", type: "datetime" },
@@ -354,9 +371,16 @@ export const concernRegister: ReportDefinition = {
     { key: "resolved_at", label: "Resolved at", type: "datetime" },
     { key: "days_to_resolve", label: "Days to resolve", type: "number", total: "avg" },
     { key: "days_open", label: "Days open", type: "int", total: "avg", note: "For the ones not yet resolved, counted to today." },
-    { key: "still_open", label: "Still open", type: "boolean", note: "Filter this to Yes for what needs attention." },
+    { key: "still_open", label: "Still open", type: "boolean",
+      badge: { Yes: "warn" },
+      note: "Filter this to Yes for what needs attention." },
     { key: "closed_at", label: "Closed at", type: "datetime" },
-    { key: "withdrawn", label: "Withdrawn", type: "boolean" },
+    { key: "withdrawn", label: "Withdrawn", type: "boolean",
+      // Grey. A withdrawn concern counts as settled and is not a problem —
+      // but it is also not a resolution, and a reader totalling the sheet
+      // needs to see which rows those are.
+      badge: { Yes: "neutral" },
+      note: "Taken back by the person who raised it. Counted as settled everywhere on this sheet." },
     { key: "source", label: "Raised through", type: "text", width: 14, optional: true },
     { key: "updated_at", label: "Last touched", type: "datetime" },
   ],

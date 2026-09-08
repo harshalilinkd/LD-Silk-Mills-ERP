@@ -170,6 +170,16 @@ export type RankRow = {
   share?: number;
   /** A second figure beside it — a count beside a value, usually. */
   meta?: string;
+  /**
+   * What this row MEANS, where the categories are statuses rather than names.
+   *
+   * `Done` is green and `Past their day` is red on the same chart, because on
+   * a fixed-category comparison the categories ARE the statuses and the house
+   * palette already says what each colour means. It is never set on a ranking:
+   * a customer is not "good" for being third, and colouring them that way is
+   * decoration pretending to be information.
+   */
+  tone?: Tone;
 };
 
 /**
@@ -277,6 +287,61 @@ export type ReportAnalysis = {
   headline?: string;
 };
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Files hanging off a row — the receipts, on their own sheet
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A file name in a cell is not the bill. The owner asked for the receipt
+ * itself in the workbook, and the workbook now carries a **Receipts** sheet:
+ * one row per attachment, the image beside the entry's reference, date, payee
+ * and amount.
+ *
+ * ── WHY A SHEET AND NOT THE CELL ─────────────────────────────────────────
+ *
+ * An embedded image FLOATS over cells; it does not belong to the row. Excel
+ * moves floating pictures when rows are inserted or filtered and does NOT
+ * move them when a range is sorted — so one click on the Data sheet's sort
+ * button would leave every receipt sitting over somebody else's entry, with
+ * nothing on the page to say it had happened. A receipt over the wrong
+ * payment is worse than no receipt. The annexure keeps each image on a row of
+ * its own that carries the reference it belongs to, and the Data sheet stays
+ * the sortable, filterable table it is meant to be.
+ *
+ * ── BYTES ARE FETCHED LATE, AND ONLY FOR XLSX ────────────────────────────
+ *
+ * `byRow` holds names and opaque references only — cheap, and computed in the
+ * report's own query. `load` is called by the workbook builder alone, so a
+ * CSV export never touches storage and a 5,000-row period never pulls 5,000
+ * photographs to print a table.
+ *
+ * The reference is a STORAGE PATH and it is never written into the file. A
+ * path in a workbook is a path somebody tries, and the whole attachment
+ * design refuses to hand out anything that works without a permission check.
+ */
+export type ReportImageRef = {
+  /** What a person sees. The uploader's own filename. */
+  name: string;
+  /** Opaque to everything but `load`. NEVER printed. */
+  ref: string;
+  /** From storage. Anything that is not `image/*` is listed, not drawn. */
+  mime: string | null;
+};
+
+export type ReportImages = {
+  /** The column whose value identifies a row — `uid` on the cash book. */
+  rowKey: string;
+  /** Column keys to print beside each image, in order. */
+  columns: string[];
+  /** Row identity → the files hanging off it. */
+  byRow: Record<string, ReportImageRef[]>;
+  /**
+   * Bytes for one reference, or null when it cannot be read — a file deleted
+   * from the bucket must leave a line saying so, not fail the export.
+   */
+  load: (ref: string) => Promise<Buffer | null>;
+};
+
 export type ReportResult = {
   rows: ReportRow[];
   analysis: ReportAnalysis;
@@ -289,6 +354,8 @@ export type ReportResult = {
    * row and no room to explain itself.
    */
   notice?: string;
+  /** Attachments to draw on the Receipts sheet. XLSX only; the CSV ignores it. */
+  images?: ReportImages;
 };
 
 export type ReportDefinition = {

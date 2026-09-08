@@ -224,15 +224,24 @@ export const returnItemDetail: ReportDefinition = {
     { key: "transport", label: "Transport", type: "text", width: 20 },
     { key: "quality", label: "Fabric", type: "text", width: 26, note: "As written on the return." },
     { key: "quality_now", label: "Fabric, current name", type: "text", width: 26, optional: true, note: "What that fabric is called in the master list today." },
-    { key: "renamed_since", label: "Renamed since", type: "boolean", note: "The two names differ, so the fabric was renamed after this return was raised." },
+    { key: "renamed_since", label: "Renamed since", type: "boolean",
+      // Not a fault — a rename is allowed and the snapshot is deliberately
+      // kept — but a reader comparing the two name columns needs to know which
+      // rows they differ on.
+      badge: { Yes: "warn" },
+      note: "The two names differ, so the fabric was renamed after this return was raised." },
     { key: "quantity", label: "Metres", type: "number", unit: "MTR" },
     { key: "pieces", label: "Pieces", type: "int", unit: "PCS", note: "Blank where the return did not record one — a blank is not a zero, and roughly half the items have none." },
-    { key: "metres_per_piece", label: "Metres a piece", type: "number", total: "avg", avgWeightBy: "pieces", note: "Metres divided by pieces. The foot is weighted by pieces, not a plain average of the rows." },
+    { key: "metres_per_piece", label: "Metres a piece", type: "number", unit: "MTR", total: "avg", avgWeightBy: "pieces", note: "Metres divided by pieces. The foot is weighted by pieces, not a plain average of the rows." },
     { key: "return_reason", label: "Reason", type: "text", width: 24 },
     { key: "custom_reason", label: "Reason, in their words", type: "text", width: 28, optional: true },
     { key: "items_on_return", label: "Items on the return", type: "int", total: "none", note: "More than one means the value column beside it is shared across several fabrics." },
     { key: "return_value", label: "Whole return value", type: "money", total: "none", note: "The value of the WHOLE return, repeated on each of its items. Never add this column up — it double-counts every multi-fabric return." },
-    { key: "received", label: "Received", type: "boolean" },
+    { key: "received", label: "Received", type: "boolean",
+      // The same colour the register gives it, on the same meaning: only the
+      // ones still out are worth a tint.
+      badge: { No: "warn" },
+      note: "Whether the return this item is on has reached Bhiwandi." },
     { key: "received_on", label: "Received on", type: "date" },
   ],
   filters: [

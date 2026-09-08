@@ -550,9 +550,18 @@ export const orderRegister: ReportDefinition = {
     { key: "sales_person", label: "Sales person", type: "text", width: 18 },
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "haste", label: "Haste", type: "text", width: 12 },
-    { key: "stage", label: "Reached", type: "text", width: 17, note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences." },
+    { key: "stage", label: "Reached", type: "text", width: 17,
+      // Only "Not started" is coloured. A stage name is not good or bad —
+      // an order at Challan is not doing worse than one at Bill — but an
+      // order with NOTHING ticked is the one somebody has to chase.
+      badge: { "Not started": "warn" },
+      note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences." },
     { key: "furthest_line", label: "Furthest line", type: "text", width: 17, note: "The furthest stage ANY line has finished, for the other reading." },
-    { key: "is_complete", label: "Complete", type: "boolean" },
+    { key: "is_complete", label: "Complete", type: "boolean",
+      // Finished is worth seeing; still open is the ordinary state of a
+      // live book (264 of 337) and tinting it would colour the page.
+      badge: { Yes: "good" },
+      note: "Every live line has finished its last stage. The Age column beside it is what says whether an unfinished one is late." },
     { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today. The foot shows the average age, not a sum." },
     { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad" } },
     { key: "live_lines", label: "Lines", type: "int", note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column." },

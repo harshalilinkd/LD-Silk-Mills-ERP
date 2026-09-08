@@ -94,6 +94,10 @@ export async function GET(
       result.rows,
       result.analysis,
       { runBy: `${viewer.name} (${viewer.email})`, runAt: new Date(), totalRows: result.totalRows },
+      // Attachments, for the Receipts sheet. `requireReport` above is the
+      // permission check they ride on — the same module access that lets this
+      // person read the rows the receipts belong to.
+      result.images,
     );
 
     return new NextResponse(new Uint8Array(buffer), {

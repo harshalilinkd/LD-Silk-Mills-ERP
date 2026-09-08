@@ -174,6 +174,27 @@ export function excelFormat(type: ColumnType): string | undefined {
   }
 }
 
+/**
+ * The column's number format, with its unit written into it.
+ *
+ * `1,250.00 MTR` rather than `1,250.00`, so a column read out of context —
+ * pasted, printed, screenshotted — still says what it is measuring. The value
+ * stays a NUMBER: only the display changes, so it still sums.
+ *
+ * It lives here rather than beside the Data sheet because the dashboard's
+ * management table has to reach the same answer. Two tables in one workbook
+ * where one says `900.00 MTR` and the other `900.00` is the reader wondering
+ * which of the two is the real column.
+ */
+export function unitFormat(c: ReportColumn): string | undefined {
+  const base = excelFormat(c.type);
+  if (!base || !c.unit) return base;
+  return base
+    .split(";")
+    .map((part) => (part ? `${part}" ${c.unit}"` : part))
+    .join(";");
+}
+
 export function isNumeric(type: ColumnType): boolean {
   return type === "money" || type === "number" || type === "int" || type === "percent";
 }

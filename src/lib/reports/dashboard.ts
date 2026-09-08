@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 
-import { excelFormat, isNumeric, plural } from "./format";
-import type { Kpi, Matrix, Panel, ReportAnalysis, ReportColumn, ReportRow } from "./types";
+import { count, isNumeric, plural, unitFormat } from "./format";
+import type { Kpi, Matrix, Panel, ReportAnalysis, ReportColumn, ReportRow, Tone } from "./types";
 import type { ChartSpec } from "./xlsx-charts";
 
 /**
@@ -52,10 +52,21 @@ import type { ChartSpec } from "./xlsx-charts";
 // Rotated per panel so four panels on one screen are four colours rather than
 // four of the same. Chosen to stay distinguishable when printed in grey.
 
+/**
+ * ── THE THREE INKS ARE ALL DARK, AND THAT WAS A CORRECTION ──────────────
+ *
+ * `ink2` was #464B56 and `ink3` #7A8291 — greys picked so captions and notes
+ * would sit quietly under the figures. On a printed page and on a projector
+ * they do not sit quietly, they DISAPPEAR: the owner reported chart and
+ * caption text they could not read. Hierarchy on this sheet comes from SIZE,
+ * WEIGHT and CASE — a 20pt bold figure over an 8pt uppercase label — never
+ * from fading text towards the paper. All three are now dark enough to read
+ * at 8pt on a photocopy.
+ */
 export const C = {
   ink: "FF16181D",
-  ink2: "FF464B56",
-  ink3: "FF7A8291",
+  ink2: "FF23272F",
+  ink3: "FF3C424E",
   rule: "FFDDDFE3",
   paper: "FFF7F8FA",
   white: "FFFFFFFF",
@@ -111,8 +122,51 @@ const WHEEL = [
 /** Best to worst, for the one panel kind where a ramp is honest. */
 const SEVERITY = [C.green, C.teal, C.indigo, C.amber, C.red] as const;
 
+/**
+ * ── A RANKING IS ONE HUE, SHADED BY RANK ────────────────────────────────
+ *
+ * The rule that a ranking's third bar is not "more amber" than its second
+ * stands, and this does not break it: every bar is the same TEAL, and only
+ * its depth changes. Depth follows position, so the shading carries the one
+ * thing the chart is about — the order — instead of carrying nothing, which
+ * is what a wall of identical bars carried. The owner's complaint was that
+ * every chart in the pack looked like the same chart; the answer is not six
+ * hues per page (that was reverted in the Sep audit, because the same fact
+ * then changes colour from one page to the next) but a ramp that means
+ * something inside one chart.
+ *
+ * Spread across the ramp rather than taken in order, so two bars use the
+ * darkest and the lightest instead of two neighbouring shades nobody can
+ * tell apart.
+ */
+const RANK_RAMP = [
+  "FF0A5F59", "FF0F8F86", "FF15A79C", "FF3CBBB1", "FF6ACFC6", "FF97DFD9",
+] as const;
+
+function rampFor(n: number): string[] {
+  if (n <= 1) return [RANK_RAMP[1]];
+  return Array.from({ length: n }, (_, i) =>
+    RANK_RAMP[Math.min(RANK_RAMP.length - 1, Math.round((i / (n - 1)) * (RANK_RAMP.length - 1)))],
+  );
+}
+
 /** "Everyone else" is not a name, and grey is how a chart says so. */
 const REST = C.slate;
+
+/**
+ * A status, in the house colours.
+ *
+ * Only reachable through `RankRow.tone`, which only a fixed-category
+ * comparison sets — "Done" against "Past their day" against "Still ahead".
+ * There the categories ARE the statuses, so green/red/grey is the palette
+ * doing its job rather than decorating a ranking.
+ */
+const TONE_INK: Record<Tone, string> = {
+  neutral: INK_ON.neutral,
+  good: INK_ON.positive,
+  warn: INK_ON.warning,
+  bad: INK_ON.critical,
+};
 
 const TONE: Record<string, { fg: string; bg: string }> = {
   neutral: { fg: C.indigo, bg: C.indigoDim },
@@ -371,6 +425,9 @@ export function buildDashboard(
         a.trend.title +
         (dropped > 0 ? ` — last ${pts.length} of ${a.trend.points.length} months` : "") +
         main.suffix,
+      subtitle:
+        `${a.trend.valueLabel} by month, against the period average` +
+        (series[2] ? `, with ${series[2].name.toLowerCase()} behind it` : ""),
       note: dropped > 0
         ? `The earlier ${dropped} months are not on this chart; the figures above cover all of them.`
         : undefined,
@@ -485,16 +542,27 @@ export function buildDashboard(
       pointColours = labels.map((l, k) => (l === "Everyone else" ? REST : WHEEL[k % WHEEL.length]));
     } else if (panel.tone === "severity") {
       pointColours = labels.map((_, k) => SEVERITY[Math.min(k, SEVERITY.length - 1)]);
+    } else if (rows.some((x) => x.tone)) {
+      // A comparison of statuses, so the colours are the statuses. A row that
+      // did not declare one stays the primary teal rather than borrowing a
+      // meaning it was never given.
+      pointColours = rows.map((x) => (x.tone ? TONE_INK[x.tone] : INK_ON.primary));
+    } else {
+      // A ranking or a funnel: one hue, deepest at the top.
+      pointColours = rampFor(labels.length);
     }
 
     pending.push({
       note: panel.note,
       kind,
       title: panel.title + (isRing ? "" : sc.suffix),
+      subtitle: subtitleFor(panel, kind, labels.length, labels.includes("Everyone else")),
       catRef: block.catRef,
       categories: labels,
       numFmt: sc.fmt,
-      gapWidth: 40,
+      // Fat bars on a ranking of twelve; slim columns on a comparison of two,
+      // where Excel's default would otherwise draw two slabs touching.
+      gapWidth: kind === "column" ? 110 : 40,
       holeSize: 58,
       legend: isRing ? "b" : "none",
       series: [
@@ -603,8 +671,6 @@ export function buildDashboard(
     ws.getRow(r).height = 17;
     ws.getRow(r + 1).height = 17;
     r += 3;
-
-    if (detail && detail.rows.length) r = drawDetail(ws, r, detail.columns, detail.rows);
   }
 
   // ── NOTHING AT ALL ──────────────────────────────────────────────────
@@ -662,6 +728,18 @@ export function buildDashboard(
   // ── the heat grid ──────────────────────────────────────────────────────
   if (a.matrix && a.matrix.rows.length) r = drawMatrix(ws, r, a.matrix);
 
+  // ── THE MANAGEMENT TABLE, AT THE FOOT OF EVERY PAGE ────────────────────
+  //
+  // A management pack ends in the detail. It used to be drawn only on the
+  // pages that had no charts, which made it look like an apology for a thin
+  // report rather than the closing section it is — and it left the ten pages
+  // that DO have charts ending on a sentence, with nothing on them a reader
+  // could point at and say "show me one of those".
+  //
+  // Ten rows and twelve columns, so the page still prints; the Data sheet is
+  // where the rest lives and the footnote under the table says so.
+  if (detail && detail.rows.length) r = drawDetail(ws, r, detail.columns, detail.rows);
+
   // ── the sentences ──────────────────────────────────────────────────────
   if (a.insights.length) {
     caption(ws, r, 2, GRID + 1, "What this says");
@@ -713,23 +791,76 @@ export function buildDashboard(
 }
 
 /**
- * Which shape suits this panel — and there are only two answers.
+ * Which shape suits this panel. Three answers, and each is decided by what the
+ * panel IS rather than by how its labels happen to look.
  *
  *   · A COMPOSITION is a doughnut, and only while it has two to five slices.
  *     Beyond that the wedges stop being tellable apart and a bar says it
  *     better.
- *   · EVERYTHING ELSE IS A HORIZONTAL BAR. Rankings, comparisons, funnels and
- *     ageing are all "which of these is biggest", read against a common
- *     baseline, with room for a party name that runs to thirty characters.
+ *   · A FIXED-CATEGORY COMPARISON is a clustered COLUMN — money in against
+ *     money out, done against still to do, settled against still open. Two or
+ *     three totals stood side by side on a common baseline is how that
+ *     comparison is read everywhere else in business, and the categories are
+ *     short words rather than party names, so nothing needs the horizontal
+ *     room.
+ *   · EVERYTHING ELSE IS A HORIZONTAL BAR. Rankings, funnels and ageing are
+ *     all "which of these is biggest", read against a common baseline, with
+ *     room for a party name that runs to thirty characters.
  *
- * The column chart is gone. It was chosen by a guess about label length, so
- * the same question was drawn two different ways in one workbook depending on
- * whose name happened to be short. Time series are a LINE, decided where the
- * trend is built rather than here.
+ * ── WHY THE COLUMN CHART IS BACK, AND WHY THIS IS NOT THE OLD BUG ────────
+ *
+ * It was removed because it used to be picked by a HEURISTIC ON LABEL LENGTH,
+ * so the same question was drawn two different ways in one workbook depending
+ * on whose name happened to be short. That was the defect — the guess, not the
+ * shape. This rule reads `fixedCategories`, which the report itself sets to
+ * declare that its categories come from the question and not from the data.
+ * A given panel therefore draws the same way in every period and every filter,
+ * which is the property that was actually missing.
+ *
+ * Time series are a LINE, decided where the trend is built rather than here.
  */
 function chartKindFor(panel: Panel, labels: string[]): ChartSpec["kind"] {
   if (panel.kind === "share" && labels.length >= 2 && labels.length <= 5) return "doughnut";
+  if (panel.fixedCategories && labels.length <= 4) return "column";
   return "bar";
+}
+
+/**
+ * The line under a chart's title: what the chart is OF.
+ *
+ * A title asks the question ("Who buys the most"); a manager also has to know
+ * the SCOPE of the answer before quoting it, and "Top 10 of 212 customers" is
+ * the difference between a ranking and a total. Written from the panel, so it
+ * cannot drift from what was drawn, and kept to one short line — a subtitle
+ * that wraps eats the plot area it is describing.
+ */
+function subtitleFor(
+  panel: Panel,
+  kind: ChartSpec["kind"],
+  shown: number,
+  hasRest: boolean,
+): string {
+  const what = panel.valueLabel.toLowerCase();
+  const total = panel.rows.length;
+  if (kind === "doughnut" || kind === "pie") {
+    return hasRest
+      ? `Share of total ${what} — the top ${shown - 1} named, the rest grouped`
+      : `Share of total ${what}`;
+  }
+  if (kind === "column") return `${panel.valueLabel} in the period, side by side`;
+  if (panel.kind === "funnel") return `${panel.valueLabel} surviving each stage, in order`;
+  if (panel.tone === "severity") return `${panel.valueLabel} by age, oldest last`;
+  // NEVER "All 10". A ranking panel is already a top-N — `rank()` cuts at ten
+  // — so the panel cannot see how many customers there were, and a subtitle
+  // saying "all" over the ten biggest of two hundred is the kind of sentence
+  // that gets quoted. It states what is DRAWN and claims nothing else.
+  // The value label leads, unchanged. "By ${what}" was tried and produced
+  // "By paid out, highest first" — the labels are noun phrases written for a
+  // column heading ("Paid out", "Value", "Entries"), and a preposition in
+  // front of one is a sentence nobody would say.
+  return total > shown
+    ? `${panel.valueLabel} — the top ${shown} of ${count(total)}, highest first`
+    : `${panel.valueLabel}, highest first`;
 }
 
 // ─── KPI cards ────────────────────────────────────────────────────────────
@@ -817,11 +948,14 @@ function drawKpis(ws: ExcelJS.Worksheet, top: number, all: Kpi[]): number {
 }
 
 /**
- * The first rows, on the dashboard itself.
+ * The management table — the first rows, on the dashboard itself.
  *
- * Only drawn when the page has no charts. The Data sheet always holds every
- * row and every column; this is the management pack's closing table, and on a
- * thin report it is the only thing on the page with detail in it.
+ * Every page ends here. The Data sheet holds every row and every column; this
+ * is the closing section of the pack, the part a manager points at to ask
+ * "show me one of these", and it is drawn to the SAME rules as the Data sheet
+ * — Indian digit grouping, DD MMM YYYY, units inside the cell, status badges.
+ * Two tables in one workbook that format the same column differently is the
+ * reader wondering which of them is the real one.
  *
  * Columns are taken in order and stop at twelve, because the sheet is twelve
  * wide and a table that runs off the printed page is worse than a short one.
@@ -833,49 +967,95 @@ function drawDetail(
   rows: ReportRow[],
 ): number {
   const MAX_ROWS = 10;
-  const shown = columns.filter((c) => !c.optional).slice(0, GRID);
   let r = top;
 
-  caption(ws, r, 2, GRID + 1, "The rows behind these figures");
+  // ── COLUMNS GET THE WIDTH THEIR CONTENT NEEDS ─────────────────────────
+  //
+  // Every column of this sheet is 12.6 characters wide, because the same
+  // twelve columns carry the KPI tiles and the charts. That is fine for a
+  // date or a figure and it CLIPS a party name — "777 THE PREMIUM FASHION"
+  // arrived as "777 THE PREMIUM", which on the page a manager reads is a
+  // different customer. So a text column takes two of the twelve and the
+  // cells are merged; the table shows fewer columns and every one of them is
+  // readable, which is the right way round for a management pack. The Data
+  // sheet still carries all of them at their own widths.
+  const WIDE = 2;
+  const picked: { c: ReportColumn; at: number; span: number }[] = [];
+  let used = 0;
+  for (const c of columns.filter((x) => !x.optional)) {
+    if (used >= GRID) break;
+    const span = Math.min(c.type === "text" || c.type === "datetime" ? WIDE : 1, GRID - used);
+    picked.push({ c, at: 2 + used, span });
+    used += span;
+  }
+
+  const paint = (row: number, at: number, span: number, argb: string) => {
+    for (let c = at; c < at + span; c++) fill(ws.getCell(row, c), argb);
+  };
+
+  caption(ws, r, 2, GRID + 1, "The detail behind these figures");
   r++;
 
   ws.getRow(r).height = 18;
-  shown.forEach((c, i) => {
-    const cell = ws.getCell(r, 2 + i);
+  picked.forEach(({ c, at, span }) => {
+    if (span > 1) ws.mergeCells(r, at, r, at + span - 1);
+    const cell = ws.getCell(r, at);
     cell.value = c.label;
     cell.font = { name: BODY, size: 9, bold: true, color: { argb: "FFFFFFFF" } };
-    fill(cell, C.indigo);
+    paint(r, at, span, C.indigo);
     cell.alignment = { vertical: "middle", horizontal: isNumeric(c.type) ? "right" : "left" };
   });
   r++;
 
   rows.slice(0, MAX_ROWS).forEach((row, k) => {
     ws.getRow(r).height = 15;
-    shown.forEach((c, i) => {
-      const cell = ws.getCell(r, 2 + i);
+    picked.forEach(({ c, at, span }) => {
+      if (span > 1) ws.mergeCells(r, at, r, at + span - 1);
+      const cell = ws.getCell(r, at);
       const v = row[c.key];
       if (v === null || v === undefined) cell.value = null;
       else if (c.type === "date") cell.value = new Date(`${String(v).slice(0, 10)}T00:00:00Z`);
       else if (c.type === "boolean") cell.value = v ? "Yes" : "No";
       else if (isNumeric(c.type)) cell.value = Number(v);
       else cell.value = String(v);
-      const fmt = excelFormat(c.type);
+      // The unit rides inside the number format, exactly as on the Data sheet,
+      // so `900.00 MTR` reads as a quantity in both places and still sums.
+      const fmt = unitFormat(c);
       if (fmt) cell.numFmt = fmt;
       cell.font = { name: BODY, size: 9, color: { argb: C.ink2 } };
       cell.alignment = { vertical: "middle", horizontal: isNumeric(c.type) ? "right" : "left" };
-      if (k % 2 === 1) fill(cell, C.paper);
+
+      // ── ONLY THE EXCEPTIONS ARE COLOURED ──────────────────────────────
+      //
+      // The column says what each of its values MEANS — "Cancelled: Yes" is
+      // bad and "Received: Yes" is good, and nothing but the column knows
+      // which. A tint with the word still in it survives a print and a reader
+      // who cannot tell the two hues apart.
+      const tone = c.badge?.[String(cell.value ?? "")];
+      if (tone && tone !== "neutral") {
+        const b = TONE[tone];
+        paint(r, at, span, b.bg);
+        cell.font = { name: BODY, size: 9, bold: true, color: { argb: b.fg } };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      } else if (k % 2 === 1) {
+        paint(r, at, span, C.paper);
+      }
     });
     r++;
   });
 
   ws.mergeCells(r, 2, r, GRID + 1);
   const note = ws.getCell(r, 2);
+  const cols =
+    picked.length < columns.length
+      ? ` and the first ${picked.length} of ${columns.length} columns`
+      : "";
   note.value =
     rows.length > MAX_ROWS
-      ? `The first ${MAX_ROWS} of ${plural(rows.length, "row")}. Every row and every column is on the Data sheet.`
+      ? `The first ${MAX_ROWS} of ${plural(rows.length, "row")}${cols}. Every row and every column is on the Data sheet.`
       : rows.length === 1
-        ? "The only row on record. Every column of it is on the Data sheet, and what each one means is on Notes."
-        : `All ${plural(rows.length, "row")}. Every column is on the Data sheet, and what each one means is on Notes.`;
+        ? `The only row on record${cols}. Every column of it is on the Data sheet, and what each one means is on Notes.`
+        : `All ${plural(rows.length, "row")}${cols}. Every column is on the Data sheet, and what each one means is on Notes.`;
   note.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };
   ws.getRow(r).height = 13;
   return r + 2;
