@@ -42,6 +42,14 @@ export function count(n: number | null | undefined): string {
   return Math.round(n).toLocaleString("en-IN");
 }
 
+/**
+ * `1 entry`, `3 entries`. Small, but "Only 1 entries are on record" on a sheet
+ * going to the MD reads as carelessness about everything else on it.
+ */
+export function plural(n: number, one: string, many?: string): string {
+  return `${count(n)} ${n === 1 ? one : (many ?? one + "s")}`;
+}
+
 export function qty(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
   return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });

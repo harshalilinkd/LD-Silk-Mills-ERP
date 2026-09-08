@@ -907,7 +907,7 @@ already hold `system_access` for it, so all six can READ the ledger the moment
 it goes live and only the ERP admin can record anything — worth a look before
 the first real entry.
 
-## Reports — one engine, six definitions built
+## Reports — one engine, ten definitions built
 
 `/reports`, and it is the shell's own screen rather than a module: it is where
 every module's reports come out of. Built Sep 2026 after a full profile of all
@@ -957,6 +957,57 @@ non-deterministic ordering inside an order was a real defect — then checks 14
 figures against independently-written SQL and 10 figures the reports share with
 each other. It must come back with zero failures before any of this ships;
 these files go to the MD.
+
+**HOW MANY REPORTS A MODULE GETS IS DECIDED BY ITS DATA.** The owner's rule
+after seeing the first six (Sep 2026): *"other modules don't have much data so
+we don't need 6 reports there — create reports as per modules, like for
+checklist 1 report is sufficient."* It is not only about row counts: a module
+with one table worth reporting on has one honest grain, and splitting it into
+six produces six views of the same sheet — exactly what had to be cut out of
+Orders.
+
+| Module | Reports | Why that many |
+|---|---|---|
+| **Orders** | 6 | Six genuinely different grains over 5,758 live lines. |
+| **Goods Return** | 3 | 341 returns / 391 items. By return, by cloth line, by party. Receiving is a COLUMN on the register (filter `Received = No` for the chase list), and the four return reasons are a panel on its dashboard, not a sheet of four rows. |
+| **CRM** | 1 | Six tables, one with rows: 74 follow-ups. Attempts, issues and ratings are all empty, so a call-log report would be a nice header over nothing. |
+| **Petty Cash** | 1 | The ledger. A monthly-summary report would be a roll-up of it, and the module's own Monthly summary screen already does that live. |
+| **Checklist** | 1 | One fact table, `occurrences`. Scorecards and completion are roll-ups of it. |
+| **Help Slip** | 1 | The concern register — see the RLS note below. |
+
+**The Help Slip report is the one that could leak, and it is the only report
+that does not use `pg.unsafe`.** It runs inside `withCurrentUser`, so the
+database enforces exactly what it enforces for the standalone app and two
+people exporting the same period get different files — which is correct.
+Proven with `.scratch/verify-hs.ts`: a bypassing query returns 3 concerns; the
+admin sees 1, the employee sees 1, the two test profiles see 0. **Never replace
+it with a plain query, not even temporarily to check a number.** The free text
+— description, proposed solutions, comment thread — is deliberately NOT in the
+file: a spreadsheet is a file that gets forwarded. Counts and dates only.
+
+**What these reports refuse to do, and why that is the feature:**
+- **Goods Return's party report does not show what each customer BOUGHT.** That
+  column was built — it is the best question on the report — and removed. The
+  two systems keep separate party lists with no shared id, so the only join is
+  the name (matched 22 of 212), and the histories barely overlap (returns from
+  June 2024, Orders from May 2026). It produced *"the middle party returns 50.6%
+  of what they bought"*, which is not true of this business. It comes back the
+  day the two systems share a customer id.
+- **The Goods Return item report's value column is the WHOLE RETURN's**,
+  repeated on each of its items, because the source records no money per cloth.
+  It does not total at the foot and the caveat says never to sum it.
+- **26 returns carry no value at all**; they are counted as returns, left out
+  of every money figure, and flagged in their own column. **72 were received
+  before their own date** during the catch-up, so days-to-receive is blank
+  rather than negative. **One is dated 2000-01-01** and is flagged, not
+  corrected — this repo does not edit live Goods Return records.
+
+**The month grid took the FIRST nine months and hid the newest.** Over Goods
+Return's 24-month span that printed 2024 and hid this year. `matrixFrom` now
+keeps the last twelve and `drawMatrix` takes the last nine — **with the row
+values offset to match**, because slicing columns from the end while still
+indexing values from the front puts 2024's figures under 2026's headings, which
+is a wrong number rather than a missing one.
 
 **Reports has THREE views now, on one pill strip** (`reports-tabs.tsx`):
 **Export files** (`/reports`, the picker), **Sales dashboard** (`/reports/sales`)

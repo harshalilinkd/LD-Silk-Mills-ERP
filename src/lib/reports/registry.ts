@@ -1,14 +1,18 @@
 import "server-only";
 
+import { dutyRegister } from "./checklist/duty-register";
+import { followupRegister } from "./crm/followup-register";
 import { returnItemDetail } from "./goods-return/item-detail";
 import { partyAnalysis } from "./goods-return/party-analysis";
 import { returnRegister } from "./goods-return/return-register";
+import { concernRegister } from "./help-slip/concern-register";
 import { agentPerformance } from "./order-entry/agent-performance";
 import { customerLedger } from "./order-entry/customer-ledger";
 import { lineDetail } from "./order-entry/line-detail";
 import { orderRegister } from "./order-entry/order-register";
 import { productionStatus } from "./order-entry/production-status";
 import { qualityAnalysis } from "./order-entry/quality-analysis";
+import { cashBook } from "./petty-cash/cash-book";
 import type { ReportDefinition, ReportModule } from "./types";
 import { MODULE_META } from "./types";
 
@@ -78,6 +82,15 @@ export const REPORTS: ReportDefinition[] = [
   returnRegister,    // by return
   returnItemDetail,  // by cloth line
   partyAnalysis,     // by party
+
+  // One each, because each of these modules has ONE fact table worth
+  // reporting on and every other view of it would be a roll-up the module's
+  // own screens already do live. They get a second report the day their data
+  // grows a second grain, not before.
+  followupRegister,  // CRM        — 74 follow-ups, none yet called
+  cashBook,          // Petty Cash — the ledger, in and out
+  dutyRegister,      // Checklist  — one row per duty on one day
+  concernRegister,   // Help Slip  — runs under the READER's own RLS
 ];
 
 export function getReport(id: string): ReportDefinition | null {
