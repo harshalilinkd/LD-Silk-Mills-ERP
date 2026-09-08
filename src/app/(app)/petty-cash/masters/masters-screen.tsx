@@ -109,9 +109,21 @@ export function MastersScreen({
         value={tab}
         onChange={setTab}
         options={[
-          { value: "payees", label: "Payees", icon: <IconUsers className="size-4" /> },
-          { value: "categories", label: "Categories", icon: <IconCategory className="size-4" /> },
-          { value: "people", label: "Who may use it", icon: <IconShieldLock className="size-4" /> },
+          {
+            value: "payees",
+            label: "Payees",
+            icon: <IconUsers className="size-4" />,
+          },
+          {
+            value: "categories",
+            label: "Categories",
+            icon: <IconCategory className="size-4" />,
+          },
+          {
+            value: "people",
+            label: "Who may use it",
+            icon: <IconShieldLock className="size-4" />,
+          },
         ]}
       />
 
@@ -137,7 +149,9 @@ function Payees({ rows }: { rows: PayeeRow[] }) {
   const shown = rows.filter(
     (r) =>
       (showOff || r.active) &&
-      (!q || r.name.toLowerCase().includes(q) || (r.code ?? "").toLowerCase().includes(q)),
+      (!q ||
+        r.name.toLowerCase().includes(q) ||
+        (r.code ?? "").toLowerCase().includes(q)),
   );
   const off = rows.filter((r) => !r.active).length;
 
@@ -166,7 +180,9 @@ function Payees({ rows }: { rows: PayeeRow[] }) {
         }
       >
         <QuietButton className="h-9" onClick={() => setShowOff((v) => !v)}>
-          {showOff ? "Hide switched off" : `Show switched off${off ? ` (${off})` : ""}`}
+          {showOff
+            ? "Hide switched off"
+            : `Show switched off${off ? ` (${off})` : ""}`}
         </QuietButton>
         <PrimaryButton onClick={() => setAdding(true)}>
           <IconPlus className="size-3.5" />
@@ -191,55 +207,120 @@ function Payees({ rows }: { rows: PayeeRow[] }) {
           }
         />
       ) : (
-        <TableCard>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className={cn(th, "w-full")}>Name</th>
-                <th className={th}>Code</th>
-                <th className={cn(th, "text-right")}>Entries</th>
-                <th className={cn(th, "text-right")}>Paid out</th>
-                <th className={th}>Last used</th>
-                <th className={th}>Status</th>
-                <th className={th} />
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr key={r.id} className="transition-colors hover:bg-surface-2">
-                  <td className={cn(td, "font-medium text-text-1")}>{r.name}</td>
-                  <td className={cn(td, "num whitespace-nowrap text-text-3")}>
-                    {r.code ?? "—"}
-                  </td>
-                  <td className={cn(td, "num text-right")}>{r.used || "—"}</td>
-                  <td className={cn(td, "num text-right font-semibold text-text-1")}>
-                    {r.used ? formatMoney(r.paid) : "—"}
-                  </td>
-                  <td className={cn(td, "num whitespace-nowrap text-text-3")}>
-                    {r.lastUsed ? formatDate(r.lastUsed) : "—"}
-                  </td>
-                  <td className={td}>
-                    <Pill tone={r.active ? "green" : "grey"}>
-                      {r.active ? "On the form" : "Switched off"}
-                    </Pill>
-                  </td>
-                  <td className={cn(td, "text-right whitespace-nowrap")}>
-                    <div className="flex justify-end gap-1.5">
-                      <QuietButton onClick={() => setEditing(r)}>Rename</QuietButton>
-                      <QuietButton
-                        tone={r.active ? "danger" : "neutral"}
-                        busy={busyId === r.id}
-                        onClick={() => toggle(r)}
-                      >
-                        {r.active ? "Switch off" : "Switch on"}
-                      </QuietButton>
-                    </div>
-                  </td>
+        <>
+          <TableCard className="hidden lg:block">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={cn(th, "w-full")}>Name</th>
+                  <th className={th}>Code</th>
+                  <th className={cn(th, "text-right")}>Entries</th>
+                  <th className={cn(th, "text-right")}>Paid out</th>
+                  <th className={th}>Last used</th>
+                  <th className={th}>Status</th>
+                  <th className={th} />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableCard>
+              </thead>
+              <tbody>
+                {shown.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="transition-colors hover:bg-surface-2"
+                  >
+                    <td className={cn(td, "font-medium text-text-1")}>
+                      {r.name}
+                    </td>
+                    <td className={cn(td, "num whitespace-nowrap text-text-3")}>
+                      {r.code ?? "—"}
+                    </td>
+                    <td className={cn(td, "num text-right")}>
+                      {r.used || "—"}
+                    </td>
+                    <td
+                      className={cn(
+                        td,
+                        "num text-right font-semibold text-text-1",
+                      )}
+                    >
+                      {r.used ? formatMoney(r.paid) : "—"}
+                    </td>
+                    <td className={cn(td, "num whitespace-nowrap text-text-3")}>
+                      {r.lastUsed ? formatDate(r.lastUsed) : "—"}
+                    </td>
+                    <td className={td}>
+                      <Pill tone={r.active ? "green" : "grey"}>
+                        {r.active ? "On the form" : "Switched off"}
+                      </Pill>
+                    </td>
+                    <td className={cn(td, "text-right whitespace-nowrap")}>
+                      <div className="flex justify-end gap-1.5">
+                        <QuietButton onClick={() => setEditing(r)}>
+                          Rename
+                        </QuietButton>
+                        <QuietButton
+                          tone={r.active ? "danger" : "neutral"}
+                          busy={busyId === r.id}
+                          onClick={() => toggle(r)}
+                        >
+                          {r.active ? "Switch off" : "Switch on"}
+                        </QuietButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableCard>
+
+          <div className="flex flex-col gap-2 lg:hidden">
+            {shown.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-card border border-border bg-surface p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-medium text-text-1">
+                      {r.name}
+                    </div>
+                    <div className="num text-[12px] text-text-3">
+                      {r.code ?? "—"}
+                    </div>
+                  </div>
+                  <Pill tone={r.active ? "green" : "grey"}>
+                    {r.active ? "On the form" : "Switched off"}
+                  </Pill>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[12px] text-text-3">
+                  <span>
+                    {r.used || "—"} entr{r.used === 1 ? "y" : "ies"}
+                    {r.used ? (
+                      <span className="num font-semibold text-text-1">
+                        {" "}
+                        · {formatMoney(r.paid)}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="num">
+                    {r.lastUsed ? formatDate(r.lastUsed) : "—"}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-end gap-1.5">
+                  <QuietButton onClick={() => setEditing(r)}>
+                    Rename
+                  </QuietButton>
+                  <QuietButton
+                    tone={r.active ? "danger" : "neutral"}
+                    busy={busyId === r.id}
+                    onClick={() => toggle(r)}
+                  >
+                    {r.active ? "Switch off" : "Switch on"}
+                  </QuietButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <p className="text-[11.5px] text-text-3">
@@ -248,12 +329,20 @@ function Payees({ rows }: { rows: PayeeRow[] }) {
       </p>
 
       {adding && <PayeeDialog onClose={() => setAdding(false)} />}
-      {editing && <PayeeDialog row={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <PayeeDialog row={editing} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
 
-function PayeeDialog({ row, onClose }: { row?: PayeeRow; onClose: () => void }) {
+function PayeeDialog({
+  row,
+  onClose,
+}: {
+  row?: PayeeRow;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = React.useState(row?.name ?? "");
   const [code, setCode] = React.useState(row?.code ?? "");
@@ -333,7 +422,13 @@ function PayeeDialog({ row, onClose }: { row?: PayeeRow; onClose: () => void }) 
 
 // ─── categories ───────────────────────────────────────────────────────────
 
-function Categories({ rows, groups }: { rows: CategoryRow[]; groups: string[] }) {
+function Categories({
+  rows,
+  groups,
+}: {
+  rows: CategoryRow[];
+  groups: string[];
+}) {
   const router = useRouter();
   const [showOff, setShowOff] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
@@ -401,59 +496,121 @@ function Categories({ rows, groups }: { rows: CategoryRow[]; groups: string[] })
         // column headers. Eight groups used to mean eight cards and eight
         // "CATEGORY / ENTRIES / PAID OUT / STATUS" headers for what is mostly
         // one row each.
-        <TableCard>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className={cn(th, "w-full")}>Category</th>
-                <th className={cn(th, "text-right")}>Entries</th>
-                <th className={cn(th, "text-right")}>Paid out</th>
-                <th className={th}>Status</th>
-                <th className={th} />
-              </tr>
-            </thead>
-            <tbody>
-              {[...byGroup.entries()].map(([group, list]) => (
-                <React.Fragment key={group}>
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="border-b border-border bg-surface-2 px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase"
-                    >
-                      {group}
-                    </td>
-                  </tr>
-                  {list.map((r) => (
-                    <tr key={r.id} className="transition-colors hover:bg-surface-2">
-                      <td className={cn(td, "font-medium text-text-1")}>{r.name}</td>
-                      <td className={cn(td, "num text-right")}>{r.used || "—"}</td>
-                      <td className={cn(td, "num text-right font-semibold text-text-1")}>
-                        {r.used ? formatMoney(r.spent) : "—"}
-                      </td>
-                      <td className={td}>
-                        <Pill tone={r.active ? "green" : "grey"}>
-                          {r.active ? "On the form" : "Switched off"}
-                        </Pill>
-                      </td>
-                      <td className={cn(td, "text-right whitespace-nowrap")}>
-                        <div className="flex justify-end gap-1.5">
-                          <QuietButton onClick={() => setEditing(r)}>Edit</QuietButton>
-                          <QuietButton
-                            tone={r.active ? "danger" : "neutral"}
-                            busy={busyId === r.id}
-                            onClick={() => toggle(r)}
-                          >
-                            {r.active ? "Switch off" : "Switch on"}
-                          </QuietButton>
-                        </div>
+        <>
+          <TableCard className="hidden lg:block">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={cn(th, "w-full")}>Category</th>
+                  <th className={cn(th, "text-right")}>Entries</th>
+                  <th className={cn(th, "text-right")}>Paid out</th>
+                  <th className={th}>Status</th>
+                  <th className={th} />
+                </tr>
+              </thead>
+              <tbody>
+                {[...byGroup.entries()].map(([group, list]) => (
+                  <React.Fragment key={group}>
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="border-b border-border bg-surface-2 px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase"
+                      >
+                        {group}
                       </td>
                     </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </TableCard>
+                    {list.map((r) => (
+                      <tr
+                        key={r.id}
+                        className="transition-colors hover:bg-surface-2"
+                      >
+                        <td className={cn(td, "font-medium text-text-1")}>
+                          {r.name}
+                        </td>
+                        <td className={cn(td, "num text-right")}>
+                          {r.used || "—"}
+                        </td>
+                        <td
+                          className={cn(
+                            td,
+                            "num text-right font-semibold text-text-1",
+                          )}
+                        >
+                          {r.used ? formatMoney(r.spent) : "—"}
+                        </td>
+                        <td className={td}>
+                          <Pill tone={r.active ? "green" : "grey"}>
+                            {r.active ? "On the form" : "Switched off"}
+                          </Pill>
+                        </td>
+                        <td className={cn(td, "text-right whitespace-nowrap")}>
+                          <div className="flex justify-end gap-1.5">
+                            <QuietButton onClick={() => setEditing(r)}>
+                              Edit
+                            </QuietButton>
+                            <QuietButton
+                              tone={r.active ? "danger" : "neutral"}
+                              busy={busyId === r.id}
+                              onClick={() => toggle(r)}
+                            >
+                              {r.active ? "Switch off" : "Switch on"}
+                            </QuietButton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </TableCard>
+
+          <div className="flex flex-col gap-3 lg:hidden">
+            {[...byGroup.entries()].map(([group, list]) => (
+              <div key={group} className="flex flex-col gap-2">
+                <div className="px-1 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+                  {group}
+                </div>
+                {list.map((r) => (
+                  <div
+                    key={r.id}
+                    className="rounded-card border border-border bg-surface p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="truncate text-[13px] font-medium text-text-1">
+                        {r.name}
+                      </div>
+                      <Pill tone={r.active ? "green" : "grey"}>
+                        {r.active ? "On the form" : "Switched off"}
+                      </Pill>
+                    </div>
+                    <div className="mt-2 text-[12px] text-text-3">
+                      {r.used || "—"} entr{r.used === 1 ? "y" : "ies"}
+                      {r.used ? (
+                        <span className="num font-semibold text-text-1">
+                          {" "}
+                          · {formatMoney(r.spent)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex justify-end gap-1.5">
+                      <QuietButton onClick={() => setEditing(r)}>
+                        Edit
+                      </QuietButton>
+                      <QuietButton
+                        tone={r.active ? "danger" : "neutral"}
+                        busy={busyId === r.id}
+                        onClick={() => toggle(r)}
+                      >
+                        {r.active ? "Switch off" : "Switch on"}
+                      </QuietButton>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <p className="text-[11.5px] text-text-3">
@@ -462,9 +619,15 @@ function Categories({ rows, groups }: { rows: CategoryRow[]; groups: string[] })
         name it was saved with.
       </p>
 
-      {adding && <CategoryDialog groups={groups} onClose={() => setAdding(false)} />}
+      {adding && (
+        <CategoryDialog groups={groups} onClose={() => setAdding(false)} />
+      )}
       {editing && (
-        <CategoryDialog row={editing} groups={groups} onClose={() => setEditing(null)} />
+        <CategoryDialog
+          row={editing}
+          groups={groups}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );
@@ -530,7 +693,10 @@ function CategoryDialog({
         />
       </Field>
 
-      <Field label="Rolls up to" help="The heading the monthly summary adds it under.">
+      <Field
+        label="Rolls up to"
+        help="The heading the monthly summary adds it under."
+      >
         <Select value={group} onChange={(e) => setGroup(e.target.value)}>
           {groups.map((g) => (
             <option key={g} value={g}>
@@ -602,23 +768,82 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
           }
         />
       ) : (
-        <TableCard>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className={cn(th, "w-full")}>Person</th>
-                <th className={th}>What they may do</th>
-                <th className={th}>How they got it</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => {
-                const isSelf = p.userId === viewer.userId;
-                const value = p.role && p.memberActive ? p.role : "__none";
-                return (
-                  <tr key={p.userId} className="transition-colors hover:bg-surface-2">
-                    <td className={td}>
-                      <div className="font-medium text-text-1">
+        <>
+          <TableCard className="hidden lg:block">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className={cn(th, "w-full")}>Person</th>
+                  <th className={th}>What they may do</th>
+                  <th className={th}>How they got it</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p) => {
+                  const isSelf = p.userId === viewer.userId;
+                  const value = p.role && p.memberActive ? p.role : "__none";
+                  return (
+                    <tr
+                      key={p.userId}
+                      className="transition-colors hover:bg-surface-2"
+                    >
+                      <td className={td}>
+                        <div className="font-medium text-text-1">
+                          {p.name}
+                          {isSelf && (
+                            <span className="ml-2 text-[11.5px] font-normal text-text-3">
+                              you
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[12px] text-text-3">{p.email}</div>
+                      </td>
+                      <td className={cn(td, "min-w-[210px]")}>
+                        <Select
+                          aria-label={`What ${p.name} may do`}
+                          value={value}
+                          disabled={isSelf || busyId === p.userId}
+                          onChange={(e) => change(p.userId, e.target.value)}
+                        >
+                          <option value="__none">Not set</option>
+                          {ROLE_ORDER.map((r) => (
+                            <option key={r} value={r}>
+                              {ROLE_META[r].label}
+                            </option>
+                          ))}
+                        </Select>
+                        <p className="mt-1 text-[11.5px] leading-snug text-text-3">
+                          {ROLE_META[p.effective].help}
+                        </p>
+                      </td>
+                      <td className={cn(td, "whitespace-nowrap")}>
+                        {p.role && p.memberActive ? (
+                          <Pill tone="blue">Given here</Pill>
+                        ) : p.erpAdmin ? (
+                          <Pill tone="amber">ERP administrator</Pill>
+                        ) : (
+                          <Pill tone="grey">Read only</Pill>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableCard>
+
+          <div className="flex flex-col gap-2 lg:hidden">
+            {rows.map((p) => {
+              const isSelf = p.userId === viewer.userId;
+              const value = p.role && p.memberActive ? p.role : "__none";
+              return (
+                <div
+                  key={p.userId}
+                  className="rounded-card border border-border bg-surface p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-text-1">
                         {p.name}
                         {isSelf && (
                           <span className="ml-2 text-[11.5px] font-normal text-text-3">
@@ -626,41 +851,41 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
                           </span>
                         )}
                       </div>
-                      <div className="text-[12px] text-text-3">{p.email}</div>
-                    </td>
-                    <td className={cn(td, "min-w-[210px]")}>
-                      <Select
-                        aria-label={`What ${p.name} may do`}
-                        value={value}
-                        disabled={isSelf || busyId === p.userId}
-                        onChange={(e) => change(p.userId, e.target.value)}
-                      >
-                        <option value="__none">Not set</option>
-                        {ROLE_ORDER.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_META[r].label}
-                          </option>
-                        ))}
-                      </Select>
-                      <p className="mt-1 text-[11.5px] leading-snug text-text-3">
-                        {ROLE_META[p.effective].help}
-                      </p>
-                    </td>
-                    <td className={cn(td, "whitespace-nowrap")}>
-                      {p.role && p.memberActive ? (
-                        <Pill tone="blue">Given here</Pill>
-                      ) : p.erpAdmin ? (
-                        <Pill tone="amber">ERP administrator</Pill>
-                      ) : (
-                        <Pill tone="grey">Read only</Pill>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableCard>
+                      <div className="truncate text-[12px] text-text-3">
+                        {p.email}
+                      </div>
+                    </div>
+                    {p.role && p.memberActive ? (
+                      <Pill tone="blue">Given here</Pill>
+                    ) : p.erpAdmin ? (
+                      <Pill tone="amber">ERP administrator</Pill>
+                    ) : (
+                      <Pill tone="grey">Read only</Pill>
+                    )}
+                  </div>
+                  <div className="mt-2">
+                    <Select
+                      aria-label={`What ${p.name} may do`}
+                      value={value}
+                      disabled={isSelf || busyId === p.userId}
+                      onChange={(e) => change(p.userId, e.target.value)}
+                    >
+                      <option value="__none">Not set</option>
+                      {ROLE_ORDER.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_META[r].label}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="mt-1 text-[11.5px] leading-snug text-text-3">
+                      {ROLE_META[p.effective].help}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <p className="text-[11.5px] leading-relaxed text-text-3">

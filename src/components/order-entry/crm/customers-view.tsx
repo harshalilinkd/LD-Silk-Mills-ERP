@@ -206,7 +206,9 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
           icon={<IconAlertTriangle />}
           label="At risk"
           value={k ? formatCount(k.atRisk) : "—"}
-          sub={signal ? "showing at risk only" : "low rating or an open complaint"}
+          sub={
+            signal ? "showing at risk only" : "low rating or an open complaint"
+          }
           tone="danger"
           active={signal === "at_risk"}
           onClick={only(setSignal, "at_risk", signal)}
@@ -324,137 +326,142 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
           </span>
         </div>
 
-        <HScroll bodyClassName="overflow-x-auto">
-          <Table>
-            <THead>
-              <tr>
-                <Th className="w-full">Customer</Th>
-                <Th className="text-right">Orders 12m</Th>
-                <Th className="text-right">Value 12m</Th>
-                <Th>Avg rating</Th>
-                <Th>Trend</Th>
-                <Th className="text-right">Open issues</Th>
-                <Th>Last contacted</Th>
-                <Th>Last order</Th>
-                <Th>Signal</Th>
-              </tr>
-            </THead>
-            <TBody>
-              {q.isLoading ? (
-                <tr>
-                  <Td colSpan={9} className="py-10 text-center text-text-2">
-                    Loading…
-                  </Td>
-                </tr>
-              ) : q.isError ? (
-                <tr>
-                  <Td colSpan={9} className="px-4 py-10 text-center">
-                    <div className="font-semibold text-status-red">
-                      Could not load customers
-                    </div>
-                    <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
-                      {(q.error as Error)?.message ?? "Unknown error"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void q.refetch()}
-                      className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-                    >
-                      Try again
-                    </button>
-                  </Td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <Td colSpan={9} className="py-10 text-center text-text-2">
-                    No customers match.
-                  </Td>
-                </tr>
-              ) : (
-                rows.map((r: CustomerRow) => {
-                  const sig = customerSignal(r);
-                  return (
-                    <Tr key={r.key}>
-                      <Td>
-                        <div className="font-semibold text-text-1">{r.name}</div>
-                        <div className="text-[12px] text-text-2">
-                          {r.crrCustomerId !== null ? (
-                            <>
-                              CRR {r.crrCustomerId}
-                              {r.aliases.length ? (
-                                <span title={r.aliases.join(" · ")}>
-                                  {" "}
-                                  · +{r.aliases.length} spelling
-                                  {r.aliases.length > 1 ? "s" : ""}
-                                </span>
-                              ) : null}
-                            </>
+        {q.isLoading ? (
+          <p className="py-10 text-center text-text-2">Loading…</p>
+        ) : q.isError ? (
+          <div className="px-4 py-10 text-center">
+            <div className="font-semibold text-status-red">
+              Could not load customers
+            </div>
+            <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
+              {(q.error as Error)?.message ?? "Unknown error"}
+            </div>
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
+            >
+              Try again
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="py-10 text-center text-text-2">No customers match.</p>
+        ) : (
+          <>
+            <HScroll
+              className="hidden lg:block"
+              bodyClassName="overflow-x-auto"
+            >
+              <Table>
+                <THead>
+                  <tr>
+                    <Th className="w-full">Customer</Th>
+                    <Th className="text-right">Orders 12m</Th>
+                    <Th className="text-right">Value 12m</Th>
+                    <Th>Avg rating</Th>
+                    <Th>Trend</Th>
+                    <Th className="text-right">Open issues</Th>
+                    <Th>Last contacted</Th>
+                    <Th>Last order</Th>
+                    <Th>Signal</Th>
+                  </tr>
+                </THead>
+                <TBody>
+                  {rows.map((r: CustomerRow) => {
+                    const sig = customerSignal(r);
+                    return (
+                      <Tr key={r.key}>
+                        <Td>
+                          <div className="font-semibold text-text-1">
+                            {r.name}
+                          </div>
+                          <div className="text-[12px] text-text-2">
+                            {r.crrCustomerId !== null ? (
+                              <>
+                                CRR {r.crrCustomerId}
+                                {r.aliases.length ? (
+                                  <span title={r.aliases.join(" · ")}>
+                                    {" "}
+                                    · +{r.aliases.length} spelling
+                                    {r.aliases.length > 1 ? "s" : ""}
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span title="No CRR customer resolved — this row is grouped by the party name as typed.">
+                                not linked to CRR
+                              </span>
+                            )}
+                          </div>
+                        </Td>
+                        <Td className="num text-right">
+                          {r.orders12m || (
+                            <span className="text-text-2">—</span>
+                          )}
+                        </Td>
+                        <Td className="num text-right font-semibold whitespace-nowrap">
+                          {money(r.value12m)}
+                        </Td>
+                        <Td>
+                          {r.avgRating === null ? (
+                            <span className="text-text-2">—</span>
                           ) : (
-                            <span title="No CRR customer resolved — this row is grouped by the party name as typed.">
-                              not linked to CRR
+                            <span className="inline-flex items-center gap-1.5">
+                              <Stars value={Math.round(r.avgRating)} />
+                              <span className="num text-[12.5px] font-semibold">
+                                {r.avgRating.toFixed(1)}
+                              </span>
+                              <span className="text-[12px] font-medium text-text-2">
+                                ({r.ratedCount})
+                              </span>
                             </span>
                           )}
-                        </div>
-                      </Td>
-                      <Td className="num text-right">
-                        {r.orders12m || <span className="text-text-2">—</span>}
-                      </Td>
-                      <Td className="num text-right font-semibold whitespace-nowrap">
-                        {money(r.value12m)}
-                      </Td>
-                      <Td>
-                        {r.avgRating === null ? (
-                          <span className="text-text-2">—</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5">
-                            <Stars value={Math.round(r.avgRating)} />
-                            <span className="num text-[12.5px] font-semibold">
-                              {r.avgRating.toFixed(1)}
+                        </Td>
+                        <Td className="text-[12.5px]">
+                          <Trend v={r.ratingTrend} />
+                        </Td>
+                        <Td className="num text-right">
+                          {r.openIssues ? (
+                            <span className="font-semibold text-status-red">
+                              {r.openIssues}
                             </span>
-                            <span className="text-[12px] font-medium text-text-2">
-                              ({r.ratedCount})
-                            </span>
-                          </span>
-                        )}
-                      </Td>
-                      <Td className="text-[12.5px]">
-                        <Trend v={r.ratingTrend} />
-                      </Td>
-                      <Td className="num text-right">
-                        {r.openIssues ? (
-                          <span className="font-semibold text-status-red">
-                            {r.openIssues}
-                          </span>
-                        ) : (
-                          <span className="text-text-2">—</span>
-                        )}
-                      </Td>
-                      <Td className="num text-[12.5px] whitespace-nowrap text-text-2">
-                        {r.lastContacted ? (
-                          formatDate(r.lastContacted)
-                        ) : (
-                          <span className="text-text-2">never</span>
-                        )}
-                      </Td>
-                      <Td className="num text-[12.5px] whitespace-nowrap text-text-2">
-                        {r.lastOrderDate ? formatDate(r.lastOrderDate) : "—"}
-                      </Td>
-                      <Td>
-                        {sig === "none" ? (
-                          <span className="text-text-2">—</span>
-                        ) : (
-                          <Pill tone={SIGNAL_TONE[sig]}>
-                            {CUSTOMER_SIGNAL_LABEL[sig]}
-                          </Pill>
-                        )}
-                      </Td>
-                    </Tr>
-                  );
-                })
-              )}
-            </TBody>
-          </Table>
-        </HScroll>
+                          ) : (
+                            <span className="text-text-2">—</span>
+                          )}
+                        </Td>
+                        <Td className="num text-[12.5px] whitespace-nowrap text-text-2">
+                          {r.lastContacted ? (
+                            formatDate(r.lastContacted)
+                          ) : (
+                            <span className="text-text-2">never</span>
+                          )}
+                        </Td>
+                        <Td className="num text-[12.5px] whitespace-nowrap text-text-2">
+                          {r.lastOrderDate ? formatDate(r.lastOrderDate) : "—"}
+                        </Td>
+                        <Td>
+                          {sig === "none" ? (
+                            <span className="text-text-2">—</span>
+                          ) : (
+                            <Pill tone={SIGNAL_TONE[sig]}>
+                              {CUSTOMER_SIGNAL_LABEL[sig]}
+                            </Pill>
+                          )}
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            </HScroll>
+
+            <div className="flex flex-col divide-y divide-border lg:hidden">
+              {rows.map((r: CustomerRow) => (
+                <CustomerCard key={r.key} row={r} />
+              ))}
+            </div>
+          </>
+        )}
 
         {data && data.totalPages > 1 ? (
           <div className="border-t border-border px-4 py-2.5">
@@ -465,6 +472,85 @@ export function CustomersView({ from, to }: { from: string; to: string }) {
               disabled={q.isFetching}
             />
           </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The mobile stand-in for one table row — read-only, same as the table
+ * itself, so it is a card of figures rather than anything tappable. */
+function CustomerCard({ row: r }: { row: CustomerRow }) {
+  const sig = customerSignal(r);
+  return (
+    <div className="px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold text-text-1">
+            {r.name}
+          </div>
+          <div className="text-[11.5px] text-text-2">
+            {r.crrCustomerId !== null ? (
+              <>
+                CRR {r.crrCustomerId}
+                {r.aliases.length ? (
+                  <span title={r.aliases.join(" · ")}>
+                    {" "}
+                    · +{r.aliases.length} spelling
+                    {r.aliases.length > 1 ? "s" : ""}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span title="No CRR customer resolved — this row is grouped by the party name as typed.">
+                not linked to CRR
+              </span>
+            )}
+          </div>
+        </div>
+        <span className="num shrink-0 font-semibold text-text-1">
+          {money(r.value12m)}
+        </span>
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-2">
+        <span className="num">
+          {r.orders12m || 0} order{r.orders12m === 1 ? "" : "s"} · 12m
+        </span>
+        {r.avgRating === null ? (
+          <span className="text-text-2">not rated</span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <Stars value={Math.round(r.avgRating)} />
+            <span className="num font-semibold text-text-1">
+              {r.avgRating.toFixed(1)}
+            </span>
+            <span>({r.ratedCount})</span>
+          </span>
+        )}
+        <Trend v={r.ratingTrend} />
+        {r.openIssues ? (
+          <span className="font-semibold text-status-red">
+            {r.openIssues} open issue{r.openIssues === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-[11.5px] text-text-3">
+          Last contacted{" "}
+          <span className="num">
+            {r.lastContacted ? formatDate(r.lastContacted) : "never"}
+          </span>
+        </span>
+        <span className="text-[11.5px] text-text-3">
+          Last order{" "}
+          <span className="num">
+            {r.lastOrderDate ? formatDate(r.lastOrderDate) : "—"}
+          </span>
+        </span>
+        {sig !== "none" ? (
+          <Pill tone={SIGNAL_TONE[sig]}>{CUSTOMER_SIGNAL_LABEL[sig]}</Pill>
         ) : null}
       </div>
     </div>

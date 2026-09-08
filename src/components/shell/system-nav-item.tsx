@@ -18,7 +18,7 @@ export function SystemNavItem({ system }: { system: System }) {
     return (
       <div className="flex cursor-default items-center gap-[11px] rounded-lg border border-transparent px-2.5 py-2 text-[13.5px] font-medium text-text-3">
         <Icon className="size-4 shrink-0" />
-        <span className="flex-1 truncate">{system.systemName}</span>
+        <span className="min-w-0 flex-1 truncate">{system.systemName}</span>
         <span className="shrink-0 rounded-full bg-status-amber-dim px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.03em] text-status-amber">
           Soon
         </span>
@@ -45,7 +45,7 @@ export function SystemNavItem({ system }: { system: System }) {
   const label = (
     <>
       <Icon className="size-4 shrink-0" />
-      <span className="flex-1 truncate">{system.systemName}</span>
+      <span className="min-w-0 flex-1 truncate">{system.systemName}</span>
       {isExternal && (
         <IconExternalLink className="size-3 shrink-0 text-text-3" />
       )}
@@ -131,7 +131,7 @@ function ExpandableSystemNavItem({
           className="flex min-w-0 flex-1 items-center gap-[11px]"
         >
           <Icon className="size-4 shrink-0" />
-          <span className="flex-1 truncate">{system.systemName}</span>
+          <span className="min-w-0 flex-1 truncate">{system.systemName}</span>
         </Link>
         <button
           type="button"

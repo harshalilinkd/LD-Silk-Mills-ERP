@@ -173,19 +173,21 @@ export function PeopleTable({
         </div>
       ) : null}
 
-      <div className="rounded-card border border-border bg-surface">
+      <div className="hidden rounded-card border border-border bg-surface lg:block">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
-                {["Person", "Sign-in", "ERP", "Orders", "Help Slip", ""].map((h, i) => (
-                  <th
-                    key={h || i}
-                    className="border-b border-border px-3.5 pt-3.5 pb-2.5 text-left text-[11px] font-bold tracking-[0.04em] text-text-1 uppercase"
-                  >
-                    {h}
-                  </th>
-                ))}
+                {["Person", "Sign-in", "ERP", "Orders", "Help Slip", ""].map(
+                  (h, i) => (
+                    <th
+                      key={h || i}
+                      className="border-b border-border px-3.5 pt-3.5 pb-2.5 text-left text-[11px] font-bold tracking-[0.04em] text-text-1 uppercase"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody className="[&>tr:last-child>td]:border-b-0">
@@ -287,6 +289,113 @@ export function PeopleTable({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 lg:hidden">
+        {people.map((p) => {
+          const inactive = p.erpStatus === "inactive";
+          return (
+            <div
+              key={p.email}
+              className={cn(
+                "rounded-card border border-border bg-surface p-3",
+                inactive && "opacity-55",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-text-1">
+                    {p.name}
+                  </div>
+                  <div className="num truncate text-[12px] text-text-3">
+                    {p.email}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(p)}
+                    aria-label={`Edit ${p.name}`}
+                    className="grid size-8 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-surface-2 hover:text-text-1"
+                  >
+                    <IconPencil className="size-4" />
+                  </button>
+                  {p.email !== adminEmail ? (
+                    <button
+                      type="button"
+                      onClick={() => setRemoveTarget(p)}
+                      aria-label={`Remove ${p.name}`}
+                      className="grid size-8 cursor-pointer place-items-center rounded-field text-text-3 transition-colors hover:bg-status-red-dim hover:text-status-red"
+                    >
+                      <IconTrash className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold tracking-[0.04em] text-text-3 uppercase">
+                    Sign-in
+                  </span>
+                  {!p.erpId || inactive ? (
+                    <span className="text-[12px] text-text-3">—</span>
+                  ) : p.hasPassword ? (
+                    <Chip text="Google or password" />
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-status-amber-dim px-2 py-0.5 text-[11.5px] font-semibold text-status-amber">
+                      <IconAlertTriangle className="size-3.5" />
+                      Google only
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold tracking-[0.04em] text-text-3 uppercase">
+                    ERP
+                  </span>
+                  {p.erpRole && !inactive ? (
+                    <Chip text={labelOf(ERP_ROLES, p.erpRole)} />
+                  ) : inactive ? (
+                    <Chip text="Switched off" muted />
+                  ) : (
+                    <Chip text="No access" muted />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold tracking-[0.04em] text-text-3 uppercase">
+                    Orders
+                  </span>
+                  {p.orderEntryRole && p.orderEntryActive ? (
+                    <Chip text={labelOf(OE_ROLES, p.orderEntryRole)} />
+                  ) : (
+                    <Chip text="No access" muted />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold tracking-[0.04em] text-text-3 uppercase">
+                    Help Slip
+                  </span>
+                  {p.helpSlipRole && p.helpSlipStatus === "active" ? (
+                    <span className="flex flex-wrap items-center justify-end gap-1.5">
+                      <Chip text={labelOf(HS_ROLES, p.helpSlipRole)} />
+                      {p.helpSlipHrAccess && (
+                        <span
+                          title="Can open confidential concerns"
+                          className="inline-flex items-center gap-1 rounded-pill bg-chip px-2 py-0.5 text-[11px] font-semibold text-text-2"
+                        >
+                          <IconShieldLock className="size-3" />
+                          Confidential
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <Chip text="No access" muted />
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {(editing || adding || removeTarget) && (
@@ -457,7 +566,10 @@ function PersonDialog({
           <section className="flex flex-col gap-3">
             <SectionLabel>Access</SectionLabel>
             <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
-              <SettingRow label="ERP" hint="Signing in at all, and admin rights.">
+              <SettingRow
+                label="ERP"
+                hint="Signing in at all, and admin rights."
+              >
                 <Picker
                   value={erp}
                   onChange={setErp}
@@ -468,20 +580,29 @@ function PersonDialog({
 
               <div className="h-px bg-border" />
 
-              <SettingRow label="Orders & CRM" hint="Their role in Order Entry.">
+              <SettingRow
+                label="Orders & CRM"
+                hint="Their role in Order Entry."
+              >
                 <Picker value={oe} onChange={setOe} options={OE_ROLES} />
               </SettingRow>
 
               <div className="h-px bg-border" />
 
-              <SettingRow label="Help Slip" hint="Raising and handling concerns.">
+              <SettingRow
+                label="Help Slip"
+                hint="Raising and handling concerns."
+              >
                 <Picker value={hs} onChange={setHs} options={HS_ROLES} />
               </SettingRow>
             </div>
 
             {hs !== "none" && (
               <div className="flex flex-col gap-3 rounded-field border border-border-strong bg-surface p-3.5 shadow-sm">
-                <SettingRow label="Department" hint="Used to route their concerns.">
+                <SettingRow
+                  label="Department"
+                  hint="Used to route their concerns."
+                >
                   <Picker
                     value={dept}
                     onChange={setDept}

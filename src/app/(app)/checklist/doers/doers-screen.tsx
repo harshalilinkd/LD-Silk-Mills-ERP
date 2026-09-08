@@ -97,7 +97,9 @@ export function DoersScreen({
   const [q, setQ] = React.useState("");
   const [editing, setEditing] = React.useState<DoerRow | "new" | null>(null);
   const [importing, setImporting] = React.useState(false);
-  const [confirmDelete, setConfirmDelete] = React.useState<DoerRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState<DoerRow | null>(
+    null,
+  );
   const [busyId, setBusyId] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [note, setNote] = React.useState<string | null>(null);
@@ -225,7 +227,7 @@ export function DoersScreen({
         />
       ) : (
         <>
-          <TableCard>
+          <TableCard className="hidden lg:block">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -259,7 +261,9 @@ export function DoersScreen({
                         >
                           {initials(r.name)}
                         </span>
-                        <span className="font-semibold text-text-1">{r.name}</span>
+                        <span className="font-semibold text-text-1">
+                          {r.name}
+                        </span>
                         {r.isAdmin && <Pill tone="blue">Admin</Pill>}
                       </div>
                     </td>
@@ -320,6 +324,91 @@ export function DoersScreen({
               </tbody>
             </table>
           </TableCard>
+
+          <div className="flex flex-col gap-2 lg:hidden">
+            {filtered.map((r) => (
+              <div
+                key={r.id}
+                className={cn(
+                  "rounded-card border border-border bg-surface p-3",
+                  !r.active && "opacity-55",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                        r.isAdmin
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-accent text-accent-text",
+                      )}
+                    >
+                      {initials(r.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-semibold text-text-1">
+                          {r.name}
+                        </span>
+                        {r.isAdmin && <Pill tone="blue">Admin</Pill>}
+                      </div>
+                      <div className="truncate text-[12px] text-text-2">
+                        {r.email}
+                      </div>
+                    </div>
+                  </div>
+                  {r.active ? (
+                    <Pill tone="green">Active</Pill>
+                  ) : (
+                    <Pill tone="grey">Inactive</Pill>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-2">
+                  {r.department ? <span>{r.department}</span> : null}
+                  <span>
+                    {r.hasLogin ? (
+                      <span className="text-status-green">Signs in</span>
+                    ) : (
+                      "No login"
+                    )}
+                  </span>
+                  <span className="num">
+                    {r.taskCount} task{r.taskCount === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                  <QuietButton
+                    onClick={() => void toggleActive(r)}
+                    busy={busyId === r.id}
+                  >
+                    {r.active ? (
+                      <>
+                        <IconCircleMinus className="size-3.5" />
+                        Deactivate
+                      </>
+                    ) : (
+                      <>
+                        <IconCircleCheck className="size-3.5" />
+                        Reactivate
+                      </>
+                    )}
+                  </QuietButton>
+                  <QuietButton onClick={() => setEditing(r)}>
+                    <IconPencil className="size-3.5" />
+                    Edit
+                  </QuietButton>
+                  <QuietButton
+                    tone="danger"
+                    aria-label={`Delete ${r.name}`}
+                    onClick={() => setConfirmDelete(r)}
+                  >
+                    <IconTrash className="size-3.5" />
+                  </QuietButton>
+                </div>
+              </div>
+            ))}
+          </div>
         </>
       )}
 
@@ -380,16 +469,18 @@ export function DoersScreen({
       >
         <p className="text-[13px] leading-relaxed text-text-2">
           Their tasks stop and every date{" "}
-          <strong className="font-semibold text-text-1">not yet ticked
-          off</strong> is cleared, so they stop appearing in the delayed
-          counts.
+          <strong className="font-semibold text-text-1">
+            not yet ticked off
+          </strong>{" "}
+          is cleared, so they stop appearing in the delayed counts.
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-text-2">
           Everything they{" "}
-          <strong className="font-semibold text-text-1">did tick off
-          stays</strong> — that is a record of work that happened and it keeps
-          counting. Adding the same email again brings them, and their record,
-          back.
+          <strong className="font-semibold text-text-1">
+            did tick off stays
+          </strong>{" "}
+          — that is a record of work that happened and it keeps counting. Adding
+          the same email again brings them, and their record, back.
         </p>
       </Modal>
     </div>

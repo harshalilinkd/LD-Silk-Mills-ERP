@@ -47,6 +47,7 @@ import {
   toneOfLines,
   toQualityGroups,
   TONE_LABEL,
+  TONE_PILL,
   TONE_TEXT,
   type QualityGroup,
   type RowTone,
@@ -63,7 +64,8 @@ const W_QUALITY = 176;
 const L_PARTY = W_ORDER; // 84
 const L_QUALITY = W_ORDER + W_PARTY; // 252
 
-const stickyBase = "sticky z-[2] border-r border-border px-2.5 py-2 align-middle";
+const stickyBase =
+  "sticky z-[2] border-r border-border px-2.5 py-2 align-middle";
 // Body cells take the ROW's own background (`bg-[inherit]`) so the pinned
 // columns keep the hover / selected tint. Header cells are given an opaque one
 // OUTRIGHT — stacking two background utilities leaves the winner to CSS source
@@ -81,7 +83,8 @@ const stickyHead = `${stickyBase} z-[5] bg-surface`;
 //
 // Status is NEVER carried here — see §4B.1. The background only says
 // "hovered" / "selected" / "flashed"; the STATUS is the text colour.
-const SELECTED_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_24%)]";
+const SELECTED_BG =
+  "bg-[color-mix(in_oklch,var(--surface),var(--primary)_24%)]";
 const FLASH_BG = "bg-[color-mix(in_oklch,var(--surface),var(--primary)_38%)]";
 const SELECTED_ROW = cn(
   SELECTED_BG,
@@ -125,9 +128,10 @@ export function OrderTracker({
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   // Where the floating panel sits. null = its default corner; dragging pins it
   // to explicit viewport coordinates.
-  const [panelPos, setPanelPos] = React.useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [panelPos, setPanelPos] = React.useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const dragOffset = React.useRef<{ dx: number; dy: number } | null>(null);
   // Briefly highlights the row the panel jumped to, so the eye can find it.
@@ -190,7 +194,9 @@ export function OrderTracker({
     );
   }, [lines]);
 
-  const index = selectedId ? lines.findIndex((l) => l.lineId === selectedId) : -1;
+  const index = selectedId
+    ? lines.findIndex((l) => l.lineId === selectedId)
+    : -1;
   const selected = index >= 0 ? lines[index] : undefined;
   const selectedGroup = selected
     ? groups.find((g) => g.key === `${selected.orderId}|${selected.fabric}`)
@@ -319,7 +325,9 @@ export function OrderTracker({
       // does not exist until the group has.
       requestAnimationFrame(() => {
         const el =
-          document.querySelector(`[data-line-id="${CSS.escape(line.lineId)}"]`) ??
+          document.querySelector(
+            `[data-line-id="${CSS.escape(line.lineId)}"]`,
+          ) ??
           document.querySelector(`[data-group-key="${CSS.escape(groupKey)}"]`);
         el?.scrollIntoView({
           behavior: "smooth",
@@ -399,7 +407,9 @@ export function OrderTracker({
           {toolbar}
           <Button
             variant={
-              showFilters || hasActiveOrderFilters(filters) ? "default" : "outline"
+              showFilters || hasActiveOrderFilters(filters)
+                ? "default"
+                : "outline"
             }
             size="sm"
             onClick={() => setShowFilters((v) => !v)}
@@ -470,115 +480,169 @@ export function OrderTracker({
           right-hand edge when a row is opened, so nothing is resized and
           whatever it covers is still reachable by scrolling the table. */}
       <div ref={cardRef} className="relative">
-        <Card className="min-w-0 gap-0 overflow-hidden p-0">
-          {q.isLoading && !q.data ? (
+        {q.isLoading && !q.data ? (
+          <Card className="min-w-0 gap-0 overflow-hidden p-0">
             <p className="flex items-center gap-2 px-4 py-10 text-sm text-text-2">
               <Spinner /> Loading orders…
             </p>
-          ) : q.isError ? (
+          </Card>
+        ) : q.isError ? (
+          <Card className="min-w-0 gap-0 overflow-hidden p-0">
             <p className="px-4 py-10 text-center text-sm text-status-red">
               {q.error instanceof Error
                 ? q.error.message
                 : "Failed to load order status."}
             </p>
-          ) : groups.length === 0 ? (
+          </Card>
+        ) : groups.length === 0 ? (
+          <Card className="min-w-0 gap-0 overflow-hidden p-0">
             <p className="px-4 py-10 text-center text-sm text-text-2">
               {search ? `Nothing matches “${search}”.` : "No orders to show."}
             </p>
-          ) : (
-            <HScroll
-              // HScroll's body already carries `overflow-x-auto`; the vertical
-              // axis is named explicitly rather than with the `overflow-auto`
-              // shorthand, which would fight it depending on stylesheet order.
-              bodyClassName="overflow-y-auto"
-              bodyStyle={{ maxHeight: bodyMax }}
-            >
-              {/* No column takes `w-full` here, unlike every other table in
-                  the module: the three identity columns are PINNED, so their
-                  widths have to stay exactly W_ORDER / W_PARTY / W_QUALITY for
-                  the `left` offsets to line up, and stretching any of the
-                  remaining ones would push the seven stage columns — the point
-                  of the screen — off the right edge. Below 1180px the table
-                  scrolls; above it the slack spreads evenly. */}
-              <Table className="min-w-[1180px]">
-                {/* THead already supplies `sticky top-0 bg-surface` and Th the
-                    bottom rule (§0.4), which is the spec's header row exactly;
-                    only the 12px type is local to this table. */}
-                <THead>
-                  <tr className="bg-surface text-[12px] font-bold tracking-[0.04em] text-text-1 uppercase">
-                    <Th
-                      className={cn(stickyHead, "left-0 text-[12px]")}
-                      style={{ width: W_ORDER, minWidth: W_ORDER }}
-                    >
-                      Order no
-                    </Th>
-                    <Th
-                      className={cn(stickyHead, "text-[12px]")}
-                      style={{ left: L_PARTY, width: W_PARTY, minWidth: W_PARTY }}
-                    >
-                      Party
-                    </Th>
-                    <Th
-                      className={cn(stickyHead, "text-[12px]")}
-                      style={{
-                        left: L_QUALITY,
-                        width: W_QUALITY,
-                        minWidth: W_QUALITY,
-                      }}
-                    >
-                      Quality
-                    </Th>
-                    <Th className="px-2.5 py-2 text-[12px]">OD date</Th>
-                    <Th className="px-2.5 py-2 text-[12px] text-right">Designs</Th>
-                    <Th className="px-2.5 py-2 text-[12px] text-right">Mtr</Th>
-                    <Th className="px-2.5 py-2 text-[12px]">Sales</Th>
-                    <Th className="px-2.5 py-2 text-[12px]">Status</Th>
-                    {STAGE_COLUMNS.map((c) => (
+          </Card>
+        ) : (
+          <>
+            {/* Desktop / tablet: the full sticky-column table (§4B.4). Below
+                `lg` it gives way to a card list — seven stage columns plus
+                three pinned identity columns do not fit a phone even with a
+                horizontal scroll, and scrolling sideways to find the one
+                stage that matters is exactly the "lost track of which
+                quality a row belonged to" problem the pinned columns exist
+                to solve, just moved to the X axis instead of removed. */}
+            <Card className="hidden min-w-0 gap-0 overflow-hidden p-0 lg:block">
+              <HScroll
+                // HScroll's body already carries `overflow-x-auto`; the vertical
+                // axis is named explicitly rather than with the `overflow-auto`
+                // shorthand, which would fight it depending on stylesheet order.
+                bodyClassName="overflow-y-auto"
+                bodyStyle={{ maxHeight: bodyMax }}
+              >
+                {/* No column takes `w-full` here, unlike every other table in
+                    the module: the three identity columns are PINNED, so their
+                    widths have to stay exactly W_ORDER / W_PARTY / W_QUALITY for
+                    the `left` offsets to line up, and stretching any of the
+                    remaining ones would push the seven stage columns — the point
+                    of the screen — off the right edge. Below 1180px the table
+                    scrolls; above it the slack spreads evenly. */}
+                <Table className="min-w-[1180px]">
+                  {/* THead already supplies `sticky top-0 bg-surface` and Th the
+                      bottom rule (§0.4), which is the spec's header row exactly;
+                      only the 12px type is local to this table. */}
+                  <THead>
+                    <tr className="bg-surface text-[12px] font-bold tracking-[0.04em] text-text-1 uppercase">
                       <Th
-                        key={c.key}
-                        title={c.full}
-                        className="px-2 py-2 text-[12px] text-center"
+                        className={cn(stickyHead, "left-0 text-[12px]")}
+                        style={{ width: W_ORDER, minWidth: W_ORDER }}
+                      >
+                        Order no
+                      </Th>
+                      <Th
+                        className={cn(stickyHead, "text-[12px]")}
                         style={{
-                          width: STAGE_COL_WIDTH,
-                          minWidth: STAGE_COL_WIDTH,
+                          left: L_PARTY,
+                          width: W_PARTY,
+                          minWidth: W_PARTY,
                         }}
                       >
-                        {c.short}
+                        Party
                       </Th>
+                      <Th
+                        className={cn(stickyHead, "text-[12px]")}
+                        style={{
+                          left: L_QUALITY,
+                          width: W_QUALITY,
+                          minWidth: W_QUALITY,
+                        }}
+                      >
+                        Quality
+                      </Th>
+                      <Th className="px-2.5 py-2 text-[12px]">OD date</Th>
+                      <Th className="px-2.5 py-2 text-[12px] text-right">
+                        Designs
+                      </Th>
+                      <Th className="px-2.5 py-2 text-[12px] text-right">
+                        Mtr
+                      </Th>
+                      <Th className="px-2.5 py-2 text-[12px]">Sales</Th>
+                      <Th className="px-2.5 py-2 text-[12px]">Status</Th>
+                      {STAGE_COLUMNS.map((c) => (
+                        <Th
+                          key={c.key}
+                          title={c.full}
+                          className="px-2 py-2 text-[12px] text-center"
+                          style={{
+                            width: STAGE_COL_WIDTH,
+                            minWidth: STAGE_COL_WIDTH,
+                          }}
+                        >
+                          {c.short}
+                        </Th>
+                      ))}
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {groups.map((g) => (
+                      <QualityRows
+                        key={g.key}
+                        group={g}
+                        open={expanded.has(g.key)}
+                        selectedId={selectedId}
+                        flashId={flashId}
+                        onToggle={() => toggleGroup(g.key)}
+                        onSelect={setSelectedId}
+                      />
                     ))}
-                  </tr>
-                </THead>
-                <TBody>
-                  {groups.map((g) => (
-                    <QualityRows
-                      key={g.key}
-                      group={g}
-                      open={expanded.has(g.key)}
-                      selectedId={selectedId}
-                      flashId={flashId}
-                      onToggle={() => toggleGroup(g.key)}
-                      onSelect={setSelectedId}
-                    />
-                  ))}
-                </TBody>
-              </Table>
-            </HScroll>
-          )}
+                  </TBody>
+                </Table>
+              </HScroll>
 
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-              <span className="num text-xs text-text-2">
-                {totalOrders} order{totalOrders === 1 ? "" : "s"}
-              </span>
-              <Pager
-                page={safePage}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                disabled={q.isFetching}
-              />
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+                  <span className="num text-xs text-text-2">
+                    {totalOrders} order{totalOrders === 1 ? "" : "s"}
+                  </span>
+                  <Pager
+                    page={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    disabled={q.isFetching}
+                  />
+                </div>
+              ) : null}
+            </Card>
+
+            {/* Mobile: one card per quality. Tapping it opens the SAME
+                floating detail panel a desktop row click does — the panel
+                already caps at `min(94vw,520px)` and is where the individual
+                colours (the desktop's expand-to-`ColourRow`s) live, so
+                nothing is lost, just reached one tap later instead of an
+                inline expand a thumb cannot usefully scroll sideways past
+                anyway. */}
+            <div className="flex flex-col gap-2 lg:hidden">
+              {groups.map((g) => (
+                <QualityCard
+                  key={g.key}
+                  group={g}
+                  selected={g.lines.some((l) => l.lineId === selectedId)}
+                  onSelect={() => setSelectedId(g.lines[0].lineId)}
+                />
+              ))}
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between gap-2 rounded-card border border-border bg-surface px-3 py-2.5">
+                  <span className="num text-xs text-text-2">
+                    {totalOrders} order{totalOrders === 1 ? "" : "s"}
+                  </span>
+                  <Pager
+                    page={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    disabled={q.isFetching}
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </Card>
+          </>
+        )}
 
         {hasSelection ? (
           <div
@@ -664,7 +728,10 @@ function QualityRows({
               className="-ml-1 rounded p-0.5 opacity-60 hover:bg-chip hover:opacity-100"
             >
               <IconChevronRight
-                className={cn("size-3.5 transition-transform", open && "rotate-90")}
+                className={cn(
+                  "size-3.5 transition-transform",
+                  open && "rotate-90",
+                )}
               />
             </button>
             {group.orderNo}
@@ -678,7 +745,11 @@ function QualityRows({
           {group.party}
         </Td>
         <Td
-          className={cn(stickyCell, "truncate font-medium", TONE_TEXT[group.tone])}
+          className={cn(
+            stickyCell,
+            "truncate font-medium",
+            TONE_TEXT[group.tone],
+          )}
           style={{ left: L_QUALITY, width: W_QUALITY, minWidth: W_QUALITY }}
           title={group.fabric}
         >
@@ -735,6 +806,94 @@ function QualityRows({
   );
 }
 
+/** One quality, as a tappable card — the mobile stand-in for `QualityRows`.
+ * Same identity fields as the pinned columns (order/party/quality), the same
+ * OD date / designs / mtr / sales the scrollable columns carry, and a
+ * dispatched/pending/cancelled breakdown in place of the seven individual
+ * stage cells — the full per-stage grid lives one tap away in the detail
+ * panel, which already lists every colour under this quality. */
+function QualityCard({
+  group,
+  selected,
+  onSelect,
+}: {
+  group: QualityGroup;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      title={`${TONE_LABEL[group.tone]} — tap for full details`}
+      className={cn(
+        "w-full rounded-card border p-3 text-left shadow-sm transition-colors active:scale-[.99]",
+        selected
+          ? "border-primary/50 bg-[color-mix(in_oklch,var(--surface),var(--primary)_10%)]"
+          : "border-border bg-surface hover:border-border-strong",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={cn("num font-semibold", TONE_TEXT[group.tone])}>
+              {group.orderNo}
+            </span>
+            <span className="text-text-3">·</span>
+            <span className="truncate text-[12.5px] text-text-2">
+              {group.party}
+            </span>
+          </div>
+          <div className="mt-0.5 truncate text-[13px] font-medium text-text-1">
+            {group.fabric}
+          </div>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ring-1 ring-inset",
+            TONE_PILL[group.tone],
+          )}
+        >
+          {TONE_LABEL[group.tone]}
+        </span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-3">
+        <span className="num">{formatDate(group.odDate)}</span>
+        <span className="num">
+          {group.lines.length} design{group.lines.length === 1 ? "" : "s"}
+        </span>
+        <span className="num">{formatNumber(group.qtyTotal)} mtr</span>
+        {group.salesPerson ? <span>{group.salesPerson}</span> : null}
+      </div>
+
+      {/* Dispatched / pending / cancelled — the mobile substitute for
+          scanning seven stage columns; the exact per-stage state for each
+          colour is what the detail panel opens into. */}
+      <div className="mt-2 flex items-center gap-2 text-[11px] font-medium">
+        {group.dispatched > 0 ? (
+          <span className="inline-flex items-center gap-1 text-status-green">
+            <span className="size-1.5 rounded-full bg-status-green" />
+            {group.dispatched} dispatched
+          </span>
+        ) : null}
+        {group.pending > 0 ? (
+          <span className="inline-flex items-center gap-1 text-status-amber">
+            <span className="size-1.5 rounded-full bg-status-amber" />
+            {group.pending} pending
+          </span>
+        ) : null}
+        {group.cancelled > 0 ? (
+          <span className="inline-flex items-center gap-1 text-text-3">
+            <span className="size-1.5 rounded-full bg-text-3" />
+            {group.cancelled} cancelled
+          </span>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
 function ColourRow({
   line,
   selected,
@@ -761,7 +920,10 @@ function ColourRow({
             : "bg-surface-2 hover:bg-surface-3",
       )}
     >
-      <Td className={stickyCell} style={{ left: 0, width: W_ORDER, minWidth: W_ORDER }} />
+      <Td
+        className={stickyCell}
+        style={{ left: 0, width: W_ORDER, minWidth: W_ORDER }}
+      />
       <Td
         className={stickyCell}
         style={{ left: L_PARTY, width: W_PARTY, minWidth: W_PARTY }}

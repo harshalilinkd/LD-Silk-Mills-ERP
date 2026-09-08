@@ -124,7 +124,7 @@ export default async function OrderDetailPage({
             {formatNumber(detail.grand_total)}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
@@ -208,6 +208,60 @@ export default async function OrderDetailPage({
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-col gap-2 p-3 lg:hidden">
+          {detail.lines.map((l) => {
+            const dim = l.is_cancelled ? " opacity-50" : "";
+            return (
+              <div
+                key={l.id}
+                className="rounded-card border border-border bg-surface-2 p-3"
+              >
+                <div className={`flex items-start justify-between gap-2${dim}`}>
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-medium text-text-1">
+                      {l.quality}
+                    </div>
+                    <div className="num mt-0.5 text-[12px] text-text-3">
+                      {l.design_no}
+                      {l.is_cancelled && (
+                        <span className="ml-1.5 text-status-red">
+                          (cancelled)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_STYLE[l.operations_status]}`}
+                  >
+                    {l.operations_status}
+                  </span>
+                </div>
+                <div
+                  className={`num mt-2 flex items-center justify-between text-[12.5px] text-text-2${dim}`}
+                >
+                  <span>
+                    {l.qty_mtr} m · rate {l.rate ?? "—"}
+                  </span>
+                  <span className="font-semibold text-text-1">
+                    {l.line_total
+                      ? `₹${formatNumber(Number(l.line_total))}`
+                      : "—"}
+                  </span>
+                </div>
+                {canEdit && (
+                  <div className="mt-2 flex justify-end">
+                    <CancelLineButton
+                      orderId={order.id}
+                      lineId={l.id}
+                      cancelled={l.is_cancelled}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -520,8 +520,15 @@ export function FunnelRows({
       {rows.map((r, i) => {
         const share = total > 0 ? (r.done / total) * 100 : 0;
         return (
-          <li key={r.label} className="flex items-center gap-3">
-            <span className="w-[130px] shrink-0 truncate text-[12px] text-text-2" title={r.label}>
+          // 130 + 62 + 70 of fixed columns plus gaps came to more than a
+          // 320px phone has, so the row could not fit and the page scrolled
+          // sideways. Below `sm` the stage name takes a line of its own and
+          // the bar keeps the rest; from `sm` up nothing moves.
+          <li key={r.label} className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <span
+              className="w-full shrink-0 truncate text-[12px] text-text-2 sm:w-[130px]"
+              title={r.label}
+            >
               {r.no ? `${r.no}. ` : ""}
               {r.label}
             </span>
@@ -531,12 +538,12 @@ export function FunnelRows({
                 style={{ width: `${Math.max(share, 0.6)}%`, background: colourAt(i) }}
               />
             </span>
-            <span className="num w-[62px] shrink-0 text-right text-[12px] font-semibold text-text-1">
+            <span className="num w-[52px] shrink-0 text-right text-[12px] font-semibold text-text-1 sm:w-[62px]">
               {count(r.done)}
             </span>
             <span
               className={cn(
-                "num w-[70px] shrink-0 text-right text-[11px]",
+                "num w-[56px] shrink-0 text-right text-[11px] sm:w-[70px]",
                 r.lost ? "text-status-red" : "text-text-3",
               )}
             >

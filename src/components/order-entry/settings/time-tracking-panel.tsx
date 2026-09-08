@@ -142,7 +142,7 @@ export function TimeTrackingPanel() {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+    <div className="grid gap-5 [&>*]:min-w-0 lg:grid-cols-[1fr_360px] lg:items-start">
       <Panel
         title="Time tracking (SLA)"
         description="Days from the order date each stage is planned for."
@@ -168,7 +168,7 @@ export function TimeTrackingPanel() {
                   <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent num text-[12px] text-accent-text">
                     {s.sort_order}
                   </span>
-                  <span className="flex-1 truncate text-[13px] font-medium text-text-1">
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-1">
                     {s.label}
                   </span>
                   <input

@@ -155,7 +155,12 @@ function Panel({
   return (
     <section
       className={cn(
-        "rounded-[10px] border border-border bg-surface px-5 py-[18px]",
+        // `min-w-0` because a Panel is always a grid item, and a grid item's
+        // automatic minimum is its own min-content — so one long party name
+        // in the list inside made the whole mobile column 311px wide on a
+        // 288px page and the dashboard scrolled sideways. Padding steps down
+        // too: 40px of side padding is a seventh of a small phone.
+        "min-w-0 rounded-[10px] border border-border bg-surface px-4 py-[18px] sm:px-5",
         className,
       )}
     >
@@ -571,9 +576,16 @@ export function DashboardView({
                 <Link
                   key={o.id}
                   href={`/order-entry/orders/${o.id}`}
-                  className="flex items-center justify-between gap-3 rounded-field px-2 py-2 transition-colors hover:bg-surface-2"
+                  // The row could not be narrower than 428px on a phone: the
+                  // left column had no `flex-1` to shrink into and the right
+                  // one was `shrink-0` around a money figure AND a status
+                  // badge, neither of which wraps. That is what pushed this
+                  // whole dashboard sideways. Wrapping lets the badge drop
+                  // under the order on a narrow screen; on a wide one there
+                  // is room and nothing moves.
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-field px-2 py-2 transition-colors hover:bg-surface-2"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-semibold text-text-1">
                       {o.orderNo}
                     </div>
@@ -581,7 +593,7 @@ export function DashboardView({
                       {o.party} · {formatDate(o.orderDate)}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-2">
                     <span className="num text-[12.5px] font-medium text-text-1">
                       ₹{formatNumber(o.value)}
                     </span>
@@ -609,9 +621,9 @@ export function DashboardView({
                 // §1.2G: the hover tints toward DANGER, not toward a neutral
                 // emphasis. Every card in this grid is something already late,
                 // so the pointer landing on one should feel like the alarm it is.
-                className="flex items-center justify-between gap-3 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 transition-colors hover:border-status-red/40"
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-[10px] border border-border bg-surface-2 px-3 py-2.5 transition-colors hover:border-status-red/40"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-semibold text-text-1">
                     {a.orderNo}
                     <span className="font-normal text-text-3"> · {a.party}</span>

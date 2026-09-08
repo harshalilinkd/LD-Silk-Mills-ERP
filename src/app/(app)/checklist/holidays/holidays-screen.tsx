@@ -162,7 +162,7 @@ export function HolidaysScreen({
         />
       ) : (
         <>
-          <TableCard>
+          <TableCard className="hidden lg:block">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -184,7 +184,12 @@ export function HolidaysScreen({
                         past && "opacity-55",
                       )}
                     >
-                      <td className={cn(td, "num font-semibold whitespace-nowrap text-text-1")}>
+                      <td
+                        className={cn(
+                          td,
+                          "num font-semibold whitespace-nowrap text-text-1",
+                        )}
+                      >
                         {formatDate(r.date)}
                       </td>
                       <td className={cn(td, "whitespace-nowrap")}>
@@ -192,7 +197,9 @@ export function HolidaysScreen({
                       </td>
                       <td className={td}>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span>{r.name || <span className="text-text-3">—</span>}</span>
+                          <span>
+                            {r.name || <span className="text-text-3">—</span>}
+                          </span>
                           {sunday && (
                             <Pill tone="grey">Sunday — already a day off</Pill>
                           )}
@@ -221,6 +228,52 @@ export function HolidaysScreen({
               </tbody>
             </table>
           </TableCard>
+
+          <div className="flex flex-col gap-2 lg:hidden">
+            {rows.map((r) => {
+              const sunday = weekdayOf(r.date) === 0;
+              const past = r.date < today;
+              return (
+                <div
+                  key={r.id}
+                  className={cn(
+                    "rounded-card border border-border bg-surface p-3",
+                    past && "opacity-55",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="num text-[13px] font-semibold text-text-1">
+                        {formatDate(r.date)} · {weekdayName(r.date)}
+                      </div>
+                      <div className="mt-0.5 truncate text-[12.5px] text-text-2">
+                        {r.name || <span className="text-text-3">—</span>}
+                      </div>
+                    </div>
+                    {sunday ? (
+                      <Pill tone="grey">Sunday</Pill>
+                    ) : past ? (
+                      <Pill tone="grey">Passed</Pill>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 flex items-center justify-end gap-1.5">
+                    <QuietButton onClick={() => setEditing(r)}>
+                      <IconPencil className="size-3.5" />
+                      Edit
+                    </QuietButton>
+                    <QuietButton
+                      tone="danger"
+                      aria-label={`Remove ${formatDate(r.date)}`}
+                      busy={busyId === r.id}
+                      onClick={() => void remove(r)}
+                    >
+                      <IconTrash className="size-3.5" />
+                    </QuietButton>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
           <p className="text-[12px] text-text-3">
             {rows.length} holiday{rows.length === 1 ? "" : "s"} listed
           </p>
@@ -295,7 +348,9 @@ function HolidayDialog({
         const { cleared, keptDone } = await createHoliday(date, name || null);
         const bits: string[] = [`${formatDate(date)} is now a holiday.`];
         if (cleared > 0) {
-          bits.push(`${cleared} scheduled task${cleared === 1 ? "" : "s"} cleared.`);
+          bits.push(
+            `${cleared} scheduled task${cleared === 1 ? "" : "s"} cleared.`,
+          );
         }
         if (keptDone > 0) {
           bits.push(
@@ -318,7 +373,11 @@ function HolidayDialog({
       footer={
         <>
           <DialogCancel onClick={onClose} disabled={busy} />
-          <DialogSave onClick={save} busy={busy} disabled={date.length !== 10} />
+          <DialogSave
+            onClick={save}
+            busy={busy}
+            disabled={date.length !== 10}
+          />
         </>
       }
     >
@@ -329,7 +388,8 @@ function HolidayDialog({
             date.length === 10 ? (
               <>
                 {weekdayName(date)}
-                {sunday && " — already a day off, so this will not change any schedule"}
+                {sunday &&
+                  " — already a day off, so this will not change any schedule"}
               </>
             ) : undefined
           }

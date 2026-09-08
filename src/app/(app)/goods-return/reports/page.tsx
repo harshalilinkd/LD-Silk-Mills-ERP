@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Reveal } from "@/components/ui/reveal";
 import { getGoodsReturnReport } from "@/lib/goods-return/reports";
+import { cn } from "@/lib/utils";
 import { MoneyCell, QtyCell } from "../money-cell";
 import { OfficeBar } from "../office-bar";
 import { RangePicker } from "./range-picker";
@@ -160,7 +161,13 @@ export default async function GoodsReturnReportsPage({
                 <Figure
                   label="Difference"
                   value={rupees(tv.variance)}
-                  tone={tv.variance > 0 ? "bad" : tv.variance < 0 ? "good" : undefined}
+                  tone={
+                    tv.variance > 0
+                      ? "bad"
+                      : tv.variance < 0
+                        ? "good"
+                        : undefined
+                  }
                   caveat={
                     tv.variancePct != null ? pct(tv.variancePct) : undefined
                   }
@@ -197,21 +204,15 @@ export default async function GoodsReturnReportsPage({
               />
               <Figure
                 label="Median"
-                value={
-                  days(speed.received.medianDays) ?? "—"
-                }
+                value={days(speed.received.medianDays) ?? "—"}
               />
               <Figure
                 label="Fastest"
-                value={
-                  days(speed.received.fastestDays) ?? "—"
-                }
+                value={days(speed.received.fastestDays) ?? "—"}
               />
               <Figure
                 label="Slowest"
-                value={
-                  days(speed.received.slowestDays) ?? "—"
-                }
+                value={days(speed.received.slowestDays) ?? "—"}
               />
             </div>
 
@@ -270,7 +271,11 @@ export default async function GoodsReturnReportsPage({
             >
               <div className="grid gap-0 sm:grid-cols-2">
                 {[
-                  { head: "Most returns", rows: data.topByCount, byValue: false },
+                  {
+                    head: "Most returns",
+                    rows: data.topByCount,
+                    byValue: false,
+                  },
                   { head: "Most value", rows: data.topByValue, byValue: true },
                 ].map(({ head, rows, byValue }) => (
                   <div
@@ -297,7 +302,9 @@ export default async function GoodsReturnReportsPage({
                         </li>
                       ))}
                       {rows.length === 0 && (
-                        <li className="text-[12.5px] text-text-3">Nothing yet.</li>
+                        <li className="text-[12.5px] text-text-3">
+                          Nothing yet.
+                        </li>
                       )}
                     </ol>
                   </div>
@@ -376,11 +383,14 @@ export default async function GoodsReturnReportsPage({
                   : undefined
               }
             />
-            <Figure label="Different fabrics" value={fabric.distinctQualities} />
+            <Figure
+              label="Different fabrics"
+              value={fabric.distinctQualities}
+            />
             <Figure label="Fabric lines" value={fabric.lines} />
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
@@ -410,6 +420,32 @@ export default async function GoodsReturnReportsPage({
               </tbody>
             </table>
           </div>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {fabric.topByMetres.slice(0, 10).map((q) => (
+              <div
+                key={q.quality}
+                className="rounded-card border border-border bg-surface-2 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[13px] font-medium text-text-1">
+                    {q.quality}
+                  </span>
+                  <span className="num shrink-0 text-[12px] text-text-3">
+                    {q.returns} return{q.returns === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-4 text-[12.5px]">
+                  <QtyCell value={q.metres} unit="m" className="text-text-1" />
+                  <QtyCell
+                    value={q.pieces}
+                    unit="pcs"
+                    className="text-text-2"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </Section>
       </Reveal>
 
@@ -423,7 +459,7 @@ export default async function GoodsReturnReportsPage({
               : "There is not yet a full year of records to compare against."
           }
         >
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
@@ -431,7 +467,9 @@ export default async function GoodsReturnReportsPage({
                   <th className={`${TH} text-right`}>Returns</th>
                   <th className={`${TH} text-right`}>Value</th>
                   <th className={`${TH} text-right`}>Pending</th>
-                  <th className={`${TH} text-right`}>vs same month last year</th>
+                  <th className={`${TH} text-right`}>
+                    vs same month last year
+                  </th>
                 </tr>
               </thead>
               <tbody className="[&>tr:last-child>td]:border-b-0">
@@ -440,7 +478,9 @@ export default async function GoodsReturnReportsPage({
                     <td className={`${TD} num font-medium text-text-1`}>
                       {monthName(m.month)}
                     </td>
-                    <td className={`${TD} num text-right text-text-1`}>{m.n}</td>
+                    <td className={`${TD} num text-right text-text-1`}>
+                      {m.n}
+                    </td>
                     <td className={`${TD} text-right`}>
                       <MoneyCell value={m.value} className="text-text-1" />
                     </td>
@@ -468,6 +508,46 @@ export default async function GoodsReturnReportsPage({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {trend.months.map((m) => (
+              <div
+                key={m.month}
+                className="rounded-card border border-border bg-surface-2 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="num text-[13px] font-medium text-text-1">
+                    {monthName(m.month)}
+                  </span>
+                  {m.changeCountPct == null ? (
+                    <span className="text-[11.5px] text-text-3">
+                      nothing to compare
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "num text-[12.5px]",
+                        m.changeCountPct > 0
+                          ? "text-status-red"
+                          : m.changeCountPct < 0
+                            ? "text-status-green"
+                            : "text-text-3",
+                      )}
+                    >
+                      {pct(m.changeCountPct)}
+                    </span>
+                  )}
+                </div>
+                <div className="num mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
+                  <span className="text-text-1">{m.n} returns</span>
+                  <MoneyCell value={m.value} className="text-text-1" />
+                  <span className="text-text-3">
+                    {m.pending || "—"} pending
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </Section>
       </Reveal>

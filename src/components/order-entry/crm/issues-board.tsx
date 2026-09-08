@@ -217,7 +217,8 @@ export function IssuesBoard({
     setStatus(status === "RESOLVED" ? "OPEN_ANY" : "RESOLVED");
   };
 
-  const groups = groupBy === "dept" ? (data?.byDept ?? []) : (data?.byCategory ?? []);
+  const groups =
+    groupBy === "dept" ? (data?.byDept ?? []) : (data?.byCategory ?? []);
   const hasSecondaryFilters = !!(
     (status && status !== "OPEN_ANY") ||
     category ||
@@ -256,7 +257,9 @@ export function IssuesBoard({
           icon={<IconClock />}
           label="Median resolution"
           value={
-            k?.medianResolutionDays != null ? `${k.medianResolutionDays} d` : "—"
+            k?.medianResolutionDays != null
+              ? `${k.medianResolutionDays} d`
+              : "—"
           }
           tone="neutral"
           sub={
@@ -316,7 +319,9 @@ export function IssuesBoard({
             aria-label="Refresh"
             className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
           >
-            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
+            <IconRefresh
+              className={cn("size-4", q.isFetching && "animate-spin")}
+            />
           </button>
         </div>
 
@@ -471,7 +476,9 @@ export function IssuesBoard({
 
         <div className="overflow-hidden rounded-card border border-border bg-surface">
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 py-2.5 sm:px-5">
-            <h2 className="text-[15px] font-semibold text-text-1">Complaints</h2>
+            <h2 className="text-[15px] font-semibold text-text-1">
+              Complaints
+            </h2>
             {data ? (
               <span className="num rounded-pill bg-chip px-2 py-0.5 text-[12px] font-semibold text-text-2">
                 {data.total}
@@ -482,82 +489,96 @@ export function IssuesBoard({
             </span>
           </div>
 
-          <HScroll bodyClassName="overflow-x-auto">
-            <Table>
-              <THead>
-                <tr>
-                  <Th>Order no</Th>
-                  <Th>Party name</Th>
-                  <Th className="w-full">Complaint</Th>
-                  <Th>Fabric</Th>
-                  <Th>Design no</Th>
-                  <Th className="text-right">Meters affected</Th>
-                  <Th className="text-right">Order amount</Th>
-                  <Th>How serious</Th>
-                  <Th>Department</Th>
-                  <Th className="text-right">Days open</Th>
-                  <Th>Status</Th>
-                </tr>
-              </THead>
-              <TBody>
-                {q.isLoading ? (
-                  <tr>
-                    <Td colSpan={11} className="px-4 py-10 text-center text-text-2">
-                      Loading…
-                    </Td>
-                  </tr>
-                ) : q.isError ? (
-                  <tr>
-                    <Td colSpan={11} className="px-4 py-10 text-center">
-                      <div className="font-semibold text-status-red">
-                        Could not load issues
-                      </div>
-                      <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
-                        {(q.error as Error)?.message ?? "Unknown error"}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void q.refetch()}
-                        className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-                      >
-                        Try again
-                      </button>
-                    </Td>
-                  </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <Td colSpan={11} className="px-4 py-12 text-center">
-                      <div className="text-[13.5px] font-medium text-text-1">
-                        No complaints recorded.
-                      </div>
-                      {/* An empty board here is a real state, not a bug — say
-                          which, or it reads as broken. */}
-                      <div className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-[1.6] text-text-2">
-                        Issues are raised during a call, from the follow-up panel
-                        on CRM → Follow-ups. Open a follow-up, work through
-                        &ldquo;The call&rdquo;, and press{" "}
-                        <strong>+ Add issue</strong>.
-                      </div>
-                    </Td>
-                  </tr>
-                ) : (
-                  rows.map((r) => (
-                    <IssueRowView
-                      key={r.id}
-                      row={r}
-                      open={openId === r.id}
-                      canEdit={canEdit}
-                      onToggle={() => setOpenId(openId === r.id ? null : r.id)}
-                      onSaved={() => {
-                        setOpenId(null);
-                        void q.refetch();
-                      }}
-                    />
-                  ))
-                )}
-              </TBody>
-            </Table>
-          </HScroll>
+          {q.isLoading ? (
+            <p className="px-4 py-10 text-center text-text-2">Loading…</p>
+          ) : q.isError ? (
+            <div className="px-4 py-10 text-center">
+              <div className="font-semibold text-status-red">
+                Could not load issues
+              </div>
+              <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
+                {(q.error as Error)?.message ?? "Unknown error"}
+              </div>
+              <button
+                type="button"
+                onClick={() => void q.refetch()}
+                className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
+              >
+                Try again
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <div className="text-[13.5px] font-medium text-text-1">
+                No complaints recorded.
+              </div>
+              {/* An empty board here is a real state, not a bug — say which,
+                  or it reads as broken. */}
+              <div className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-[1.6] text-text-2">
+                Issues are raised during a call, from the follow-up panel on CRM
+                → Follow-ups. Open a follow-up, work through &ldquo;The
+                call&rdquo;, and press <strong>+ Add issue</strong>.
+              </div>
+            </div>
+          ) : (
+            <>
+              <HScroll
+                className="hidden lg:block"
+                bodyClassName="overflow-x-auto"
+              >
+                <Table>
+                  <THead>
+                    <tr>
+                      <Th>Order no</Th>
+                      <Th>Party name</Th>
+                      <Th className="w-full">Complaint</Th>
+                      <Th>Fabric</Th>
+                      <Th>Design no</Th>
+                      <Th className="text-right">Meters affected</Th>
+                      <Th className="text-right">Order amount</Th>
+                      <Th>How serious</Th>
+                      <Th>Department</Th>
+                      <Th className="text-right">Days open</Th>
+                      <Th>Status</Th>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {rows.map((r) => (
+                      <IssueRowView
+                        key={r.id}
+                        row={r}
+                        open={openId === r.id}
+                        canEdit={canEdit}
+                        onToggle={() =>
+                          setOpenId(openId === r.id ? null : r.id)
+                        }
+                        onSaved={() => {
+                          setOpenId(null);
+                          void q.refetch();
+                        }}
+                      />
+                    ))}
+                  </TBody>
+                </Table>
+              </HScroll>
+
+              <div className="flex flex-col divide-y divide-border lg:hidden">
+                {rows.map((r) => (
+                  <IssueCard
+                    key={r.id}
+                    row={r}
+                    open={openId === r.id}
+                    canEdit={canEdit}
+                    onToggle={() => setOpenId(openId === r.id ? null : r.id)}
+                    onSaved={() => {
+                      setOpenId(null);
+                      void q.refetch();
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
           {data && data.totalPages > 1 ? (
             <div className="border-t border-border px-4 py-2.5">
@@ -577,19 +598,11 @@ export function IssuesBoard({
 
 // ---------------------------------------------------------------------------
 
-function IssueRowView({
-  row,
-  open,
-  canEdit,
-  onToggle,
-  onSaved,
-}: {
-  row: IssueRow;
-  open: boolean;
-  canEdit: boolean;
-  onToggle: () => void;
-  onSaved: () => void;
-}) {
+/** The resolve-form state and the mutation, shared between the desktop row's
+ * expand-in-place and the mobile card's — so a change to how an issue is
+ * resolved happens in one place, even though the two render different
+ * shells (`<tr>`/`<td>` vs a plain `<div>` card). */
+function useIssueResolve(row: IssueRow, onSaved: () => void) {
   const closed = row.status === "RESOLVED" || row.status === "REJECTED";
   const [resolution, setResolution] = React.useState<IssueResolution>(
     row.resolution ?? "EXPLAINED",
@@ -615,6 +628,112 @@ function IssueRowView({
     },
     onError: (e: Error) => setError(e.message),
   });
+
+  return {
+    closed,
+    resolution,
+    setResolution,
+    note,
+    setNote,
+    nextStatus,
+    setNextStatus,
+    error,
+    save,
+  };
+}
+
+/** The resolve form itself — the closed summary, or the status/resolution
+ * pickers plus Save. Shared between the row and the card. */
+function IssueResolveForm({
+  row,
+  canEdit,
+  state,
+}: {
+  row: IssueRow;
+  canEdit: boolean;
+  state: ReturnType<typeof useIssueResolve>;
+}) {
+  const {
+    closed,
+    resolution,
+    setResolution,
+    note,
+    setNote,
+    nextStatus,
+    setNextStatus,
+    error,
+    save,
+  } = state;
+  return closed ? (
+    <div className="text-[12.5px] text-text-2">
+      Resolved as{" "}
+      <strong className="text-text-1">
+        {row.resolution ? RESOLUTION_LABEL[row.resolution] : "—"}
+      </strong>
+      {row.resolutionNote ? ` — ${row.resolutionNote}` : ""}
+    </div>
+  ) : (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        className={selectCls}
+        aria-label="Next status"
+        value={nextStatus}
+        onChange={(e) => setNextStatus(e.target.value)}
+      >
+        {ISSUE_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {STATUS_TEXT[s]}
+          </option>
+        ))}
+      </select>
+      {nextStatus === "RESOLVED" ? (
+        <select
+          className={selectCls}
+          aria-label="Resolution"
+          value={resolution}
+          onChange={(e) => setResolution(e.target.value as IssueResolution)}
+        >
+          {ISSUE_RESOLUTIONS.map((r) => (
+            <option key={r} value={r}>
+              {RESOLUTION_LABEL[r]}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <Input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="How was it settled?"
+        className="h-9 min-w-[240px] flex-1"
+      />
+      <Button
+        size="lg"
+        disabled={!canEdit || save.isPending}
+        onClick={() => save.mutate()}
+      >
+        Save
+      </Button>
+      {error ? (
+        <span className="text-[12px] font-medium text-status-red">{error}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function IssueRowView({
+  row,
+  open,
+  canEdit,
+  onToggle,
+  onSaved,
+}: {
+  row: IssueRow;
+  open: boolean;
+  canEdit: boolean;
+  onToggle: () => void;
+  onSaved: () => void;
+}) {
+  const state = useIssueResolve(row, onSaved);
 
   return (
     <>
@@ -695,9 +814,9 @@ function IssueRowView({
           <span
             className={cn(
               "font-medium",
-              !closed && row.ageDays >= 14
+              !state.closed && row.ageDays >= 14
                 ? "text-status-red"
-                : !closed && row.ageDays >= 7
+                : !state.closed && row.ageDays >= 7
                   ? "text-status-amber"
                   : "text-text-2",
             )}
@@ -740,68 +859,117 @@ function IssueRowView({
                 </p>
               </div>
 
-              {closed ? (
-                <div className="text-[12.5px] text-text-2">
-                  Resolved as{" "}
-                  <strong className="text-text-1">
-                    {row.resolution ? RESOLUTION_LABEL[row.resolution] : "—"}
-                  </strong>
-                  {row.resolutionNote ? ` — ${row.resolutionNote}` : ""}
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    className={selectCls}
-                    aria-label="Next status"
-                    value={nextStatus}
-                    onChange={(e) => setNextStatus(e.target.value)}
-                  >
-                    {ISSUE_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_TEXT[s]}
-                      </option>
-                    ))}
-                  </select>
-                  {nextStatus === "RESOLVED" ? (
-                    <select
-                      className={selectCls}
-                      aria-label="Resolution"
-                      value={resolution}
-                      onChange={(e) =>
-                        setResolution(e.target.value as IssueResolution)
-                      }
-                    >
-                      {ISSUE_RESOLUTIONS.map((r) => (
-                        <option key={r} value={r}>
-                          {RESOLUTION_LABEL[r]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-                  <Input
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="How was it settled?"
-                    className="h-9 min-w-[240px] flex-1"
-                  />
-                  <Button
-                    size="lg"
-                    disabled={!canEdit || save.isPending}
-                    onClick={() => save.mutate()}
-                  >
-                    Save
-                  </Button>
-                  {error ? (
-                    <span className="text-[12px] font-medium text-status-red">
-                      {error}
-                    </span>
-                  ) : null}
-                </div>
-              )}
+              <IssueResolveForm row={row} canEdit={canEdit} state={state} />
             </div>
           </Td>
         </tr>
       ) : null}
     </>
+  );
+}
+
+/** The mobile stand-in for `IssueRowView` — same collapsed fields, the same
+ * resolve form on expand, sharing `useIssueResolve`/`IssueResolveForm` so
+ * resolving an issue works identically on both. */
+function IssueCard({
+  row,
+  open,
+  canEdit,
+  onToggle,
+  onSaved,
+}: {
+  row: IssueRow;
+  open: boolean;
+  canEdit: boolean;
+  onToggle: () => void;
+  onSaved: () => void;
+}) {
+  const state = useIssueResolve(row, onSaved);
+
+  return (
+    <div className={cn(open && "bg-surface-2")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full flex-col gap-1 px-3 py-2.5 text-left transition-colors hover:bg-surface-2"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="num font-semibold whitespace-nowrap text-text-1">
+            {row.orderNo}
+          </span>
+          <span className="num shrink-0 text-[12.5px] font-semibold text-text-1">
+            {row.orderValue > 0 ? money(row.orderValue) : "—"}
+          </span>
+        </div>
+        <div className="truncate text-[13px] font-medium text-text-1">
+          {row.partyName}
+        </div>
+        <div className="text-[12.5px] font-medium text-text-1">
+          {categoryLabel(row.category)}
+        </div>
+        {row.description ? (
+          <p
+            className="line-clamp-2 text-[12px] leading-snug text-text-2"
+            title={row.description}
+          >
+            {row.description}
+          </p>
+        ) : (
+          <p className="text-[12px] text-text-2 italic">no detail recorded</p>
+        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <Pill tone={SEVERITY_TONE[row.severity]}>
+            {SEVERITY_LABEL[row.severity]}
+          </Pill>
+          <Pill tone={STATUS_TONE[row.status]} dot={false}>
+            {STATUS_TEXT[row.status]}
+          </Pill>
+          <span className="text-[11.5px] text-text-3">
+            {row.ownerDept
+              ? (DEPT_LABEL[row.ownerDept] ?? row.ownerDept)
+              : "unassigned"}
+          </span>
+          <span
+            className={cn(
+              "num ml-auto text-[11.5px] font-medium",
+              !state.closed && row.ageDays >= 14
+                ? "text-status-red"
+                : !state.closed && row.ageDays >= 7
+                  ? "text-status-amber"
+                  : "text-text-3",
+            )}
+          >
+            {row.ageDays}d open
+          </span>
+        </div>
+      </button>
+
+      {open ? (
+        <div className="border-t border-border px-3 py-3">
+          <div className="flex flex-col gap-3">
+            <div>
+              <div className="text-[11px] tracking-[0.05em] text-text-2 uppercase">
+                What happened
+              </div>
+              <p className="mt-0.5 text-[13px] text-text-1">
+                {row.description || "No description was recorded."}
+              </p>
+              <p className="mt-1 text-[12px] text-text-2">
+                {row.quality ? `${row.quality} · ` : ""}
+                {row.designNo ? `Design ${row.designNo} · ` : ""}
+                {row.qtyAffected != null
+                  ? `${formatNumber(row.qtyAffected)} mtr affected · `
+                  : ""}
+                Raised {formatDate(row.createdAt)}
+                {row.resolvedAt
+                  ? ` · closed ${formatDate(row.resolvedAt)}${row.resolvedBy ? ` by ${row.resolvedBy}` : ""}`
+                  : ""}
+              </p>
+            </div>
+            <IssueResolveForm row={row} canEdit={canEdit} state={state} />
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

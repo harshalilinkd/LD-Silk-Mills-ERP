@@ -172,7 +172,9 @@ export function CallsLog({ from, to }: { from: string; to: string }) {
             aria-pressed={showFilters}
           >
             <IconFilter className="size-4" /> Filters
-            {has ? <span className="ml-1 size-1.5 rounded-full bg-primary" /> : null}
+            {has ? (
+              <span className="ml-1 size-1.5 rounded-full bg-primary" />
+            ) : null}
           </Button>
 
           <button
@@ -182,7 +184,9 @@ export function CallsLog({ from, to }: { from: string; to: string }) {
             aria-label="Refresh"
             className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
           >
-            <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
+            <IconRefresh
+              className={cn("size-4", q.isFetching && "animate-spin")}
+            />
           </button>
         </div>
 
@@ -225,67 +229,76 @@ export function CallsLog({ from, to }: { from: string; to: string }) {
           </span>
         </div>
 
-        <HScroll bodyClassName="overflow-x-auto">
-          <Table>
-            <THead>
-              <tr>
-                <Th>Order no</Th>
-                <Th>Party name</Th>
-                <Th>Calling date</Th>
-                <Th>Rating</Th>
-                <Th className="w-full">Feedback</Th>
-                <Th>Any new requirement</Th>
-                <Th className="text-right">Issues</Th>
-                <Th>Outcome</Th>
-              </tr>
-            </THead>
-            <TBody>
-              {q.isLoading ? (
-                <tr>
-                  <Td colSpan={8} className="py-10 text-center text-text-2">
-                    Loading…
-                  </Td>
-                </tr>
-              ) : q.isError ? (
-                <tr>
-                  <Td colSpan={8} className="px-4 py-10 text-center">
-                    <div className="font-semibold text-status-red">
-                      Could not load the call log
-                    </div>
-                    <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
-                      {(q.error as Error)?.message ?? "Unknown error"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void q.refetch()}
-                      className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-                    >
-                      Try again
-                    </button>
-                  </Td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <Td colSpan={8} className="py-10 text-center text-text-2">
-                    No calls recorded yet. This fills as the follow-up queue is
-                    worked.
-                  </Td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <CallRow
-                    key={r.followupId}
-                    row={r}
-                    open={openId === r.followupId}
-                    onToggle={() =>
-                      setOpenId(openId === r.followupId ? null : r.followupId)
-                    }
-                  />
-                ))
-              )}
-            </TBody>
-          </Table>
-        </HScroll>
+        {q.isLoading ? (
+          <p className="py-10 text-center text-text-2">Loading…</p>
+        ) : q.isError ? (
+          <div className="px-4 py-10 text-center">
+            <div className="font-semibold text-status-red">
+              Could not load the call log
+            </div>
+            <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
+              {(q.error as Error)?.message ?? "Unknown error"}
+            </div>
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
+            >
+              Try again
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="py-10 text-center text-text-2">
+            No calls recorded yet. This fills as the follow-up queue is worked.
+          </p>
+        ) : (
+          <>
+            <HScroll
+              className="hidden lg:block"
+              bodyClassName="overflow-x-auto"
+            >
+              <Table>
+                <THead>
+                  <tr>
+                    <Th>Order no</Th>
+                    <Th>Party name</Th>
+                    <Th>Calling date</Th>
+                    <Th>Rating</Th>
+                    <Th className="w-full">Feedback</Th>
+                    <Th>Any new requirement</Th>
+                    <Th className="text-right">Issues</Th>
+                    <Th>Outcome</Th>
+                  </tr>
+                </THead>
+                <TBody>
+                  {rows.map((r) => (
+                    <CallRow
+                      key={r.followupId}
+                      row={r}
+                      open={openId === r.followupId}
+                      onToggle={() =>
+                        setOpenId(openId === r.followupId ? null : r.followupId)
+                      }
+                    />
+                  ))}
+                </TBody>
+              </Table>
+            </HScroll>
+
+            <div className="flex flex-col divide-y divide-border lg:hidden">
+              {rows.map((r) => (
+                <CallCard
+                  key={r.followupId}
+                  row={r}
+                  open={openId === r.followupId}
+                  onToggle={() =>
+                    setOpenId(openId === r.followupId ? null : r.followupId)
+                  }
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {data && data.totalPages > 1 ? (
           <div className="border-t border-border px-4 py-2.5">
@@ -451,98 +464,211 @@ function CallRow({
       {open ? (
         <tr className="border-b border-border bg-surface-2">
           <Td colSpan={8} className="px-5 py-4 whitespace-normal">
-            <div className="grid gap-5 md:grid-cols-3">
-              <div>
-                <Label>Scores</Label>
-                {row.subRatings.length === 0 ? (
-                  <p className="text-[12.5px] text-text-2">Not rated.</p>
-                ) : (
-                  <ul className="flex flex-col gap-1.5">
-                    {/* Keyed by the criterion's `key` and labelled from the
-                        criteria table, so a score survives its criterion being
-                        retired. */}
-                    {row.subRatings.map((s) => (
-                      <li
-                        key={s.key}
-                        className="flex items-center justify-between gap-3 text-[12.5px]"
-                      >
-                        <span className="font-medium text-text-1">{s.label}</span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Stars value={s.value} size={12} />
-                          <span className="num font-semibold">{s.value}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {row.ratingSource ? (
-                  <p className="mt-2 text-[12px] text-text-2">
-                    {row.ratingSource === "customer"
-                      ? "The customer stated these."
-                      : "The coordinator judged these."}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="md:col-span-2">
-                <Label>In their own words</Label>
-                {row.feedback?.trim() ? (
-                  <p className="rounded-field border-l-[3px] border-l-primary bg-surface px-3 py-3 text-[13px] leading-relaxed text-text-1">
-                    {row.feedback}
-                  </p>
-                ) : (
-                  <p className="text-[12.5px] text-text-2">
-                    Nothing was written down for this call.
-                  </p>
-                )}
-
-                {row.reorderNote ? (
-                  <>
-                    <Label className="mt-4">What they need next</Label>
-                    <p className="rounded-field border-l-[3px] border-l-status-green bg-surface px-3 py-3 text-[13px] leading-relaxed text-text-1">
-                      {row.reorderNote}
-                    </p>
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-border pt-3 text-[12.5px] text-text-2">
-              <span>
-                Order value{" "}
-                <b className="num text-text-1">{money(row.orderValue)}</b>
-              </span>
-              <span>
-                Attempts <b className="num text-text-1">{row.attempts}</b>
-                {row.channels.length
-                  ? ` · ${row.channels
-                      .map((c) => CHANNEL_LABEL[c as AttemptChannel] ?? c)
-                      .join(", ")}`
-                  : ""}
-              </span>
-              <span>
-                On time, they said{" "}
-                <b className="text-text-1">
-                  {row.customerSaysOnTime === null
-                    ? "not asked"
-                    : row.customerSaysOnTime
-                      ? "yes"
-                      : `no${
-                          row.delayReason
-                            ? ` · ${DELAY_REASON_LABEL[row.delayReason as DelayReason] ?? row.delayReason}`
-                            : ""
-                        }`}
-                </b>
-              </span>
-              {row.salesPerson ? (
-                <span>
-                  Sales <b className="text-text-1">{row.salesPerson}</b>
-                </span>
-              ) : null}
-            </div>
+            <CallDetailBody row={row} />
           </Td>
         </tr>
       ) : null}
     </>
+  );
+}
+
+/** The full call — scores, feedback, reorder note, attempts footer. Shared
+ * between the desktop row's expand-in-place and the mobile card's, so the
+ * two never drift into describing the same call differently. Already
+ * responsive on its own (`grid gap-5 md:grid-cols-3` collapses to one column
+ * below `md`), which is what lets the mobile card reuse it verbatim rather
+ * than needing its own layout. */
+function CallDetailBody({ row }: { row: CallRecord }) {
+  return (
+    <>
+      <div className="grid gap-5 md:grid-cols-3">
+        <div>
+          <Label>Scores</Label>
+          {row.subRatings.length === 0 ? (
+            <p className="text-[12.5px] text-text-2">Not rated.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {/* Keyed by the criterion's `key` and labelled from the
+                  criteria table, so a score survives its criterion being
+                  retired. */}
+              {row.subRatings.map((s) => (
+                <li
+                  key={s.key}
+                  className="flex items-center justify-between gap-3 text-[12.5px]"
+                >
+                  <span className="font-medium text-text-1">{s.label}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Stars value={s.value} size={12} />
+                    <span className="num font-semibold">{s.value}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {row.ratingSource ? (
+            <p className="mt-2 text-[12px] text-text-2">
+              {row.ratingSource === "customer"
+                ? "The customer stated these."
+                : "The coordinator judged these."}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="md:col-span-2">
+          <Label>In their own words</Label>
+          {row.feedback?.trim() ? (
+            <p className="rounded-field border-l-[3px] border-l-primary bg-surface px-3 py-3 text-[13px] leading-relaxed text-text-1">
+              {row.feedback}
+            </p>
+          ) : (
+            <p className="text-[12.5px] text-text-2">
+              Nothing was written down for this call.
+            </p>
+          )}
+
+          {row.reorderNote ? (
+            <>
+              <Label className="mt-4">What they need next</Label>
+              <p className="rounded-field border-l-[3px] border-l-status-green bg-surface px-3 py-3 text-[13px] leading-relaxed text-text-1">
+                {row.reorderNote}
+              </p>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-border pt-3 text-[12.5px] text-text-2">
+        <span>
+          Order value <b className="num text-text-1">{money(row.orderValue)}</b>
+        </span>
+        <span>
+          Attempts <b className="num text-text-1">{row.attempts}</b>
+          {row.channels.length
+            ? ` · ${row.channels
+                .map((c) => CHANNEL_LABEL[c as AttemptChannel] ?? c)
+                .join(", ")}`
+            : ""}
+        </span>
+        <span>
+          On time, they said{" "}
+          <b className="text-text-1">
+            {row.customerSaysOnTime === null
+              ? "not asked"
+              : row.customerSaysOnTime
+                ? "yes"
+                : `no${
+                    row.delayReason
+                      ? ` · ${DELAY_REASON_LABEL[row.delayReason as DelayReason] ?? row.delayReason}`
+                      : ""
+                  }`}
+          </b>
+        </span>
+        {row.salesPerson ? (
+          <span>
+            Sales <b className="text-text-1">{row.salesPerson}</b>
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/** The mobile stand-in for `CallRow` — same collapsed fields, same
+ * tap-to-expand, sharing `CallDetailBody` so the expanded content is
+ * identical to the desktop table's. */
+function CallCard({
+  row,
+  open,
+  onToggle,
+}: {
+  row: CallRecord;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className={cn(open && "bg-surface-2")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full flex-col gap-1 px-3 py-2.5 text-left transition-colors hover:bg-surface-2"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="num font-semibold whitespace-nowrap text-text-1">
+            {row.orderNo}
+          </span>
+          {row.ratingOverall === null ? (
+            <span className="shrink-0 text-[12px] text-text-2">not rated</span>
+          ) : (
+            <span className="inline-flex shrink-0 items-center gap-1.5">
+              <Stars value={row.ratingOverall} />
+              <span className="num text-[12.5px] font-semibold">
+                {row.ratingOverall}
+              </span>
+            </span>
+          )}
+        </div>
+        <div className="truncate text-[13px] font-medium text-text-1">
+          {row.partyName}
+        </div>
+        {row.feedback?.trim() ? (
+          <p className="line-clamp-2 text-[12.5px] leading-snug text-text-2">
+            {row.feedback}
+          </p>
+        ) : (
+          <p className="text-[12.5px] text-text-2 italic">nothing recorded</p>
+        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <Pill
+            tone={
+              row.status === "COMPLETED"
+                ? "done"
+                : row.status === "UNREACHABLE"
+                  ? "warn"
+                  : "progress"
+            }
+            dot={false}
+          >
+            {STATUS_LABEL[row.status]}
+          </Pill>
+          {row.isEscalated ? (
+            <span className="text-[11px] font-semibold text-status-red">
+              escalated
+            </span>
+          ) : null}
+          {row.reorderIntent !== "none" ? (
+            <Pill
+              tone={row.reorderIntent === "yes" ? "done" : "progress"}
+              dot={false}
+            >
+              {INTENT_LABEL[row.reorderIntent]}
+            </Pill>
+          ) : null}
+          {row.issues ? (
+            <Link
+              href={`/crm/issues?q=${encodeURIComponent(row.orderNo)}&status=ALL`}
+              onClick={(e) => e.stopPropagation()}
+              title={`Open ${row.issues === 1 ? "this complaint" : "these complaints"} on the issues board`}
+              className={cn(
+                "inline-flex min-w-6 items-center justify-center rounded-pill px-2 py-0.5 text-[11px] font-semibold underline-offset-2 hover:underline",
+                row.openIssues
+                  ? "bg-status-red-dim text-status-red"
+                  : "bg-chip text-text-1",
+              )}
+            >
+              {row.issues} issue{row.issues === 1 ? "" : "s"}
+            </Link>
+          ) : null}
+          <span className="num ml-auto text-[11.5px] text-text-3">
+            {row.contactedAt ? formatDateTime(row.contactedAt) : "not reached"}
+          </span>
+        </div>
+      </button>
+
+      {open ? (
+        <div className="border-t border-border px-3 py-3">
+          <CallDetailBody row={row} />
+        </div>
+      ) : null}
+    </div>
   );
 }

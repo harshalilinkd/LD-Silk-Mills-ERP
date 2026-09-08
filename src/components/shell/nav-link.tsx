@@ -28,7 +28,7 @@ export function NavLink({
       )}
     >
       <span className="flex [&_svg]:size-4 [&_svg]:shrink-0">{icon}</span>
-      <span className="flex-1 truncate">{children}</span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
     </Link>
   );
 }

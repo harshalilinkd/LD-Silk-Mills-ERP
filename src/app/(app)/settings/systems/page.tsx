@@ -17,7 +17,6 @@ export default async function SystemRegistryPage() {
   // this screen calls each run requireErpAdmin() before reading their input.
   if (!(await isErpAdmin())) redirect("/settings");
 
-
   const [allSystems, viewerCounts] = await Promise.all([
     getAllSystemsOrdered(),
     getSystemViewerCounts(),
@@ -28,13 +27,13 @@ export default async function SystemRegistryPage() {
       <div>
         <h2 className="text-[15px] font-semibold text-text-1">
           System Registry
-                </h2>
+        </h2>
         <p className="mt-0.5 text-[13px] text-text-3">
           Add or update a system here — the sidebar reads from this list
-                </p>
+        </p>
       </div>
 
-      <div className="rounded-[10px] border border-border bg-surface">
+      <div className="hidden rounded-[10px] border border-border bg-surface lg:block">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">
             <thead>
@@ -150,6 +149,98 @@ export default async function SystemRegistryPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 lg:hidden">
+        {allSystems.map((system) => {
+          const Icon = getSystemIcon(system.systemCode);
+          const live = system.status === "active";
+          const viewers = viewerCounts.get(system.id) ?? 0;
+          const noViewers = live && viewers === 0;
+          const noDestination =
+            live &&
+            (system.openMode === "external"
+              ? !system.applicationUrl
+              : !system.route);
+
+          return (
+            <div
+              key={system.id}
+              className="rounded-card border border-border bg-surface p-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Icon className="size-4 shrink-0 text-text-3" />
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-text-1">
+                      {system.systemName}
+                    </div>
+                    <div className="font-mono text-[11px] text-text-3">
+                      {system.systemCode}
+                    </div>
+                  </div>
+                </div>
+                <SystemEditDialog system={system} />
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span
+                  className={
+                    system.status === "active"
+                      ? "rounded-full bg-status-green-dim px-2 py-0.5 text-[10.5px] font-semibold text-status-green"
+                      : system.status === "maintenance"
+                        ? "rounded-full bg-status-red-dim px-2 py-0.5 text-[10.5px] font-semibold text-status-red"
+                        : "rounded-full bg-chip px-2 py-0.5 text-[10.5px] font-semibold text-text-3"
+                  }
+                >
+                  {system.status === "active"
+                    ? "Active"
+                    : system.status === "maintenance"
+                      ? "Maintenance"
+                      : "Coming soon"}
+                </span>
+                <span className="text-[12px] text-text-3 capitalize">
+                  {system.category}
+                </span>
+                <span className="text-[12px] text-text-3">
+                  {system.openMode === "external"
+                    ? "External link"
+                    : "Internal"}
+                </span>
+              </div>
+
+              {system.applicationUrl ? (
+                <div className="mt-1.5 truncate font-mono text-[12px] text-text-2">
+                  {system.applicationUrl}
+                </div>
+              ) : null}
+
+              {noViewers ? (
+                <div className="mt-1.5 text-[11px] leading-snug text-status-amber">
+                  Nobody can see it —{" "}
+                  <Link
+                    href="/settings/access"
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    grant access
+                  </Link>
+                </div>
+              ) : live ? (
+                <div className="mt-1.5 text-[11px] text-text-3">
+                  {viewers} {viewers === 1 ? "person" : "people"}
+                </div>
+              ) : null}
+
+              {noDestination ? (
+                <div className="mt-1.5 text-[11px] leading-snug text-status-amber">
+                  {system.openMode === "external"
+                    ? "No Application URL set"
+                    : "No page here — set an Application URL and use External link"}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -181,7 +181,7 @@ function CrmKnobs() {
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+    <div className="grid gap-5 [&>*]:min-w-0 lg:grid-cols-[1fr_360px] lg:items-start">
       <Panel
         title="CRM follow-ups"
         description="When a follow-up is created, when it is due, and when it escalates."

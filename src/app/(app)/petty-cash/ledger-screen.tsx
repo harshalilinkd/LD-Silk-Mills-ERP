@@ -116,18 +116,30 @@ export function LedgerScreen({
     [params, pathname, router],
   );
 
-  const PANEL_KEYS = ["type", "category", "payee", "proof", "from", "to", "on"] as const;
+  const PANEL_KEYS = [
+    "type",
+    "category",
+    "payee",
+    "proof",
+    "from",
+    "to",
+    "on",
+  ] as const;
   const panelFilters = PANEL_KEYS.filter((k) => params.get(k)).length;
   const anyFilter = panelFilters + (params.get("q") ? 1 : 0);
 
   const totalPages = Math.max(1, Math.ceil(ledger.total / ledger.pageSize));
-  const firstRow = ledger.total === 0 ? 0 : (ledger.page - 1) * ledger.pageSize + 1;
+  const firstRow =
+    ledger.total === 0 ? 0 : (ledger.page - 1) * ledger.pageSize + 1;
   const lastRow = Math.min(ledger.page * ledger.pageSize, ledger.total);
 
   const onDay = params.get("on");
 
   const sortLink = (key: LedgerSort) => () =>
-    setParam({ sort: key, dir: sort === key && dir === "desc" ? "asc" : "desc" });
+    setParam({
+      sort: key,
+      dir: sort === key && dir === "desc" ? "asc" : "desc",
+    });
 
   const SortArrow = ({ k }: { k: LedgerSort }) =>
     sort !== k ? null : dir === "desc" ? (
@@ -228,7 +240,8 @@ export function LedgerScreen({
       {onDay && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-field border border-primary/30 bg-accent px-3 py-2 text-[12.5px] text-accent-text">
           <span>
-            Showing only <strong className="font-semibold">{formatDateLong(onDay)}</strong>.
+            Showing only{" "}
+            <strong className="font-semibold">{formatDateLong(onDay)}</strong>.
           </span>
           <button
             type="button"
@@ -310,7 +323,9 @@ export function LedgerScreen({
               type="date"
               className="num"
               value={params.get("from") ?? ""}
-              onChange={(e) => setParam({ from: e.target.value || null, on: null })}
+              onChange={(e) =>
+                setParam({ from: e.target.value || null, on: null })
+              }
             />
           </FilterField>
 
@@ -319,7 +334,9 @@ export function LedgerScreen({
               type="date"
               className="num"
               value={params.get("to") ?? ""}
-              onChange={(e) => setParam({ to: e.target.value || null, on: null })}
+              onChange={(e) =>
+                setParam({ to: e.target.value || null, on: null })
+              }
             />
           </FilterField>
         </FilterPanel>
@@ -330,7 +347,9 @@ export function LedgerScreen({
       {anyFilter > 0 && ledger.total > 0 && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-field border border-border bg-surface-2 px-3 py-2 text-[12.5px]">
           <span className="font-semibold text-text-2">
-            {filtered.count === 1 ? "This one entry:" : `These ${filtered.count} entries:`}
+            {filtered.count === 1
+              ? "This one entry:"
+              : `These ${filtered.count} entries:`}
           </span>
           <span className="text-text-3">
             in{" "}
@@ -349,7 +368,9 @@ export function LedgerScreen({
             <strong
               className={cn(
                 "num font-bold",
-                Number(filtered.balance) < 0 ? "text-status-red" : "text-status-green",
+                Number(filtered.balance) < 0
+                  ? "text-status-red"
+                  : "text-status-green",
               )}
             >
               {formatMoney(filtered.balance)}
@@ -364,7 +385,11 @@ export function LedgerScreen({
           empty={
             <EmptyState
               icon={<IconWallet className="size-5" />}
-              title={anyFilter > 0 ? "Nothing matches those filters" : "No transactions yet"}
+              title={
+                anyFilter > 0
+                  ? "Nothing matches those filters"
+                  : "No transactions yet"
+              }
               body={
                 anyFilter > 0
                   ? "Try clearing a filter or widening the dates."
@@ -372,7 +397,9 @@ export function LedgerScreen({
               }
               action={
                 anyFilter > 0 ? (
-                  <QuietButton onClick={() => router.push(pathname)}>Clear filters</QuietButton>
+                  <QuietButton onClick={() => router.push(pathname)}>
+                    Clear filters
+                  </QuietButton>
                 ) : viewer.can.create ? (
                   <PrimaryButton onClick={() => setCreating(true)}>
                     <IconPlus className="size-4" />
@@ -385,7 +412,8 @@ export function LedgerScreen({
         />
       ) : (
         <>
-          <TableCard>
+          {/* Desktop / tablet: the full 10-column table. */}
+          <TableCard className="hidden lg:block">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -433,10 +461,19 @@ export function LedgerScreen({
             </table>
           </TableCard>
 
+          {/* Mobile: one card per transaction — direction, amount and who it
+              was with are the three things worth seeing without opening it. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {ledger.rows.map((r) => (
+              <LedgerCard key={r.id} row={r} onOpen={() => setOpenId(r.id)} />
+            ))}
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="text-[12px] text-text-3">
-                Showing {firstRow.toLocaleString("en-IN")}–{lastRow.toLocaleString("en-IN")} of{" "}
+                Showing {firstRow.toLocaleString("en-IN")}–
+                {lastRow.toLocaleString("en-IN")} of{" "}
                 {ledger.total.toLocaleString("en-IN")}
               </span>
               <Select
@@ -532,7 +569,9 @@ function Row({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
       }}
       className="cursor-pointer transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
     >
-      <td className={cn(td, "num whitespace-nowrap")}>{formatDate(row.transactionDate)}</td>
+      <td className={cn(td, "num whitespace-nowrap")}>
+        {formatDate(row.transactionDate)}
+      </td>
       <td className={cn(td, "num whitespace-nowrap text-text-3")}>{row.uid}</td>
       <td className={cn(td, "whitespace-nowrap")}>
         <span
@@ -556,7 +595,9 @@ function Row({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
           <span className="text-text-3">—</span>
         )}
       </td>
-      <td className={cn(td, "font-semibold whitespace-nowrap text-text-1")}>{row.toName}</td>
+      <td className={cn(td, "font-semibold whitespace-nowrap text-text-1")}>
+        {row.toName}
+      </td>
       <td className={cn(td, "max-w-[320px] truncate")} title={row.reason}>
         {row.reason}
       </td>
@@ -602,10 +643,91 @@ function Row({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
           <span className="text-[12px] text-text-3">—</span>
         )}
       </td>
-      <td className={cn(td, "num text-right font-bold whitespace-nowrap", meta.text)}>
+      <td
+        className={cn(
+          td,
+          "num text-right font-bold whitespace-nowrap",
+          meta.text,
+        )}
+      >
         {formatSigned(row.amount, row.transactionType)}
       </td>
     </tr>
+  );
+}
+
+/** The mobile stand-in for `Row` — same tap-to-open, the type badge and
+ * amount up top (the two things a direction-first read needs), everything
+ * else folded into one line beneath. */
+function LedgerCard({ row, onOpen }: { row: LedgerRow; onOpen: () => void }) {
+  const meta = TRANSACTION_TYPE_META[row.transactionType];
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-card border border-border bg-surface p-3 text-left shadow-sm transition-colors hover:border-border-strong active:scale-[.99]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-semibold",
+                meta.chip,
+              )}
+            >
+              {row.transactionType === "DEBIT" ? (
+                <IconArrowUp className="size-3" />
+              ) : (
+                <IconArrowDown className="size-3" />
+              )}
+              {meta.short}
+            </span>
+            <span className="num text-[12px] text-text-3">{row.uid}</span>
+          </div>
+          <div className="mt-1 truncate text-[13px] font-semibold text-text-1">
+            {row.toName}
+            {row.fromName ? (
+              <span className="font-normal text-text-3">
+                {" "}
+                from {row.fromName}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <span
+          className={cn(
+            "num shrink-0 text-[14px] font-bold whitespace-nowrap",
+            meta.text,
+          )}
+        >
+          {formatSigned(row.amount, row.transactionType)}
+        </span>
+      </div>
+
+      <p
+        className="mt-1.5 truncate text-[12.5px] text-text-2"
+        title={row.reason}
+      >
+        {row.reason}
+      </p>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-text-3">
+        <span className="num">{formatDate(row.transactionDate)}</span>
+        <span className="rounded-pill bg-chip px-2 py-0.5 font-semibold text-text-2">
+          {row.categoryName}
+        </span>
+        {row.proofType !== "NONE" ? (
+          <span>{proofLabel(row.proofType, row.proofOther)}</span>
+        ) : null}
+        {row.hasAttachment ? (
+          <span className="inline-flex items-center gap-1">
+            <IconPaperclip className="size-3" />
+            receipt
+          </span>
+        ) : null}
+      </div>
+    </button>
   );
 }
 

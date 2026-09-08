@@ -122,19 +122,29 @@ export function TasksScreen({
   const [showFilters, setShowFilters] = React.useState(false);
   const [editing, setEditing] = React.useState<TaskRow | "new" | null>(null);
   const [importing, setImporting] = React.useState(false);
-  const [confirmDelete, setConfirmDelete] = React.useState<TaskRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState<TaskRow | null>(
+    null,
+  );
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [note, setNote] = React.useState<string | null>(null);
 
   const departments = React.useMemo(
     () =>
-      [...new Set(people.map((p) => p.department).filter((d): d is string => !!d))].sort(),
+      [
+        ...new Set(
+          people.map((p) => p.department).filter((d): d is string => !!d),
+        ),
+      ].sort(),
     [people],
   );
 
   const activeCount =
-    (doerId ? 1 : 0) + (department ? 1 : 0) + (q.trim() ? 1 : 0) + (freq ? 1 : 0) + (status ? 1 : 0);
+    (doerId ? 1 : 0) +
+    (department ? 1 : 0) +
+    (q.trim() ? 1 : 0) +
+    (freq ? 1 : 0) +
+    (status ? 1 : 0);
 
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -191,7 +201,9 @@ export function TasksScreen({
       );
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The schedule could not be rebuilt.");
+      setError(
+        e instanceof Error ? e.message : "The schedule could not be rebuilt.",
+      );
     } finally {
       setBusy(false);
     }
@@ -291,7 +303,10 @@ export function TasksScreen({
           </FilterField>
 
           <FilterField label="Department">
-            <Select value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <Select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            >
               <option value="">All departments</option>
               {departments.map((d) => (
                 <option key={d} value={d}>
@@ -352,7 +367,7 @@ export function TasksScreen({
         />
       ) : (
         <>
-          <TableCard>
+          <TableCard className="hidden lg:block">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -374,12 +389,16 @@ export function TasksScreen({
                       !r.active && "opacity-55",
                     )}
                   >
-                    <td className={cn(td, "font-medium text-text-1")}>{r.name}</td>
+                    <td className={cn(td, "font-medium text-text-1")}>
+                      {r.name}
+                    </td>
                     <td className={cn(td, "whitespace-nowrap")}>
                       <div className="flex flex-col">
                         <span className="text-text-1">{r.doerName}</span>
                         {r.department && (
-                          <span className="text-[11.5px] text-text-3">{r.department}</span>
+                          <span className="text-[11.5px] text-text-3">
+                            {r.department}
+                          </span>
                         )}
                       </div>
                     </td>
@@ -421,6 +440,57 @@ export function TasksScreen({
               </tbody>
             </table>
           </TableCard>
+
+          <div className="flex flex-col gap-2 lg:hidden">
+            {filtered.map((r) => (
+              <div
+                key={r.id}
+                className={cn(
+                  "rounded-card border border-border bg-surface p-3",
+                  !r.active && "opacity-55",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text-1">
+                      {r.name}
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-text-2">
+                      {r.doerName}
+                      {r.department ? ` · ${r.department}` : ""}
+                    </div>
+                  </div>
+                  {r.active ? (
+                    <Pill tone="green">Active</Pill>
+                  ) : (
+                    <Pill tone="grey">Inactive</Pill>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-2">
+                  <span title={frequencyLabelFor(r.frequency, r.startDate)}>
+                    {r.frequency}
+                  </span>
+                  <span className="num">
+                    {formatDate(r.startDate)} –{" "}
+                    {r.endDate ? formatDate(r.endDate) : formatDate(fy.to)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-1.5">
+                  <QuietButton onClick={() => setEditing(r)}>
+                    <IconPencil className="size-3.5" />
+                    Edit
+                  </QuietButton>
+                  <QuietButton
+                    tone="danger"
+                    aria-label={`Delete ${r.name}`}
+                    onClick={() => setConfirmDelete(r)}
+                  >
+                    <IconTrash className="size-3.5" />
+                  </QuietButton>
+                </div>
+              </div>
+            ))}
+          </div>
         </>
       )}
 
@@ -447,13 +517,14 @@ export function TasksScreen({
         columns={TASK_COLUMNS}
         formatHint={
           <>
-            Six columns: <strong>task</strong>, <strong>doer&rsquo;s email</strong>,{" "}
-            <strong>frequency</strong>, <strong>start</strong>,{" "}
-            <strong>end</strong>, <strong>assigned by</strong>. The last three
-            can be blank — a blank start means the beginning of the financial
-            year. The doer must already be on the Doers list; a task for
-            somebody who is not will be refused rather than creating them.
-            Frequency codes: {FREQUENCIES.join(", ")}.
+            Six columns: <strong>task</strong>,{" "}
+            <strong>doer&rsquo;s email</strong>, <strong>frequency</strong>,{" "}
+            <strong>start</strong>, <strong>end</strong>,{" "}
+            <strong>assigned by</strong>. The last three can be blank — a blank
+            start means the beginning of the financial year. The doer must
+            already be on the Doers list; a task for somebody who is not will be
+            refused rather than creating them. Frequency codes:{" "}
+            {FREQUENCIES.join(", ")}.
           </>
         }
         sample={
@@ -493,14 +564,20 @@ export function TasksScreen({
       >
         <p className="text-[13px] leading-relaxed text-text-2">
           The task goes from this list and nothing more is ever scheduled for
-          it. Every date <strong className="font-semibold text-text-1">not
-          yet ticked off</strong> is cleared.
+          it. Every date{" "}
+          <strong className="font-semibold text-text-1">
+            not yet ticked off
+          </strong>{" "}
+          is cleared.
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-text-2">
-          Anything <strong className="font-semibold text-text-1">already
-          ticked off stays</strong> — it is a record of work that actually
-          happened, and it keeps counting on the scorecards. If you only want
-          to pause the task, Edit it and set the status to Inactive instead.
+          Anything{" "}
+          <strong className="font-semibold text-text-1">
+            already ticked off stays
+          </strong>{" "}
+          — it is a record of work that actually happened, and it keeps counting
+          on the scorecards. If you only want to pause the task, Edit it and set
+          the status to Inactive instead.
         </p>
       </Modal>
     </div>
@@ -534,7 +611,9 @@ function TaskDialog({
   const [name, setName] = React.useState(row?.name ?? "");
   const [all, setAll] = React.useState(false);
   const [doerId, setDoerId] = React.useState(row ? String(row.doerId) : "");
-  const [frequency, setFrequency] = React.useState<Frequency>(row?.frequency ?? "D");
+  const [frequency, setFrequency] = React.useState<Frequency>(
+    row?.frequency ?? "D",
+  );
   // TODAY, not the start of the financial year.
   //
   // A new task is almost always something starting now. Defaulting to 1 April
@@ -595,7 +674,8 @@ function TaskDialog({
     }
   };
 
-  const ready = name.trim().length > 0 && startDate.length === 10 && (all || !!doerId);
+  const ready =
+    name.trim().length > 0 && startDate.length === 10 && (all || !!doerId);
 
   return (
     <Modal
@@ -700,7 +780,10 @@ function TaskDialog({
             />
           </Field>
 
-          <Field label="Ends (optional)" help={`Blank runs to ${formatDate(fy.to)}.`}>
+          <Field
+            label="Ends (optional)"
+            help={`Blank runs to ${formatDate(fy.to)}.`}
+          >
             <Input
               type="date"
               value={endDate}

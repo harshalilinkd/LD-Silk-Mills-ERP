@@ -78,11 +78,7 @@ function rangeToDates(r: Range): { from: string; to: string } | null {
 }
 
 type KpiKey =
-  | "dueToday"
-  | "overdue"
-  | "inProgress"
-  | "completed30d"
-  | "unreachable";
+  "dueToday" | "overdue" | "inProgress" | "completed30d" | "unreachable";
 
 export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
   const [range, setRange] = React.useState<Range>("all");
@@ -203,35 +199,11 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
       {/* Region B — the filters sit BELOW the KPIs: the tiles are the first
           read, and a row of controls above them delayed that. Five range chips
           and a three-way sort became two dropdowns, which is one row on a phone
-          rather than three. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm">
-        <select
-          className={selectCls}
-          value={range}
-          onChange={(e) => setRange(e.target.value as Range)}
-          aria-label="Date range"
-        >
-          {RANGES.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={selectCls}
-          value={sort}
-          onChange={(e) => setSort(e.target.value as FollowupSort)}
-          aria-label="Sort"
-        >
-          {SORTS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-
-        <div className="relative order-last w-full min-w-0 sm:order-none sm:w-auto sm:min-w-[220px] sm:flex-1">
+          rather than three. Search gets its own full-width row on a phone
+          (`sm:contents` folds the rest back into one line once there's room),
+          the same pattern `customers-view.tsx` in this folder already uses. */}
+      <div className="flex flex-col gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm sm:flex-row sm:items-center">
+        <div className="relative w-full sm:min-w-[220px] sm:flex-1">
           <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
           <Input
             value={rawSearch}
@@ -242,15 +214,45 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={() => void q.refetch()}
-          title="Refresh"
-          aria-label="Refresh"
-          className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
-        >
-          <IconRefresh className={cn("size-4", q.isFetching && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-2 sm:contents">
+          <select
+            className={cn(selectCls, "flex-1 sm:flex-none")}
+            value={range}
+            onChange={(e) => setRange(e.target.value as Range)}
+            aria-label="Date range"
+          >
+            {RANGES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={cn(selectCls, "flex-1 sm:flex-none")}
+            value={sort}
+            onChange={(e) => setSort(e.target.value as FollowupSort)}
+            aria-label="Sort"
+          >
+            {SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => void q.refetch()}
+            title="Refresh"
+            aria-label="Refresh"
+            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field border border-border bg-surface text-text-2 transition-colors hover:border-border-strong hover:text-text-1"
+          >
+            <IconRefresh
+              className={cn("size-4", q.isFetching && "animate-spin")}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Region C — the queue itself. */}
@@ -258,7 +260,9 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
         {/* ONE line. A title over a two-line paragraph above a card holding a
             single row spent a quarter of the screen explaining itself. */}
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-4 py-2.5 sm:px-5">
-          <h2 className="text-[15px] font-semibold text-text-1">Priority queue</h2>
+          <h2 className="text-[15px] font-semibold text-text-1">
+            Priority queue
+          </h2>
           {data ? (
             <span className="num rounded-pill bg-chip px-2 py-0.5 text-[11.5px] font-semibold text-text-2">
               {data.total}
@@ -273,68 +277,83 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
           </span>
         </div>
 
-        <HScroll bodyClassName="overflow-x-auto">
-          <Table>
-            <THead>
-              <tr>
-                <Th className="w-[14px] px-2" />
-                <Th>Order no</Th>
-                <Th className="w-full">Party</Th>
-                <Th>Delivered</Th>
-                <Th className="text-right">Waiting</Th>
-                <Th className="text-right">Order value</Th>
-                <Th>Our SLA</Th>
-                <Th className="text-right">Attempts</Th>
-                <Th>Follow-up</Th>
-              </tr>
-            </THead>
-            <TBody>
-              {/* Three distinct states, never conflated: a failed request must
-                  never render as "no results" — they look identical to the
-                  operator and one of them is a bug. */}
-              {q.isLoading ? (
-                <tr>
-                  <Td colSpan={9} className="px-4 py-10 text-center text-text-2">
-                    Loading…
-                  </Td>
-                </tr>
-              ) : q.isError ? (
-                <tr>
-                  <Td colSpan={9} className="px-4 py-10 text-center">
-                    <div className="font-semibold text-status-red">
-                      Could not load the follow-up queue
-                    </div>
-                    <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
-                      {(q.error as Error)?.message ?? "Unknown error"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void q.refetch()}
-                      className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
-                    >
-                      Try again
-                    </button>
-                  </Td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <Td colSpan={9} className="px-4 py-10 text-center text-text-2">
-                    No follow-ups match these filters.
-                  </Td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <QueueRow
-                    key={r.id}
-                    row={r}
-                    selected={r.id === openId}
-                    onOpen={() => setOpenId(r.id)}
-                  />
-                ))
-              )}
-            </TBody>
-          </Table>
-        </HScroll>
+        {/* Three distinct states, never conflated: a failed request must
+            never render as "no results" — they look identical to the
+            operator and one of them is a bug. Shared between the table and
+            the mobile card list below rather than duplicated per view. */}
+        {q.isLoading ? (
+          <p className="px-4 py-10 text-center text-text-2">Loading…</p>
+        ) : q.isError ? (
+          <div className="px-4 py-10 text-center">
+            <div className="font-semibold text-status-red">
+              Could not load the follow-up queue
+            </div>
+            <div className="mx-auto mt-1 max-w-[60ch] text-[12.5px] text-text-2">
+              {(q.error as Error)?.message ?? "Unknown error"}
+            </div>
+            <button
+              type="button"
+              onClick={() => void q.refetch()}
+              className="mt-3 cursor-pointer rounded-field border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-text-2 hover:bg-chip hover:text-text-1"
+            >
+              Try again
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="px-4 py-10 text-center text-text-2">
+            No follow-ups match these filters.
+          </p>
+        ) : (
+          <>
+            {/* Desktop / tablet: the full table. Hidden on the OUTER wrapper,
+                not just the body — HScroll renders its own synced scrollbar
+                strip above the header on that wrapper, which would otherwise
+                still show as a dead strip on mobile. */}
+            <HScroll
+              className="hidden lg:block"
+              bodyClassName="overflow-x-auto"
+            >
+              <Table>
+                <THead>
+                  <tr>
+                    <Th className="w-[14px] px-2" />
+                    <Th>Order no</Th>
+                    <Th className="w-full">Party</Th>
+                    <Th>Delivered</Th>
+                    <Th className="text-right">Waiting</Th>
+                    <Th className="text-right">Order value</Th>
+                    <Th>Our SLA</Th>
+                    <Th className="text-right">Attempts</Th>
+                    <Th>Follow-up</Th>
+                  </tr>
+                </THead>
+                <TBody>
+                  {rows.map((r) => (
+                    <QueueRow
+                      key={r.id}
+                      row={r}
+                      selected={r.id === openId}
+                      onOpen={() => setOpenId(r.id)}
+                    />
+                  ))}
+                </TBody>
+              </Table>
+            </HScroll>
+
+            {/* Mobile: one card per follow-up, worst first, same as the
+                table's row order — tapping it opens the same panel. */}
+            <div className="flex flex-col divide-y divide-border lg:hidden">
+              {rows.map((r) => (
+                <QueueCard
+                  key={r.id}
+                  row={r}
+                  selected={r.id === openId}
+                  onOpen={() => setOpenId(r.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {data && data.totalPages > 1 ? (
           <div className="border-t border-border px-4 py-2.5">
@@ -388,10 +407,7 @@ function QueueRow({
   return (
     <Tr
       onClick={onOpen}
-      className={cn(
-        "cursor-pointer",
-        selected && "bg-accent hover:bg-accent",
-      )}
+      className={cn("cursor-pointer", selected && "bg-accent hover:bg-accent")}
     >
       <Td className="px-2">
         <PriorityBar band={row.band} label={PRIORITY_LABEL[row.band]} />
@@ -406,10 +422,12 @@ function QueueRow({
         ) : null}
       </Td>
       <Td className="max-w-[260px]">
-        <div className="truncate font-semibold text-text-1">{row.partyName}</div>
+        <div className="truncate font-semibold text-text-1">
+          {row.partyName}
+        </div>
         <div className="truncate text-[12px] text-text-2">
-          {row.qualities} quality{row.qualities === 1 ? "" : "s"} · {row.designs}{" "}
-          design{row.designs === 1 ? "" : "s"}
+          {row.qualities} quality{row.qualities === 1 ? "" : "s"} ·{" "}
+          {row.designs} design{row.designs === 1 ? "" : "s"}
           {row.transport ? ` · ${row.transport}` : ""}
         </div>
       </Td>
@@ -445,5 +463,67 @@ function QueueRow({
         </div>
       </Td>
     </Tr>
+  );
+}
+
+/** The mobile stand-in for `QueueRow` — same fields, one card each, the
+ * priority bar running down the left edge exactly as it does in the table. */
+function QueueCard({
+  row,
+  selected,
+  onOpen,
+}: {
+  row: FollowupRow;
+  selected: boolean;
+  onOpen: () => void;
+}) {
+  const overdue = row.daysOverdue > 0;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        "flex w-full items-stretch gap-2.5 px-3 py-2.5 text-left transition-colors",
+        selected ? "bg-accent" : "hover:bg-surface-2",
+      )}
+    >
+      <PriorityBar band={row.band} label={PRIORITY_LABEL[row.band]} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="num font-semibold whitespace-nowrap text-text-1">
+            {row.orderNo}
+            {row.isEscalated ? (
+              <IconAlertTriangle
+                className="ml-1.5 inline size-3.5 align-[-2px] text-status-red"
+                aria-label="Escalated for review"
+              />
+            ) : null}
+          </span>
+          <span className="num shrink-0 text-[13px] font-semibold text-text-1">
+            {row.orderValue > 0 ? `₹${formatNumber(row.orderValue)}` : "—"}
+          </span>
+        </div>
+        <div className="truncate text-[13px] font-medium text-text-1">
+          {row.partyName}
+        </div>
+        <div className="truncate text-[12px] text-text-2">
+          {row.qualities} quality{row.qualities === 1 ? "" : "s"} ·{" "}
+          {row.designs} design{row.designs === 1 ? "" : "s"}
+          {row.transport ? ` · ${row.transport}` : ""}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <StatusPill status={row.status} overdue={overdue} />
+          {row.ratingOverall ? <Stars value={row.ratingOverall} /> : null}
+          {row.openIssues > 0 ? (
+            <Pill tone="warn" dot={false}>
+              {row.openIssues} issue{row.openIssues === 1 ? "" : "s"}
+            </Pill>
+          ) : null}
+          <span className="ml-auto text-[11.5px] text-text-3">
+            {formatDate(row.deliveredAt)} · {row.daysWaiting}d waiting
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }

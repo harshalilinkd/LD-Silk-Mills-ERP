@@ -180,7 +180,7 @@ export function SummaryScreen({
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {/* ── by group ─────────────────────────────────────────────── */}
-          <section className="rounded-card border border-border bg-surface">
+          <section className="min-w-0 rounded-card border border-border bg-surface">
             <div className="border-b border-border px-4 py-3">
               <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 Where it went
@@ -232,7 +232,7 @@ export function SummaryScreen({
           </section>
 
           {/* ── by category ──────────────────────────────────────────── */}
-          <section className="rounded-card border border-border bg-surface">
+          <section className="min-w-0 rounded-card border border-border bg-surface">
             <div className="border-b border-border px-4 py-3">
               <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
                 In detail

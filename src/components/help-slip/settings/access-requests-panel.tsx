@@ -95,7 +95,7 @@ export function AccessRequestsPanel() {
               "When somebody signs in for the first time, their request appears here.",
           }}
         >
-          <HScroll>
+          <HScroll className="hidden lg:block">
             <Table>
               <THead>
                 <Tr>
@@ -143,6 +143,46 @@ export function AccessRequestsPanel() {
               </TBody>
             </Table>
           </HScroll>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {pending.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-card border border-border bg-surface p-3"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-semibold text-text-1">
+                    {r.googleName ?? "—"}
+                  </div>
+                  <div className="truncate text-[12px] text-text-3">
+                    {r.googleEmail}
+                  </div>
+                  <div className="num mt-0.5 text-[11.5px] text-text-3">
+                    Asked {absoluteTime(r.requestedAt)}
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setDeciding({ row: r, mode: "approve" })}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setDeciding({ row: r, mode: "reject" })}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </ListState>
       </Panel>
 
@@ -152,7 +192,7 @@ export function AccessRequestsPanel() {
             titleEn="Already decided"
             aside={<CountChip>{decided.length}</CountChip>}
           />
-          <HScroll>
+          <HScroll className="hidden lg:block">
             <Table>
               <THead>
                 <Tr>
@@ -191,6 +231,44 @@ export function AccessRequestsPanel() {
               </TBody>
             </Table>
           </HScroll>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {decided.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-card border border-border bg-surface p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold text-text-1">
+                      {r.googleName ?? "—"}
+                    </div>
+                    <div className="truncate text-[12px] text-text-3">
+                      {r.googleEmail}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold uppercase",
+                      r.status === "approved"
+                        ? "bg-status-green-dim text-status-green"
+                        : "bg-status-red-dim text-status-red",
+                    )}
+                  >
+                    {r.status}
+                  </span>
+                </div>
+                {r.rejectReason ? (
+                  <div className="mt-1 text-[12px] text-text-3">
+                    {r.rejectReason}
+                  </div>
+                ) : null}
+                <div className="num mt-1 text-[11.5px] text-text-3">
+                  {r.reviewedAt ? absoluteTime(r.reviewedAt) : "—"}
+                </div>
+              </div>
+            ))}
+          </div>
         </Panel>
       ) : null}
 

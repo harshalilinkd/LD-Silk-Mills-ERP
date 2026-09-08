@@ -321,7 +321,7 @@ export function DropdownMaster({
 
   if (refused) {
     return (
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+      <div className="grid gap-5 [&>*]:min-w-0 lg:grid-cols-[1fr_360px] lg:items-start">
         <Panel
           title="Dropdown Master"
           description="The values that fill the order form's autocomplete lists."
@@ -351,7 +351,7 @@ export function DropdownMaster({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px] lg:items-start">
+    <div className="grid gap-5 [&>*]:min-w-0 lg:grid-cols-[1fr_360px] lg:items-start">
       <Panel
         title="Dropdown Master"
         description="The values that fill the order form's autocomplete lists."
@@ -543,7 +543,7 @@ export function DropdownMaster({
                     </>
                   ) : confirmId === r.id ? (
                     <>
-                      <span className="flex-1 truncate text-status-red">
+                      <span className="min-w-0 flex-1 truncate text-status-red">
                         Delete “{r.value}” permanently?
                       </span>
                       <Button
@@ -566,7 +566,7 @@ export function DropdownMaster({
                     <>
                       <span
                         className={cn(
-                          "flex-1 truncate",
+                          "min-w-0 flex-1 truncate",
                           r.is_active
                             ? "text-text-1"
                             : "text-text-3 line-through",

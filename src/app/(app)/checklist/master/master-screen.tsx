@@ -16,7 +16,7 @@ import {
   FREQUENCY_META,
   frequencyLabelFor,
 } from "@/lib/checklist/frequency";
-import type { MasterPage } from "@/lib/checklist/master-query";
+import type { MasterPage, MasterRow } from "@/lib/checklist/master-query";
 import { deriveStatus, STATUS_META } from "@/lib/checklist/status";
 import { cn } from "@/lib/utils";
 import { useChecklistViewer } from "../viewer-context";
@@ -167,7 +167,12 @@ export function MasterScreen({
 
   const CARDS = [
     { key: "Today", tone: "blue", n: data.counts.Today, blurb: "Due today" },
-    { key: "Delayed", tone: "red", n: data.counts.Delayed, blurb: "Past their day" },
+    {
+      key: "Delayed",
+      tone: "red",
+      n: data.counts.Delayed,
+      blurb: "Past their day",
+    },
     { key: "Done", tone: "green", n: data.counts.Done, blurb: "Ticked off" },
     {
       key: "Upcoming Focus",
@@ -280,7 +285,9 @@ export function MasterScreen({
             setSearch("");
             router.push(pathname);
           }}
-          columns={viewer.isAdmin ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-3"}
+          columns={
+            viewer.isAdmin ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-3"
+          }
         >
           {viewer.isAdmin && (
             <>
@@ -368,142 +375,191 @@ export function MasterScreen({
           }
         />
       ) : (
-        <TableCard>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                {viewer.isAdmin && <th className={th}>Doer</th>}
-                {viewer.isAdmin && <th className={th}>Department</th>}
-                <th className={cn(th, "w-full")}>Task</th>
-                <th className={th}>Freq</th>
-                <th className={th}>Planned</th>
-                <th className={th}>Actual</th>
-                <th className={th}>Delay</th>
-                <th className={th}>Status</th>
-                <th className={cn(th, "text-right")}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((r) => {
-                const localDate = ticked[r.occurrenceKey];
-                const effective = localDate
-                  ? { ...r, status: "Done" as const, actualDate: localDate }
-                  : r;
-                const derived = deriveStatus(
-                  {
-                    status: effective.status,
-                    plannedDate: effective.plannedDate,
-                    frequency: effective.frequency,
-                  },
-                  data.today,
-                );
-                const meta = STATUS_META[derived];
-                const late =
-                  effective.actualDate && effective.actualDate > effective.plannedDate
-                    ? daysBetween(effective.plannedDate, effective.actualDate)
-                    : derived === "Delayed"
-                      ? daysBetween(effective.plannedDate, data.today)
-                      : 0;
-                const mine = viewer.doerId === r.doerId;
-
-                return (
-                  <tr
-                    key={r.occurrenceKey}
-                    className={cn(
-                      "transition-colors hover:bg-surface-2",
-                      localDate && "bg-status-green-dim/40",
-                    )}
-                  >
-                    {viewer.isAdmin && (
-                      <td className={cn(td, "whitespace-nowrap text-text-1")}>
-                        {r.doerName}
-                      </td>
-                    )}
-                    {viewer.isAdmin && (
+        <>
+          {/* Desktop / tablet: the full table. */}
+          <TableCard className="hidden lg:block">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  {viewer.isAdmin && <th className={th}>Doer</th>}
+                  {viewer.isAdmin && <th className={th}>Department</th>}
+                  <th className={cn(th, "w-full")}>Task</th>
+                  <th className={th}>Freq</th>
+                  <th className={th}>Planned</th>
+                  <th className={th}>Actual</th>
+                  <th className={th}>Delay</th>
+                  <th className={th}>Status</th>
+                  <th className={cn(th, "text-right")}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => {
+                  const row = deriveRow(r, ticked, data.today, viewer.doerId);
+                  return (
+                    <tr
+                      key={r.occurrenceKey}
+                      className={cn(
+                        "transition-colors hover:bg-surface-2",
+                        row.localDate && "bg-status-green-dim/40",
+                      )}
+                    >
+                      {viewer.isAdmin && (
+                        <td className={cn(td, "whitespace-nowrap text-text-1")}>
+                          {r.doerName}
+                        </td>
+                      )}
+                      {viewer.isAdmin && (
+                        <td className={cn(td, "whitespace-nowrap")}>
+                          {r.department || (
+                            <span className="text-text-3">—</span>
+                          )}
+                        </td>
+                      )}
+                      <td className={cn(td, "text-text-1")}>{r.taskName}</td>
                       <td className={cn(td, "whitespace-nowrap")}>
-                        {r.department || <span className="text-text-3">—</span>}
-                      </td>
-                    )}
-                    <td className={cn(td, "text-text-1")}>{r.taskName}</td>
-                    <td className={cn(td, "whitespace-nowrap")}>
-                      <span title={frequencyLabelFor(r.frequency, r.plannedDate)}>
-                        {r.frequency}
-                      </span>
-                    </td>
-                    <td className={cn(td, "num whitespace-nowrap")}>
-                      {formatDate(r.plannedDate)}
-                    </td>
-                    <td className={cn(td, "num whitespace-nowrap")}>
-                      {effective.actualDate ? (
-                        formatDate(effective.actualDate)
-                      ) : (
-                        <span className="text-text-3">—</span>
-                      )}
-                    </td>
-                    <td className={cn(td, "num whitespace-nowrap")}>
-                      {late > 0 ? (
-                        <span className="font-semibold text-status-red">
-                          {late}d
+                        <span
+                          title={frequencyLabelFor(r.frequency, r.plannedDate)}
+                        >
+                          {r.frequency}
                         </span>
-                      ) : (
-                        <span className="text-text-3">—</span>
-                      )}
-                    </td>
-                    <td className={cn(td, "whitespace-nowrap")}>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-[11.5px] font-semibold",
-                          meta.chip,
-                        )}
-                        title={meta.blurb}
-                      >
-                        <span className={cn("size-1.5 rounded-full", meta.dot)} />
-                        {meta.label}
-                      </span>
-                    </td>
-                    <td className={cn(td, "whitespace-nowrap")}>
-                      <div className="flex justify-end">
-                        {effective.status === "Done" ? (
-                          viewer.isAdmin ? (
-                            <QuietButton
-                              busy={busyKey === r.occurrenceKey}
-                              onClick={() => void untick(r.occurrenceKey)}
-                            >
-                              <IconArrowBackUp className="size-3.5" />
-                              Undo
-                            </QuietButton>
-                          ) : (
-                            <span className="text-[12px] text-text-3">—</span>
-                          )
-                        ) : mine || viewer.isAdmin ? (
-                          <button
-                            type="button"
-                            disabled={busyKey === r.occurrenceKey}
-                            onClick={() => void tick(r.occurrenceKey)}
-                            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-field bg-status-green px-2.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                          >
-                            <IconCheck className="size-3.5" />
-                            Done
-                          </button>
+                      </td>
+                      <td className={cn(td, "num whitespace-nowrap")}>
+                        {formatDate(r.plannedDate)}
+                      </td>
+                      <td className={cn(td, "num whitespace-nowrap")}>
+                        {row.effective.actualDate ? (
+                          formatDate(row.effective.actualDate)
                         ) : (
-                          <span className="text-[12px] text-text-3">
-                            Not yours
-                          </span>
+                          <span className="text-text-3">—</span>
                         )}
+                      </td>
+                      <td className={cn(td, "num whitespace-nowrap")}>
+                        {row.late > 0 ? (
+                          <span className="font-semibold text-status-red">
+                            {row.late}d
+                          </span>
+                        ) : (
+                          <span className="text-text-3">—</span>
+                        )}
+                      </td>
+                      <td className={cn(td, "whitespace-nowrap")}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-[11.5px] font-semibold",
+                            row.meta.chip,
+                          )}
+                          title={row.meta.blurb}
+                        >
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              row.meta.dot,
+                            )}
+                          />
+                          {row.meta.label}
+                        </span>
+                      </td>
+                      <td className={cn(td, "whitespace-nowrap")}>
+                        <div className="flex justify-end">
+                          <TaskAction
+                            effective={row.effective}
+                            mine={row.mine}
+                            isAdmin={viewer.isAdmin}
+                            busy={busyKey === r.occurrenceKey}
+                            onTick={() => void tick(r.occurrenceKey)}
+                            onUntick={() => void untick(r.occurrenceKey)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableCard>
+
+          {/* Mobile: one card per duty — the Done button sits right under the
+              task name instead of six columns away, which is what a thumb
+              actually needs to reach on a phone. */}
+          <div className="flex flex-col gap-2 lg:hidden">
+            {data.rows.map((r) => {
+              const row = deriveRow(r, ticked, data.today, viewer.doerId);
+              return (
+                <div
+                  key={r.occurrenceKey}
+                  className={cn(
+                    "rounded-card border border-border bg-surface p-3",
+                    row.localDate &&
+                      "border-status-green/40 bg-status-green-dim/30",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-text-1">
+                        {r.taskName}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableCard>
+                      {viewer.isAdmin ? (
+                        <div className="mt-0.5 truncate text-[12px] text-text-2">
+                          {r.doerName}
+                          {r.department ? ` · ${r.department}` : ""}
+                        </div>
+                      ) : null}
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-pill px-2 py-0.5 text-[11px] font-semibold",
+                        row.meta.chip,
+                      )}
+                      title={row.meta.blurb}
+                    >
+                      <span
+                        className={cn("size-1.5 rounded-full", row.meta.dot)}
+                      />
+                      {row.meta.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-2">
+                    <span title={frequencyLabelFor(r.frequency, r.plannedDate)}>
+                      {r.frequency}
+                    </span>
+                    <span className="num">
+                      Planned {formatDate(r.plannedDate)}
+                    </span>
+                    {row.effective.actualDate ? (
+                      <span className="num">
+                        Done {formatDate(row.effective.actualDate)}
+                      </span>
+                    ) : null}
+                    {row.late > 0 ? (
+                      <span className="num font-semibold text-status-red">
+                        {row.late}d late
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-2 flex justify-end">
+                    <TaskAction
+                      effective={row.effective}
+                      mine={row.mine}
+                      isAdmin={viewer.isAdmin}
+                      busy={busyKey === r.occurrenceKey}
+                      onTick={() => void tick(r.occurrenceKey)}
+                      onUntick={() => void untick(r.occurrenceKey)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-[12px] text-text-3">
-            Page {page} of {totalPages} · {data.total.toLocaleString("en-IN")} rows
+            Page {page} of {totalPages} · {data.total.toLocaleString("en-IN")}{" "}
+            rows
           </span>
           <div className="flex gap-2">
             <QuietButton
@@ -525,4 +581,79 @@ export function MasterScreen({
       )}
     </div>
   );
+}
+
+/** The per-row derived state (optimistic tick, status, lateness, whose row it
+ * is), shared between the desktop table and the mobile card list so they can
+ * never disagree about the same occurrence. */
+function deriveRow(
+  r: MasterRow,
+  ticked: Record<string, string>,
+  today: string,
+  viewerDoerId: number | null,
+) {
+  const localDate = ticked[r.occurrenceKey];
+  const effective = localDate
+    ? { ...r, status: "Done" as const, actualDate: localDate }
+    : r;
+  const derived = deriveStatus(
+    {
+      status: effective.status,
+      plannedDate: effective.plannedDate,
+      frequency: effective.frequency,
+    },
+    today,
+  );
+  const meta = STATUS_META[derived];
+  const late =
+    effective.actualDate && effective.actualDate > effective.plannedDate
+      ? daysBetween(effective.plannedDate, effective.actualDate)
+      : derived === "Delayed"
+        ? daysBetween(effective.plannedDate, today)
+        : 0;
+  const mine = viewerDoerId === r.doerId;
+  return { localDate, effective, meta, late, mine };
+}
+
+/** Done / Undo / "Not yours" — identical logic, shared between the table's
+ * last column and the mobile card's footer. */
+function TaskAction({
+  effective,
+  mine,
+  isAdmin,
+  busy,
+  onTick,
+  onUntick,
+}: {
+  effective: MasterRow;
+  mine: boolean;
+  isAdmin: boolean;
+  busy: boolean;
+  onTick: () => void;
+  onUntick: () => void;
+}) {
+  if (effective.status === "Done") {
+    return isAdmin ? (
+      <QuietButton busy={busy} onClick={onUntick}>
+        <IconArrowBackUp className="size-3.5" />
+        Undo
+      </QuietButton>
+    ) : (
+      <span className="text-[12px] text-text-3">—</span>
+    );
+  }
+  if (mine || isAdmin) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onTick}
+        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-field bg-status-green px-2.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        <IconCheck className="size-3.5" />
+        Done
+      </button>
+    );
+  }
+  return <span className="text-[12px] text-text-3">Not yours</span>;
 }

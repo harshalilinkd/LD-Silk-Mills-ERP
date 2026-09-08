@@ -136,10 +136,25 @@ export function StatCard({
         <span className="text-[11px] leading-tight font-medium text-text-2">
           {label}
         </span>
-        <span className="flex items-baseline gap-1.5">
+        {/* ── THE ROW THAT PUSHED EVERY DASHBOARD SIDEWAYS ──────────────
+            The figure and its trend badge sat on one unbreakable line, and a
+            number does not wrap: `₹3,29,54,274 ▼14%` has a min-content width
+            of about 172px, so a card could not be narrower than ~192px. Two
+            of those in the `grid-cols-2` every dashboard uses came to 398px
+            against the 365px a phone actually has — and because a grid cell
+            will not shrink below its content, the overflow was pushed up to
+            the page, which then scrolled sideways with the heading half off
+            the screen. It looked like a layout bug on the Orders dashboard
+            and was really one shared tile on all of them.
+
+            `flex-wrap` lets the badge drop under the figure instead of
+            widening the card, and the figure steps down a size below `sm`. A
+            money figure is never truncated to make it fit: half a number is
+            worse than a wrapped one. */}
+        <span className="flex flex-wrap items-baseline gap-x-1.5">
           <span
             className={cn(
-              "num text-[19px] leading-tight font-semibold",
+              "num text-[17px] leading-tight font-semibold sm:text-[19px]",
               valueTone ? TONE_VALUE[valueTone] : "text-text-1",
             )}
           >

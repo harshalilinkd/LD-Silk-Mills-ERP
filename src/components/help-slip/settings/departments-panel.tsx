@@ -135,7 +135,7 @@ export function DepartmentsPanel() {
             bodyEn: "Add one above so people can file concerns against it.",
           }}
         >
-          <HScroll>
+          <HScroll className="hidden lg:block">
             <Table>
               <THead>
                 <Tr>
@@ -187,6 +187,54 @@ export function DepartmentsPanel() {
               </TBody>
             </Table>
           </HScroll>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {rows.map((d) => (
+              <div
+                key={d.id}
+                className="rounded-card border border-border bg-surface p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold text-text-1">
+                      {d.name}
+                    </div>
+                    <div className="num text-[12px] text-text-3">{d.code}</div>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold uppercase",
+                      d.status === "active"
+                        ? "bg-status-green-dim text-status-green"
+                        : "bg-chip text-text-3",
+                    )}
+                  >
+                    {d.status === "active" ? "Active" : "Retired"}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="num text-[12.5px] text-text-3">
+                    {d.concernCount} concern{d.concernCount === 1 ? "" : "s"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={patch.isPending}
+                    className="h-9"
+                    onClick={() =>
+                      patch.mutate({
+                        id: d.id,
+                        status: d.status === "active" ? "inactive" : "active",
+                      })
+                    }
+                  >
+                    {d.status === "active" ? "Retire" : "Restore"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </ListState>
       </Panel>
 

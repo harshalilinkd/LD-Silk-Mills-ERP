@@ -116,7 +116,7 @@ export default async function DashboardPage() {
                       : "size-[7px] shrink-0 rounded-full bg-text-3"
                   }
                 />
-                <span className="flex-1 truncate text-[13px] font-semibold text-text-1">
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text-1">
                   {s.systemName}
                 </span>
                 <span className="text-[11px] capitalize text-text-3">

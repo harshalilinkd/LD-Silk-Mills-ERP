@@ -126,7 +126,7 @@ export function UsersPanel() {
               : undefined,
           }}
         >
-          <HScroll>
+          <HScroll className="hidden lg:block">
             <Table>
               <THead>
                 <Tr>
@@ -183,6 +183,56 @@ export function UsersPanel() {
               </TBody>
             </Table>
           </HScroll>
+
+          <div className="flex flex-col gap-2 p-3 lg:hidden">
+            {filtered.map((u) => (
+              <div
+                key={u.id}
+                className="rounded-card border border-border bg-surface p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold text-text-1">
+                      {u.fullName}
+                    </div>
+                    <div className="truncate text-[12px] text-text-3">
+                      {u.loginId}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold uppercase",
+                      u.status === "active"
+                        ? "bg-status-green-dim text-status-green"
+                        : "bg-chip text-text-3",
+                    )}
+                  >
+                    {accountStatusLabel(u.status)}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-text-2">
+                  <span>{roleLabel(u.role)}</span>
+                  <span className="text-text-3">{u.departmentName ?? "—"}</span>
+                  {u.hrAccess ? (
+                    <span className="rounded-pill bg-status-amber-dim px-2 py-0.5 text-[11px] font-semibold text-status-amber uppercase">
+                      Confidential
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setEditing(u)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </ListState>
       </Panel>
 
