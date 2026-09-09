@@ -633,8 +633,31 @@ export function OrderForm({
 
           {/* The [&_input]:h-9 override matters — the global Input is smaller
               than the 36px this screen wants for its eleven fields. */}
-          <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 sm:gap-x-4 lg:grid-cols-3 [&_input]:h-9">
-            <Field label="Order date" htmlFor="order_date" required>
+          {/*
+            TWO COLUMNS ON A PHONE, NOT ONE.
+
+            Ten stacked fields is most of a screen of scrolling before the
+            first fabric block, and half of them are SHORT: a date, an order
+            number, a challan number, a lot number. Those pair up. The ones
+            that carry a NAME — party, haste, transport — keep the full width,
+            because a company name truncated to 160px is the field you cannot
+            check before saving.
+          */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-2 sm:gap-x-4 lg:grid-cols-3 [&_input]:h-9">
+            {/*
+              The date and the order number pair up from 360px, not from zero.
+              A native date input carries a fixed-width calendar button, so at
+              320px a 125px field renders "09-09-202" — the YEAR clipped off
+              the one field where a wrong year is a wrong order. Below that
+              width they stack and stay readable; 390px, which is what people
+              actually hold, still gets the pair.
+            */}
+            <Field
+              label="Order date"
+              htmlFor="order_date"
+              required
+              className="col-span-2 min-[360px]:col-span-1"
+            >
               <Input
                 id="order_date"
                 type="date"
@@ -648,6 +671,7 @@ export function OrderForm({
               label="Order no"
               htmlFor="order_no"
               required
+              className="col-span-2 min-[360px]:col-span-1"
               hint={
                 dup === "checking"
                   ? "Checking…"
@@ -680,7 +704,12 @@ export function OrderForm({
               />
             </Field>
 
-            <Field label="Party" htmlFor="party_name" required>
+            <Field
+              label="Party"
+              htmlFor="party_name"
+              required
+              className="col-span-2 sm:col-span-1"
+            >
               <Autocomplete
                 id="party_name"
                 value={header.party_name}
@@ -710,8 +739,9 @@ export function OrderForm({
               />
             </Field>
 
-            {/* Haste is a COMPANY NAME, not an urgency flag. */}
-            <Field label="Haste" htmlFor="haste">
+            {/* Haste is a COMPANY NAME, not an urgency flag — which is also why it
+                keeps the full width on a phone. */}
+            <Field label="Haste" htmlFor="haste" className="col-span-2 sm:col-span-1">
               <Autocomplete
                 id="haste"
                 value={header.haste}
@@ -721,7 +751,11 @@ export function OrderForm({
               />
             </Field>
 
-            <Field label="Transport" htmlFor="transport">
+            <Field
+              label="Transport"
+              htmlFor="transport"
+              className="col-span-2 sm:col-span-1"
+            >
               <Autocomplete
                 id="transport"
                 value={header.transport}
@@ -752,7 +786,7 @@ export function OrderForm({
             <Field
               label="Remarks"
               htmlFor="remarks"
-              className="col-span-1 sm:col-span-2 lg:col-span-3"
+              className="col-span-2 sm:col-span-2 lg:col-span-3"
             >
               <Input
                 id="remarks"

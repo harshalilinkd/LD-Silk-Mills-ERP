@@ -465,6 +465,18 @@ and is the contract of record.
   and `src/components/order-entry/shared/` (`ViewSwitch`, `OrderFilters`,
   `useTrackView`, `useDebouncedValue`, `useColumnPrefs`, `csv`). Reuse them;
   §0.4 exists because these were hand-rolled inconsistently before.
+- **The order form's Order details pairs up on a phone.** Ten stacked fields
+  was most of a screen of scrolling before the first fabric block, so the SHORT
+  ones share a row — date + order no, sales person + agent, challan + lot —
+  while the ones carrying a NAME (party, haste, transport) keep the full width,
+  because a company name truncated to 160px is the field you cannot check
+  before saving. `sm` and `lg` are untouched: the two- and three-column desktop
+  flow SCREENS.md specifies is exactly as it was.
+  **The date pair forms at 360px, not at zero.** A native `type="date"` input
+  carries a fixed-width calendar button, so in a 125px cell it renders
+  `09-09-202` — the YEAR clipped off the one field where a wrong year is a
+  wrong order. Below 360px those two stack (`col-span-2 min-[360px]:col-span-1`);
+  390px, which is what people actually hold, still gets the pair.
 - **`STAGE_DOT` has exactly one home**: `order-status/status-style.ts`. A
   second local copy drifted once and the same stage read purple on one screen
   and blue on two others.
