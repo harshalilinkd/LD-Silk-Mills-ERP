@@ -994,7 +994,7 @@ function StatTile({
 }) {
   return (
     <div className="rounded-field border border-border bg-surface-2 p-3">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-2">
         <Glyph className="size-3.5 shrink-0" stroke={1.6} aria-hidden />
         <span className="truncate">{labelEn}</span>
       </div>
@@ -1009,7 +1009,7 @@ function StatTile({
       >
         {value ?? "No data yet"}
       </span>
-      <p className={cn("mt-1.5 text-text-3", T.caption)}>{helpEn}</p>
+      <p className={cn("mt-1.5 text-text-2", T.caption)}>{helpEn}</p>
     </div>
   );
 }

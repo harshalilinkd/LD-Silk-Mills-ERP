@@ -435,7 +435,7 @@ export function DashboardScreen({
             This month
           </QuietButton>
 
-          <span className="ml-auto text-[11.5px] text-text-3">
+          <span className="ml-auto text-[11.5px] text-text-2">
             {activeDays} of {daysInThisMonth} days had activity
           </span>
         </div>
@@ -553,7 +553,7 @@ export function DashboardScreen({
                   {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                     <div
                       key={d}
-                      className="bg-surface-2 py-2 text-center text-[10px] font-semibold tracking-[0.06em] text-text-3 uppercase"
+                      className="bg-surface-2 py-2 text-center text-[10px] font-semibold tracking-[0.06em] text-text-2 uppercase"
                     >
                       {d}
                     </div>
@@ -655,7 +655,7 @@ export function DashboardScreen({
                 </div>
               </div>
 
-              <p className="mt-3 text-[11.5px] text-text-3">
+              <p className="mt-3 text-[11.5px] text-text-2">
                 Each day shows what went in and out on{" "}
                 <strong className="font-semibold text-text-2">that date</strong>{" "}
                 — the date on the entry, not when it was typed in. Click a day
@@ -669,7 +669,7 @@ export function DashboardScreen({
       {/* ── the trend, always the real last six months ──────────────────── */}
       <section className="rounded-card border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
-          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
             Cash flow
           </div>
           <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -692,7 +692,7 @@ export function DashboardScreen({
         {/* ── where this period's money went ─────────────────────────────── */}
         <section className="flex flex-col rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
               This period
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -709,7 +709,7 @@ export function DashboardScreen({
         {/* ── the same money, ranked by heading instead of sliced ─────────── */}
         <section className="flex flex-col rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
               This period
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -727,7 +727,7 @@ export function DashboardScreen({
       {/* ── who it mostly goes to ──────────────────────────────────────── */}
       <section className="rounded-card border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
-          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+          <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
             All time
           </div>
           <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -735,7 +735,7 @@ export function DashboardScreen({
           </h2>
         </div>
         {topPayees.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12.5px] text-text-3">
+          <p className="px-4 py-8 text-center text-[12.5px] text-text-2">
             Nothing paid out yet.
           </p>
         ) : (
@@ -814,7 +814,7 @@ function CaFigure({
     // number below.
     <div className="rounded-card border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="mt-1 text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+        <div className="mt-1 text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
           {label}
         </div>
         <span
@@ -831,7 +831,7 @@ function CaFigure({
       <div className="mt-2.5 truncate text-[22px] leading-none font-bold tracking-[-0.02em] text-text-1">
         {value}
       </div>
-      <div className="mt-1.5 truncate text-[11.5px] leading-snug text-text-3">
+      <div className="mt-1.5 truncate text-[11.5px] leading-snug text-text-2">
         {sub}
       </div>
     </div>

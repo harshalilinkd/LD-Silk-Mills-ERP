@@ -63,7 +63,18 @@ function Tile({
       href={href}
       className="group rounded-card border border-border bg-surface p-3 transition-colors hover:border-primary/40 sm:p-4"
     >
-      <div className="truncate text-[10.5px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+      {/*
+        BLACK, and 11px rather than 10.5.
+
+        `--text-3` is for genuinely secondary text — a timestamp, a hint. A KPI
+        LABEL is not secondary: it is the only thing saying what the number
+        underneath it means, and the sub-line under that carries its
+        denominator, which this ERP treats as part of the figure rather than a
+        footnote. Both were grey at 10.5px and the owner reported the page as
+        unreadable. Hierarchy here comes from the 19px bold figure between
+        them, not from fading the words that explain it.
+      */}
+      <div className="truncate text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
         {label}
       </div>
       <div
@@ -74,7 +85,7 @@ function Tile({
       >
         {value}
       </div>
-      <div className="mt-1 truncate text-[11px] leading-snug text-text-3">
+      <div className="mt-1 truncate text-[11.5px] leading-snug text-text-2">
         {sub}
       </div>
     </Link>
@@ -104,7 +115,7 @@ export default async function DashboardPage() {
         <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
           Dashboard
         </h1>
-        <p className="mt-1 text-[13px] text-text-3">
+        <p className="mt-1 text-[13px] text-text-2">
           What is waiting across LD Silk Mills, in the modules you can open.
         </p>
       </div>
@@ -119,7 +130,7 @@ export default async function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-card border border-border bg-surface px-4 py-8 text-center text-[13px] text-text-3">
+        <div className="rounded-card border border-border bg-surface px-4 py-8 text-center text-[13px] text-text-2">
           No modules have been granted to your account yet. Settings → Access is
           where somebody adds them.
         </div>
@@ -129,7 +140,7 @@ export default async function DashboardPage() {
       <section className="rounded-card border border-border bg-surface">
         <div className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-3">
           <div>
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
               Needs attention
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -175,7 +186,7 @@ export default async function DashboardPage() {
                     <span className="block text-[13px] font-semibold text-text-1">
                       {a.title}
                     </span>
-                    <span className="mt-0.5 block text-[11.5px] leading-snug text-text-3">
+                    <span className="mt-0.5 block text-[11.5px] leading-snug text-text-2">
                       {a.detail}
                     </span>
                   </span>
@@ -191,7 +202,7 @@ export default async function DashboardPage() {
         {/* ── what has been happening ─────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
               Recent activity
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">
@@ -213,13 +224,13 @@ export default async function DashboardPage() {
                   key={`${a.at}-${a.what}-${i}`}
                   className="flex items-center gap-3 px-4 py-2.5"
                 >
-                  <span className="num w-[74px] shrink-0 text-[11px] text-text-3">
+                  <span className="num w-[74px] shrink-0 text-[11px] text-text-2">
                     {a.at}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-1">
                     {a.what}
                   </span>
-                  <span className="max-w-[38%] shrink-0 truncate text-[11.5px] text-text-3">
+                  <span className="max-w-[38%] shrink-0 truncate text-[11.5px] text-text-2">
                     {a.who}
                   </span>
                 </li>
@@ -231,7 +242,7 @@ export default async function DashboardPage() {
         {/* ── is everything up ────────────────────────────────────────── */}
         <section className="rounded-card border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.06em] text-text-2 uppercase">
               System status
             </div>
             <h2 className="mt-0.5 text-[14.5px] font-bold text-text-1">

@@ -240,6 +240,22 @@ module's UI (like Orders), you restyle against this file — you do not
 reuse the source app's own Tailwind classes, even though both apps happen
 to use the same Base UI primitives.
 
+**`--text-3` IS FOR A TIMESTAMP, NOT FOR A LABEL.** The tokens were already
+right — `--text-1` and `--text-2` are pure black and `--text-3` is #3f4650 at
+9.5:1 on white, tuned after the report came back twice that the app "looks
+light and blurry". The dashboards then reintroduced the same complaint by
+REACHING for `text-text-3` on content that is not secondary: a KPI's label is
+the only thing saying what its number means, and the sub-line under it carries
+the denominator, which this ERP treats as part of the figure. Both were grey at
+10.5px and the owner reported the page unreadable again.
+
+Content is `text-2`. `text-3` is for a timestamp, a caption, a hint and icons —
+and if reaching for it feels like it is carrying meaning, it is the wrong
+token. Hierarchy comes from a 19px bold figure between two 11px lines, not from
+fading the words that explain it. The one thing that must stay light is
+`--text-placeholder`: a placeholder as dark as typed text makes an empty field
+look filled.
+
 **Two themes, dark default**: `src/app/globals.css` defines light tokens
 on bare `:root` and dark overrides under `.dark` (added to `<html>` when
 active). `src/components/shell/theme-toggle.tsx` flips it and persists to
