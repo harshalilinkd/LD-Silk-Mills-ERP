@@ -1662,7 +1662,11 @@ everywhere.
 `verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
 independently-written SQL, byte-identical double runs; `filters-honest.ts` —
 every filter narrowed by an impossible value must return 0 rows, which is the
-only test that catches a dropdown the query ignores; `edge-zero.ts` — every
+only test that catches a dropdown the query ignores; `no-dates.ts` — every
+report run with NO parameters must return exactly what it returns for
+1999–2100, which is the only test that catches a report substituting its own
+window in SQL (a `coalesce($1, now() - interval '6 months')` would narrow an
+export with nothing on screen to show it); `edge-zero.ts` — every
 report over a period with no data, which is where four reports used to print
 "the top five qualities are most of it"; `excel-check.ps1` — real Excel opens
 every workbook with exactly the chart count the zip holds; `payload-test.ts` —
