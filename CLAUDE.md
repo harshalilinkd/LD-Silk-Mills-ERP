@@ -1694,6 +1694,33 @@ the same arithmetic AND the same honesty: a figure prints its denominator, a
 figure that cannot be computed returns null rather than 0, and the median comes
 before the mean.
 
+**A COUNT IS NOT A NAME.** The order register carried `Fabrics: 2` — how many
+distinct fabrics an order has — while the Orders screen had been showing
+"ASTOR, Platinum." in a column of the same name all along. A reader got a
+number and then had to open a second sheet to find out which. The names are
+now their own column (`quality_names`, label **Fabrics**, `string_agg(distinct
+… order by …)` so two runs produce the same string) and the count sits beside
+it as **Fabric count**. Both are filtered `not is_cancelled`, identically, so
+they cannot disagree — verified across all 351 orders, zero mismatches.
+
+**ONE SEARCH BOX, EVERY COLUMN IN FRONT OF THE PERSON.** The Orders table
+searched four fields — order no, party, challan, lot — so typing a FABRIC found
+nothing on a screen whose own table has a Fabrics column. It now also matches
+agent, sales person, transport, and (through an EXISTS, never a join, or the
+order is multiplied by its lines and every count on the screen inflates) fabric
+and design number. Note the search uses `ilike` where the fabric FILTER param
+uses `eq`, deliberately: the filter is a dropdown over the real fabric list and
+means "exactly this one"; a search box means "contains what I typed".
+
+**AND IT IS LIVE, DEBOUNCED 300ms.** It used to apply only on ENTER, on the
+reasoning that a refetch per character is a denial of service. The reasoning
+was right and the remedy was wrong — debouncing is what stops the
+refetch-per-character; Enter-only stops the SEARCH instead, and somebody typing
+a fabric name got an unchanged table and concluded the data was not there.
+Measured: 3, 5 and 7 keystrokes each fire exactly ONE request. Enter still
+applies immediately, it is simply not required. The Tracking view beside it had
+been live all along, which is what made the Orders view read as broken.
+
 **AN EXPORT STARTS AS EVERYTHING** (Sep 2026, owner: *"reports are wrong,
 I'm searching order no and it's showing nothing — it should export all data"*).
 The picker's date boxes opened PRE-FILLED from `defaultMonthsBack` — three

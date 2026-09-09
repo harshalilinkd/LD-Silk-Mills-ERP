@@ -65,6 +65,14 @@ const REGISTER_SQL = `
       -- fabrics where the line detail said 223 over the same period.
       count(distinct li.quality)   filter (where not li.is_cancelled)           as qualities,
       count(distinct li.design_no) filter (where not li.is_cancelled)           as designs,
+      -- THE NAMES, not just how many. "Fabrics: 2" tells a reader an order has
+      -- two of something and then makes them open another sheet to find out
+      -- which — the screen has said "ASTOR, Platinum." in that column all
+      -- along. Sorted so two runs of the same order produce the same string,
+      -- and filtered exactly like the count beside it so the two can never
+      -- disagree about what is on the order.
+      string_agg(distinct li.quality, ', ' order by li.quality)
+        filter (where not li.is_cancelled)                                      as quality_names,
       -- Lines whose quality AND design already appear on this order. The
       -- order's totals stay right either way; this is here so a reader
       -- comparing the sheet against a printout knows the repeat is real.
@@ -116,6 +124,7 @@ const REGISTER_SQL = `
     coalesce(l.cancelled_lines, 0)  as cancelled_lines,
     coalesce(l.qualities, 0)        as qualities,
     coalesce(l.designs, 0)          as designs,
+    l.quality_names,
     coalesce(l.repeated_lines, 0)   as repeated_lines,
     coalesce(l.qty_mtr, 0)          as qty_mtr,
     coalesce(l.value, 0)            as value,
@@ -163,6 +172,7 @@ type Raw = {
   cancelled_lines: number;
   qualities: number;
   designs: number;
+  quality_names: string | null;
   repeated_lines: number;
   qty_mtr: string;
   value: string;
@@ -267,6 +277,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     cancelled_lines: n(r.cancelled_lines),
     qualities: n(r.qualities),
     designs: n(r.designs),
+    quality_names: r.quality_names,
     repeated_lines: n(r.repeated_lines),
     qty_mtr: n(r.qty_mtr),
     value: n(r.value),
@@ -613,7 +624,8 @@ export const orderRegister: ReportDefinition = {
     { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
     { key: "last_tick", label: "Last ticked", type: "datetime" },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
-    { key: "qualities", label: "Fabrics", type: "int", total: "none", note: "Distinct fabrics on this order. Not added up at the foot — the same fabric on two orders is one fabric." },
+    { key: "quality_names", label: "Fabrics", type: "text", width: 34, note: "The fabrics on this order, comma separated — the same list the Orders screen shows. Cancelled lines are left out, so it matches the count beside it." },
+    { key: "qualities", label: "Fabric count", type: "int", total: "none", note: "How many distinct fabrics that is. Not added up at the foot — the same fabric on two orders is one fabric." },
     { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
     { key: "repeated_lines", label: "Extra lines", type: "int", note: "How many EXTRA lines repeat a fabric and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same fabric and design can go at two rates or for two lots, and the order's totals are right either way." },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR", note: "Cancelled lines excluded." },

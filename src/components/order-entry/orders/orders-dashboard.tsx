@@ -15,10 +15,14 @@
 // keeps the old rows on screen while a new filter loads, so the table never
 // flashes empty.
 //
-// Search applies on ENTER (it is a <form>), not per keystroke — a full-set
-// refetch on every character is not a search box, it is a denial of service.
-// The column filters, which fire on every keystroke inside OrderFilters, are
-// debounced 300ms here instead.
+// Search is LIVE, debounced 300ms — the same treatment the column filters
+// have always had. It used to apply only on ENTER, on the reasoning that a
+// refetch per character is a denial of service. The reasoning was right and
+// the remedy was wrong: debouncing is what stops the refetch-per-character,
+// and Enter-only stops the search instead. Somebody typing a fabric name got
+// an unchanged table and concluded the data was not there.
+//
+// Enter still works and still applies immediately — it just is not required.
 
 import * as React from "react";
 import Link from "next/link";
@@ -137,7 +141,9 @@ export function OrdersDashboard({
 }) {
   const queryClient = useQueryClient();
 
-  // Typed vs SUBMITTED. Only `search` reaches the query key.
+  // Typed vs APPLIED. `searchInput` is what is in the box; `search` is what
+  // the query key uses, and it follows the box 300ms behind — or immediately
+  // when Enter is pressed, which is what `applySearch` still does.
   const [searchInput, setSearchInput] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -153,6 +159,14 @@ export function OrdersDashboard({
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("");
 
   const debouncedFilters = useDebouncedValue(filters, 300);
+
+  // 300ms, the same as the column filters. One request per pause, not one per
+  // keystroke — which was the real objection to a live search box, and this is
+  // its answer.
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
+  React.useEffect(() => {
+    setSearch(debouncedSearch.trim());
+  }, [debouncedSearch]);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -468,13 +482,16 @@ export function OrdersDashboard({
       {/* Region B — toolbar */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {/* A <form>: the search applies on Enter, not per keystroke. */}
+          {/* Still a <form> so Enter applies immediately; the debounce above
+              means nobody has to press it. */}
           <form onSubmit={applySearch} className="relative w-full sm:flex-1">
             <IconSearch className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-3" />
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search order no, party, challan, lot…"
+              // Naming what it searches, because a box that quietly ignores
+              // what you typed reads as "no such order".
+              placeholder="Search order no, party, fabric, design, agent, challan…"
               aria-label="Search orders"
               className="h-9 pl-8 text-[13px]"
             />

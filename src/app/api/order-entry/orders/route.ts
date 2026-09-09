@@ -61,12 +61,44 @@ export async function GET(req: Request) {
   const from = q.get("from") ?? "";
   const to = q.get("to") ?? "";
 
+  // ── ONE BOX, EVERY COLUMN A PERSON CAN SEE ───────────────────────────
+  //
+  // It searched four fields — order no, party, challan, lot — so typing a
+  // FABRIC found nothing, on a screen whose own table has a Fabrics column
+  // showing "ASTOR, Platinum." The person doing the typing has no way to know
+  // which four of the ten columns in front of them are searchable, and a box
+  // that silently ignores what you typed reads as "no such order".
+  //
+  // Fabric and design live on the LINE, so they go through an EXISTS rather
+  // than a join: a join would multiply an order by its lines and inflate every
+  // count on the screen — the same reason the visible-line check below is an
+  // EXISTS. Note this is `ilike` where the fabric FILTER param is `eq`, and
+  // that is deliberate: the filter is a dropdown over the real fabric list and
+  // means "exactly this one", while a search box means "contains what I typed".
   const searchFilter = search
     ? or(
         ilike(customerOrders.orderNo, `%${search}%`),
         ilike(customerOrders.partyName, `%${search}%`),
         ilike(customerOrders.challanNo, `%${search}%`),
         ilike(customerOrders.lotNo, `%${search}%`),
+        ilike(customerOrders.agent, `%${search}%`),
+        ilike(customerOrders.salesPerson, `%${search}%`),
+        ilike(customerOrders.transport, `%${search}%`),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(orderLineItems)
+            .where(
+              and(
+                eq(orderLineItems.orderId, customerOrders.id),
+                eq(orderLineItems.isDeleted, false),
+                or(
+                  ilike(orderLineItems.quality, `%${search}%`),
+                  ilike(orderLineItems.designNo, `%${search}%`),
+                ),
+              ),
+            ),
+        ),
       )
     : undefined;
   const filter = and(
