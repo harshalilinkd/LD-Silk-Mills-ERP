@@ -1185,11 +1185,41 @@ beside the entry's reference, date, payee, amount and reason.
 - **The storage path is NEVER written into the file.** The workbook draws the
   picture and throws the path away — the whole attachment design refuses to
   hand out anything that works without a permission check.
-- **It is capped, loudly**: 200 pictures and 20 MB, because a picture is
-  stored WHOLE (Excel scales the display, not the bytes) and there is no
-  rasteriser here to shrink one. What did not fit is counted on the sheet with
-  where to find it, and a file that is not a picture Excel can draw — a PDF
-  bill, a .tif — gets its line saying what it is. Nothing is silently dropped.
+- **THE CAP IS SET BY THE PLATFORM, AND THE FIRST ONE WAS WRONG.** The export
+  route hands the WHOLE workbook back as one response body, and **Vercel
+  refuses a serverless response over 4.5 MB** (`FUNCTION_PAYLOAD_TOO_LARGE`) —
+  the response-side twin of the 4.5 MB REQUEST cap that already forced petty
+  cash uploads to go browser-to-storage. The sheet shipped with a 20 MB budget
+  and every local test passed, because `toWorkbook()` and a curl against
+  localhost have no such limit: one 1.53 MB receipt made a 1.54 MB workbook and
+  looked perfect. **The third receipt would have been a broken download in
+  front of the MD.**
+
+  Two controls now, and they do different jobs:
+  - `MAX_IMAGES` 60 / `MAX_BYTES` 3 MB — the normal control, which drops the
+    TAIL and keeps the rest.
+  - `RESPONSE_CEILING` 4 MB, checked on the FINISHED file in `toWorkbook`. A
+    budget on source bytes is a prediction; over the ceiling the platform does
+    not truncate the download, it replaces it with an error. If the pictures
+    pushed the file past it, the workbook is built ONCE more without them and
+    says so on its own face. That fallback drops EVERY picture, which is why
+    the budget has to be the thing that normally decides — a budget so tight
+    the guard never gets close is receipts thrown away for nothing.
+
+  `.scratch/payload-test.ts` proves both paths with synthetic receipts. **Its
+  first version passed everything and was worthless**: it drew a pattern, the
+  xlsx zip squeezed 1.5 MB down to 0.2 MB, and eight copies of one image were
+  deduplicated by ExcelJS into a single stored part. Fake receipts must be
+  RANDOM pixels and DISTINCT per image, or the test measures compression
+  instead of payload.
+
+  What did not fit is counted on the sheet with where to find it, and a file
+  that is not a picture Excel can draw — a PDF bill, a .tif — gets its line
+  saying what it is. Nothing is silently dropped.
+- **Receipts are fetched in concurrent batches**, six at a time, not one after
+  another inside the drawing loop. Sixty end-to-end round trips to storage on a
+  function whose clock is running is how an export times out; `maxDuration` on
+  the route is 60s, the most a Hobby plan allows and well inside Pro's.
 - **Sizes come from the file's own header** (`image-size.ts`: PNG IHDR, GIF
   screen descriptor, JPEG SOF walk), so a portrait photo of a bill is not
   squashed into a landscape box, and a small thumbnail is never blown up.
@@ -1495,6 +1525,39 @@ throw it out. The ones worth remembering, because each is a rule now:
   produce DIFFERENT pages. A default parameter hides a missing caller; when one
   carries meaning, test the two cases apart.
 
+**TWO MORE FIGURE DEFECTS, FOUND BY ASKING WHETHER THE MODULE WAS READY**
+(Sep 2026). The answer was no, and these came out of checking rather than
+assuming:
+
+- **An order with NO LIVE LINE is neither open nor complete.** Four orders have
+  none — three had every line cancelled, one had its only line deleted. Openness
+  is `reached_no < 7`, and an order with no lines has no stages, so all four read
+  as *"Not started, open 33 days"* forever: inside "Still open", inside the
+  ageing panel, inside "open over a month" — and once `Reached` gained its badge
+  they were AMBER, telling somebody to chase an order that was cancelled. They
+  stay on the register, because they were placed and their cancelled value is
+  real; `Reached` says **All lines cancelled** (badged grey, not amber), and
+  `Days open` and `Age` are blank rather than zero so they cannot sit in the
+  footer average.
+- **The same four made "Avg order" 1.2% low.** Agent performance counted
+  `count(distinct o.id)`, which includes an order contributing nothing to the
+  value column, so the footer divided the whole book by 347 while the numerator
+  covered 343. It is `count(distinct o.id) filter (where not li.is_cancelled)`
+  now, and real Excel computes ₹2,70,625.07 — matching independently-written
+  SQL to the paisa. The report's CUSTOMER count deliberately still counts
+  everyone who placed an order; that difference is the documented one the
+  line-detail insight explains in a clause.
+
+**ONE CLOCK PER RUN, NOT ONE PER ROW.** `Date.now()` was read inside the row
+loop in both order-register and production-status. `Days since move` is rounded
+to a tenth of a day, so a row sitting on that boundary read 4.2 near the start
+of a 6,000-row run and 4.3 near the end — **one file describing two different
+instants** — and two runs seconds apart produced different bytes. The
+byte-identical check caught it and it LOOKED like non-deterministic ordering,
+which it was not: the ORDER BY has carried a total tie-break on the line id all
+along. A report describes one moment, the moment it was run. Read once, use
+everywhere.
+
 **The regression suite that has to stay green** (`.scratch/` while it lasts):
 `verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
 independently-written SQL, byte-identical double runs; `filters-honest.ts` —
@@ -1502,7 +1565,9 @@ every filter narrowed by an impossible value must return 0 rows, which is the
 only test that catches a dropdown the query ignores; `edge-zero.ts` — every
 report over a period with no data, which is where four reports used to print
 "the top five qualities are most of it"; `excel-check.ps1` — real Excel opens
-every workbook with exactly the chart count the zip holds; and a structural
+every workbook with exactly the chart count the zip holds; `payload-test.ts` —
+a workbook with receipts stays inside what the platform will send, both when
+the budget trims the tail and when the ceiling drops the sheet; and a structural
 pass that re-reads every produced file and checks headers against the
 definitions, every Notes sheet against every column, and every chart's cached
 values against the cells they point at.

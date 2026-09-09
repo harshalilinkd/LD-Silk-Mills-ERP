@@ -76,6 +76,24 @@ const bucketOf = (d: number) => AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "O
 async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL, orderFilterArgs(params))) as unknown as Raw[];
 
+  // ── ONE CLOCK FOR THE WHOLE RUN ──────────────────────────────────
+  //
+  // The clock used to be read INSIDE the row loop, once per row. Two
+  // consequences, and the second is the one verification caught:
+  //
+  //   · Rows at the top and the bottom of a 6,000-row file could describe
+  //     DIFFERENT instants. "Days since move" is rounded to a tenth of a day,
+  //     so a row sitting on that boundary reads 4.2 near the start of the run
+  //     and 4.3 near the end — one file, two clocks.
+  //   · Two runs seconds apart produced different bytes, which is exactly what
+  //     the byte-identical check in `.scratch/verify.ts` is for. It looked
+  //     like non-deterministic ORDERING and was not: the ORDER BY has carried
+  //     a total tie-break on the line id all along.
+  //
+  // A report describes ONE moment, the moment it was run. Read once, use
+  // everywhere.
+  const runAt = Date.now();
+
   const rows: ReportRow[] = raw.slice(0, MAX_EXPORT_ROWS).map((r) => {
     const out: ReportRow = {
       order_no: r.order_no as string,
@@ -128,7 +146,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
     out.age_bucket = isOpen ? bucketOf(n(r.days_open as number)) : "Finished";
     const tick = r.last_tick as string | null;
     out.days_since_move = tick
-      ? Math.round(((Date.now() - new Date(tick).getTime()) / 86_400_000) * 10) / 10
+      ? Math.round(((runAt - new Date(tick).getTime()) / 86_400_000) * 10) / 10
       : null;
 
     const first = r.s0_at as string | null;

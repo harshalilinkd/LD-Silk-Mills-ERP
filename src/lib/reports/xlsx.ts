@@ -243,8 +243,43 @@ function buildData(
 const RECEIPTS_SHEET = "Receipts";
 /** Pixels. Wide enough to read a printed amount, short enough to scroll. */
 const IMAGE_BOX = { width: 260, height: 150 };
-const MAX_IMAGES = 200;
-const MAX_BYTES = 20 * 1024 * 1024;
+/**
+ * ── THE BUDGET IS SET BY THE PLATFORM, NOT BY TASTE ──────────────────────
+ *
+ * The export route hands the WHOLE workbook back as one response body, and
+ * **Vercel refuses a serverless response over 4.5 MB** (FUNCTION_PAYLOAD_TOO
+ * _LARGE) — the response-side twin of the 4.5 MB request cap that already
+ * forced petty cash uploads to go browser-to-storage.
+ *
+ * The first version of this sheet budgeted 20 MB of source bytes. Every local
+ * test passed, because `toWorkbook()` and a curl against localhost have no
+ * such limit: one 1.53 MB receipt produced a 1.54 MB workbook and looked fine.
+ * THREE receipts of that size would have been a broken download in front of
+ * the MD, on a module about to be handed to six people.
+ *
+ * A picture is already compressed, so the zip does not shrink it — the
+ * finished workbook is roughly the images plus the sheets. 3 MB of pictures
+ * therefore leaves a megabyte under the ceiling for even the widest report's
+ * data.
+ *
+ * `toWorkbook` re-checks the FINISHED file as a last resort, but that fallback
+ * drops EVERY picture — so this budget, which drops only the tail, has to be
+ * the thing that normally decides. A budget so tight the guard never gets
+ * close is not caution, it is receipts thrown away for nothing.
+ */
+const MAX_IMAGES = 60;
+const MAX_BYTES = 3 * 1024 * 1024;
+/** How many receipts to pull from storage at once. */
+const FETCH_CONCURRENCY = 6;
+
+/**
+ * What the platform will actually hand back in one response.
+ *
+ * Vercel's cap is 4.5 MB; this sits under it because the measurement here is
+ * the zip and the response also carries headers. A file over this is rebuilt
+ * without its pictures rather than sent and refused.
+ */
+const RESPONSE_CEILING = 4 * 1024 * 1024;
 
 async function buildReceipts(
   wb: ExcelJS.Workbook,
@@ -297,31 +332,50 @@ async function buildReceipts(
   let skippedForBudget = 0;
   const notPictures: string[] = [];
 
+  // ── FETCHED IN PARALLEL, NOT ONE AT A TIME ────────────────────────────
+  //
+  // This used to await each receipt inside the drawing loop, so a period with
+  // sixty of them made sixty round trips to storage END TO END while a
+  // serverless function's clock ran. The pictures are independent of each
+  // other and of the rows, so they are pulled in small concurrent batches
+  // first and drawn afterwards. Batches rather than one big Promise.all
+  // because the BUDGET has to stop the fetching: past it there is nothing to
+  // be gained by reading bytes we are not going to embed.
+  const fetched = new Map<string, Buffer>();
+  {
+    const wanted = jobs.filter((j) => excelImageKind(j.mime, j.name));
+    for (let i = 0; i < wanted.length && fetched.size < MAX_IMAGES; i += FETCH_CONCURRENCY) {
+      if (bytes >= MAX_BYTES) break;
+      const batch = wanted.slice(i, i + FETCH_CONCURRENCY);
+      const got = await Promise.all(
+        batch.map(async (j) => {
+          try {
+            return [j.ref, await images.load(j.ref)] as const;
+          } catch {
+            // A receipt the bucket will not hand back is a line on the sheet,
+            // not a failed export. The rest of the pack is still correct.
+            return [j.ref, null] as const;
+          }
+        }),
+      );
+      for (const [ref, data] of got) {
+        if (!data) continue;
+        // The first picture always goes in, whatever it weighs: a single
+        // oversized scan should arrive alone rather than leave the sheet
+        // empty with nothing to explain it.
+        if (fetched.size > 0 && bytes + data.length > MAX_BYTES) continue;
+        if (fetched.size >= MAX_IMAGES) break;
+        fetched.set(ref, data);
+        bytes += data.length;
+      }
+    }
+  }
+
   for (const job of jobs) {
     const kind = excelImageKind(job.mime, job.name);
-    const overBudget = drawn >= MAX_IMAGES || bytes >= MAX_BYTES;
-
-    let data: Buffer | null = null;
-    if (kind && !overBudget) {
-      try {
-        data = await images.load(job.ref);
-      } catch {
-        // A receipt the bucket will not hand back is a line on the sheet, not
-        // a failed export. The rest of the pack is still correct.
-        data = null;
-      }
-      // Never let the LAST picture be the one that blows the budget, and never
-      // let the budget stop the first one - a single 30 MB scan should still
-      // arrive, alone, rather than leave the sheet empty with no explanation.
-      if (data && drawn > 0 && bytes + data.length > MAX_BYTES) {
-        data = null;
-        skippedForBudget++;
-      }
-    } else if (kind) {
-      skippedForBudget++;
-    } else {
-      notPictures.push(job.name);
-    }
+    const data = kind ? (fetched.get(job.ref) ?? null) : null;
+    if (!kind) notPictures.push(job.name);
+    else if (!data) skippedForBudget++;
 
     const row = ws.getRow(r);
     beside.forEach((c, i) => {
@@ -355,14 +409,11 @@ async function buildReceipts(
       // Points, not pixels: 0.75 pt to the pixel, plus a little air.
       row.height = Math.max(20, Math.round(fit.height * 0.75) + 8);
       drawn++;
-      bytes += data.length;
     } else {
       const cell = row.getCell(imgCol);
       cell.value = !kind
-        ? "Not a picture Excel can draw - open this one in the app"
-        : overBudget
-          ? "Left out to keep this file a sensible size - open it in the app"
-          : "Could not be read from storage";
+        ? "Not a picture Excel can draw — open this one in the app"
+        : "Left out to keep this file inside what the server will send — open it in the app";
       cell.font = { name: BODY, size: 9, italic: true, color: { argb: C.ink3 } };
       cell.alignment = { vertical: "middle", wrapText: true };
       row.height = 20;
@@ -381,7 +432,7 @@ async function buildReceipts(
   const said: string[] = [plural(drawn, "receipt") + " drawn on this sheet."];
   if (skippedForBudget) {
     said.push(
-      `${plural(skippedForBudget, "picture")} left out: a workbook stops being mailable somewhere past ${Math.round(MAX_BYTES / (1024 * 1024))} MB, and receipts are stored at full size because there is nothing here that can shrink them. Open those entries in Petty Cash to see them.`,
+      `${plural(skippedForBudget, "picture")} left out. A receipt is stored at full size — there is nothing here that can shrink one — and the server will not send a file much past 4 MB, so this sheet stops at ${Math.round((MAX_BYTES / (1024 * 1024)) * 10) / 10} MB of pictures. Open those entries in Petty Cash to see them.`,
     );
   }
   if (notPictures.length) {
@@ -534,11 +585,6 @@ export async function toWorkbook(
   /** From `ReportResult.images`. Draws the Receipts sheet; CSV never sees it. */
   images?: ReportImages,
 ): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = "LD Silk Mills ERP";
-  wb.created = meta.runAt;
-  wb.title = report.title;
-
   const period =
     params.from && params.to ? `${params.from} to ${params.to}` : "everything on record";
   const subtitle =
@@ -588,29 +634,63 @@ export async function toWorkbook(
     filterList.push(`${f.label}: ${shown}`);
   }
 
-  const charts = buildDashboard(wb, report.title, subtitle, analysis, filterList, {
-    columns,
-    rows,
-  });
-  buildData(wb, columns, rows);
+  const assemble = async (
+    withImages: ReportImages | undefined,
+    extraCaveat?: string,
+  ): Promise<Buffer> => {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "LD Silk Mills ERP";
+    wb.created = meta.runAt;
+    wb.title = report.title;
 
-  // After Data, before Notes: the annexure sits behind the table it belongs
-  // to. It costs one storage read per receipt, so it is only reached when a
-  // report actually declares attachments.
-  if (images) await buildReceipts(wb, columns, rows, images);
+    const a = extraCaveat
+      ? { ...analysis, caveats: [extraCaveat, ...analysis.caveats] }
+      : analysis;
 
-  buildNotes(wb, report, params, analysis, {
-    runBy: meta.runBy,
-    runAt: meta.runAt,
-    rowsShown: rows.length,
-    totalRows: meta.totalRows,
-  }, filterLabels);
+    const charts = buildDashboard(wb, report.title, subtitle, a, filterList, {
+      columns,
+      rows,
+    });
+    buildData(wb, columns, rows);
 
-  // The charts are written into the FINISHED zip. ExcelJS has no chart API, so
-  // the four OOXML parts a native chart needs are added afterwards - see
-  // `xlsx-charts.ts`. Nothing else in the workbook is touched, which is the
-  // point: a post-processing step that rewrote cells is exactly how a total
-  // ends up disagreeing between the Data sheet and the Dashboard.
-  const out = await wb.xlsx.writeBuffer();
-  return injectCharts(out, "Dashboard", charts);
+    // After Data, before Notes: the annexure sits behind the table it belongs
+    // to. It costs one storage read per receipt, so it is only reached when a
+    // report actually declares attachments.
+    if (withImages) await buildReceipts(wb, columns, rows, withImages);
+
+    buildNotes(wb, report, params, a, {
+      runBy: meta.runBy,
+      runAt: meta.runAt,
+      rowsShown: rows.length,
+      totalRows: meta.totalRows,
+    }, filterLabels);
+
+    // The charts are written into the FINISHED zip. ExcelJS has no chart API,
+    // so the four OOXML parts a native chart needs are added afterwards - see
+    // `xlsx-charts.ts`. Nothing else in the workbook is touched, which is the
+    // point: a post-processing step that rewrote cells is exactly how a total
+    // ends up disagreeing between the Data sheet and the Dashboard.
+    const out = await wb.xlsx.writeBuffer();
+    return injectCharts(out, "Dashboard", charts);
+  };
+
+  // ── THE FINISHED FILE IS MEASURED, NOT ESTIMATED ──────────────────────
+  //
+  // `MAX_BYTES` keeps the pictures inside a sensible budget, but a budget on
+  // SOURCE bytes is a prediction about the finished file, and this is the one
+  // place a prediction is not good enough: over the ceiling the platform does
+  // not truncate the download, it replaces it with an error, and the person
+  // who asked for the report gets nothing.
+  //
+  // So the built file is weighed. If the pictures pushed it past what the
+  // server will send, the workbook is built ONCE more without them and says
+  // so on its own face. Every figure is identical - only the annexure is
+  // gone - and a pack that arrives without its receipts beats a download
+  // that fails.
+  const file = await assemble(images);
+  if (!images || file.byteLength <= RESPONSE_CEILING) return file;
+  return assemble(
+    undefined,
+    `The receipts are NOT in this file. With them it came to ${(file.byteLength / (1024 * 1024)).toFixed(1)} MB, which is more than the server will send in one download. Every figure here is unchanged; open the entries in Petty Cash to see the bills, or run a narrower period to get them in the file.`,
+  );
 }

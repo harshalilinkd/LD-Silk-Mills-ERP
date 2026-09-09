@@ -49,6 +49,9 @@ import { MAX_EXPORT_ROWS } from "../types";
  * everywhere: it was a mistake being unmade, not an event.
  */
 
+/** What `Reached` says for an order whose every line was cancelled or removed. */
+const NOTHING_LIVE = "All lines cancelled";
+
 const REGISTER_SQL = `
   with lines as (
     select
@@ -215,6 +218,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const totalRows = raw.length;
   const capped = raw.slice(0, MAX_EXPORT_ROWS);
 
+  // ── ONE CLOCK FOR THE WHOLE RUN ──────────────────────────────────
+  //
+  // The clock used to be read INSIDE the row loop, once per row. Two
+  // consequences, and the second is the one verification caught:
+  //
+  //   · Rows at the top and the bottom of a 6,000-row file could describe
+  //     DIFFERENT instants. "Days since move" is rounded to a tenth of a day,
+  //     so a row sitting on that boundary reads 4.2 near the start of the run
+  //     and 4.3 near the end — one file, two clocks.
+  //   · Two runs seconds apart produced different bytes, which is exactly what
+  //     the byte-identical check in `.scratch/verify.ts` is for. It looked
+  //     like non-deterministic ORDERING and was not: the ORDER BY has carried
+  //     a total tie-break on the line id all along.
+  //
+  // A report describes ONE moment, the moment it was run. Read once, use
+  // everywhere.
+  const runAt = Date.now();
+
   const rows: ReportRow[] = capped.map((r) => ({
     order_no: r.order_no,
     order_date: r.order_date?.slice(0, 10) ?? null,
@@ -223,17 +244,23 @@ async function run(params: ReportParams): Promise<ReportResult> {
     sales_person: r.sales_person,
     transport: r.transport,
     haste: r.haste,
-    stage: r.stage,
-    furthest_line: r.furthest_line,
-    is_complete: n(r.reached_no) >= 7,
-    days_open: n(r.days_open),
-    age_bucket: bucketOf(n(r.days_open)),
+    // "Not started" is what the stage table says when there are no stages,
+    // which is true of a brand-new order AND of one whose every line was
+    // cancelled. Only the second of those is finished with; saying so is the
+    // difference between a chase list and a wrong chase list.
+    stage: n(r.live_lines) === 0 ? NOTHING_LIVE : r.stage,
+    furthest_line: n(r.live_lines) === 0 ? NOTHING_LIVE : r.furthest_line,
+    is_complete: n(r.live_lines) > 0 && n(r.reached_no) >= 7,
+    // Blank, not zero: an order nothing is waiting on has no age to report,
+    // and a 0 would sit in the footer average pulling it down.
+    days_open: n(r.live_lines) === 0 ? null : n(r.days_open),
+    age_bucket: n(r.live_lines) === 0 ? null : bucketOf(n(r.days_open)),
     live_lines: n(r.live_lines),
     finished_lines: n(r.finished_lines),
     lines_through:
       n(r.live_lines) > 0 ? (n(r.finished_lines) / n(r.live_lines)) * 100 : null,
     days_since_move: r.last_tick
-      ? Math.round(((Date.now() - new Date(r.last_tick).getTime()) / 86_400_000) * 10) / 10
+      ? Math.round(((runAt - new Date(r.last_tick).getTime()) / 86_400_000) * 10) / 10
       : null,
     last_tick: r.last_tick,
     line_count: n(r.line_count),
@@ -284,8 +311,22 @@ async function run(params: ReportParams): Promise<ReportResult> {
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
 
-  const complete = raw.filter((r) => n(r.reached_no) >= 7);
-  const open = raw.filter((r) => n(r.reached_no) < 7);
+  // ── AN ORDER WITH NOTHING LIVE IS NEITHER OPEN NOR COMPLETE ───────────
+  //
+  // Four orders have no live line: three had every line cancelled, one had
+  // its only line deleted. Open-ness is `reached_no < 7`, and an order with
+  // no lines has no stages, so all four read as "Not started, open 33 days"
+  // FOREVER. They sat inside "Still open 264", inside the ageing panel, and
+  // inside "open over a month" - and once `Reached` gained its badge they
+  // were amber, telling somebody to chase an order that was cancelled.
+  //
+  // They stay ON the register, because they were placed and their cancelled
+  // value is real. They are simply not counted as work outstanding.
+  const nothingLive = raw.filter((r) => n(r.live_lines) === 0);
+  const complete = raw.filter((r) => n(r.live_lines) > 0 && n(r.reached_no) >= 7);
+  const open = raw.filter((r) => n(r.live_lines) > 0 && n(r.reached_no) < 7);
+  /** Orders that could still be finished — the honest denominator. */
+  const liveOrders = raw.length - nothingLive.length;
   const openValue = open.reduce((s, r) => s + n(r.value), 0);
   const openOver30 = open.filter((r) => n(r.days_open) > 30);
   const partlyDone = open.filter(
@@ -361,7 +402,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   if (raw.length) {
     insights.push(
-      `${count(complete.length)} of ${count(raw.length)} orders are finished. The other ${count(open.length)} carry ${inrShort(openValue)}` +
+      `${count(complete.length)} of ${count(liveOrders)} orders are finished. The other ${count(open.length)} carry ${inrShort(openValue)}` +
         (partlyDone.length
           ? `, and ${count(partlyDone.length)} of those are part done — some lines through, some not.`
           : "."),
@@ -554,7 +595,9 @@ export const orderRegister: ReportDefinition = {
       // Only "Not started" is coloured. A stage name is not good or bad —
       // an order at Challan is not doing worse than one at Bill — but an
       // order with NOTHING ticked is the one somebody has to chase.
-      badge: { "Not started": "warn" },
+      // Grey for the cancelled ones, not amber: they are settled, and an
+      // amber cell is an instruction to go and chase somebody.
+      badge: { "Not started": "warn", [NOTHING_LIVE]: "neutral" },
       note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences." },
     { key: "furthest_line", label: "Furthest line", type: "text", width: 17, note: "The furthest stage ANY line has finished, for the other reading." },
     { key: "is_complete", label: "Complete", type: "boolean",

@@ -31,7 +31,12 @@ const SQL = (dim: "agent" | "sales_person") => `
     select
       coalesce(nullif(trim(o.${dim}), ''), 'Not recorded')            as who,
       o.party_name,
-      count(distinct o.id)                                            as orders,
+      -- ONLY ORDERS THAT STILL HAVE SOMETHING LIVE. A plain count(distinct
+      -- o.id) also counted the four orders whose every line was cancelled,
+      -- which contribute nothing to the value column - so Avg order divided the
+      -- whole book by 337 while the numerator covered 333, reading 1.2% low
+      -- on a file that goes to the MD. No live line, no average.
+      count(distinct o.id) filter (where not li.is_cancelled)         as orders,
       coalesce(sum(li.line_total) filter (where not li.is_cancelled), 0) as value
     from ld_order_entry.customer_orders o
     left join ld_order_entry.order_line_items li

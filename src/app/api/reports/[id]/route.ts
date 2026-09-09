@@ -27,6 +27,14 @@ import { toWorkbook } from "@/lib/reports/xlsx";
  * keys the report actually declares, so an extra query parameter cannot reach
  * the query. The queries themselves bind every value as a parameter.
  */
+/**
+ * A workbook is not a JSON response, and the platform's default clock is set
+ * for one. Production status is 6,055 rows and 39 columns; a Petty Cash export
+ * also reads its receipts out of storage. Sixty seconds is the most a Hobby
+ * plan allows and well inside Pro's, so it is the safe number for both.
+ */
+export const maxDuration = 60;
+
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
