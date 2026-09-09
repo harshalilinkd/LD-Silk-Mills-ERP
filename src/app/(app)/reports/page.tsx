@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { addMonths, startOfMonth, todayIso } from "@/lib/dates";
 import { canRunReport, resolveReportViewer } from "@/lib/reports/authz";
 import { reportsByModule } from "@/lib/reports/registry";
 import { MODULE_META } from "@/lib/reports/types";
@@ -61,15 +60,17 @@ export default async function ReportsPage() {
         columnCount: r.columns.length,
         allowed,
         lockedBy: allowed ? null : MODULE_META[r.module].label,
-        defaultFrom: r.defaultMonthsBack
-          ? startOfMonth(addMonths(todayIso(), -(r.defaultMonthsBack - 1)))
-          : null,
-        defaultTo: r.defaultMonthsBack ? todayIso() : null,
+        // Kept on the DEFINITION but no longer pre-filled into the picker:
+        // a default window that nobody chose is how an export quietly loses
+        // the months before it. The dates start blank, which the route reads
+        // as the whole period. See the note in `reports-screen.tsx`.
+        defaultFrom: null,
+        defaultTo: null,
         filters,
       });
     }
     cards.push({ module: g.module, label: g.label, reports });
   }
 
-  return <ReportsScreen groups={cards} today={todayIso()} />;
+  return <ReportsScreen groups={cards} />;
 }

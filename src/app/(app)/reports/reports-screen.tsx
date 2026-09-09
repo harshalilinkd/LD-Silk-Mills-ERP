@@ -102,10 +102,8 @@ const MODULE_BLURB: Record<string, string> = {
 
 export function ReportsScreen({
   groups,
-  today,
 }: {
   groups: ModuleGroup[];
-  today: string;
 }) {
   const [search, setSearch] = React.useState("");
   const [openModule, setOpenModule] = React.useState<string | null>(null);
@@ -274,7 +272,6 @@ export function ReportsScreen({
                   <Report
                     key={r.id}
                     report={r}
-                    today={today}
                     open={openReport === r.id}
                     onToggle={() => setOpenReport(openReport === r.id ? null : r.id)}
                   />
@@ -289,17 +286,29 @@ export function ReportsScreen({
 
 function Report({
   report,
-  today,
   open,
   onToggle,
 }: {
   report: ReportCard;
-  today: string;
   open: boolean;
   onToggle: () => void;
 }) {
-  const [from, setFrom] = React.useState(report.defaultFrom ?? "");
-  const [to, setTo] = React.useState(report.defaultTo ?? today);
+  // ── AN EXPORT STARTS AS EVERYTHING ───────────────────────────────────
+  //
+  // These boxes used to open pre-filled with the report's own
+  // `defaultMonthsBack` — three months on the order register, TWO on line
+  // detail. Nothing was wrong with the file that came out: it carried exactly
+  // the window it was handed. But the window had been chosen by a default
+  // nobody set, so somebody exported "their orders", searched the sheet for
+  // order 420 and found nothing, because 420 was raised in May and the box
+  // silently said June.
+  //
+  // A person who wants a narrower period types one; a person who wants their
+  // data should not have to notice a date field to get it. The route already
+  // treats missing dates as the whole period, so blank IS "everything" and no
+  // query changed. `MAX_EXPORT_ROWS` still caps the size, loudly.
+  const [from, setFrom] = React.useState("");
+  const [to, setTo] = React.useState("");
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<"csv" | "xlsx" | null>(null);
@@ -361,6 +370,16 @@ function Report({
 
       {open && (
         <div className="flex flex-col gap-3 border-t border-border px-4 py-3.5">
+          {/*
+            Said on the face of the form, because a blank date field reads as
+            "not filled in yet" and this one means the opposite.
+          */}
+          <p className="text-[12px] text-text-3">
+            Leave the dates blank for{" "}
+            <strong className="font-semibold text-text-2">everything on record</strong>
+            . Fill either one to narrow it.
+          </p>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="From" htmlFor={`${report.id}-from`}>
               <Input

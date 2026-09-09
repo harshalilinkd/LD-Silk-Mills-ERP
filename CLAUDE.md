@@ -1690,6 +1690,30 @@ the same arithmetic AND the same honesty: a figure prints its denominator, a
 figure that cannot be computed returns null rather than 0, and the median comes
 before the mean.
 
+**AN EXPORT STARTS AS EVERYTHING** (Sep 2026, owner: *"reports are wrong,
+I'm searching order no and it's showing nothing — it should export all data"*).
+The picker's date boxes opened PRE-FILLED from `defaultMonthsBack` — three
+months on the order register, **two** on line detail — so an export taken
+without touching them silently covered a window nobody had chosen. Order 420
+was raised on 18 May; the box said 9 June. Ten orders and 535 lines were
+missing and nothing on screen or in the sheet suggested it before somebody went
+looking for an order and found none.
+
+**The file was never wrong.** It carried exactly the window it was handed, the
+name said the range and the Notes sheet said the period — which is precisely
+why this was hard to see: every honest signal was downstream of a decision made
+for the user. A person who wants a narrower period types one; a person who
+wants their data should not have to notice a date field to get it.
+
+The boxes now start BLANK and the form says so above them. Nothing in the query
+layer changed — the route has always read missing dates as the whole period, so
+blank IS everything. `defaultMonthsBack` stays on the definitions as a record of
+what each report once thought sensible, with a comment saying it is wired to
+nothing; if it ever comes back it must be a visible SUGGESTION, never a silent
+pre-fill. Verified through the real route with no date parameters: order 420
+present in the register, in line detail and in production status, oldest row
+2026-05-17.
+
 **`MAX_EXPORT_ROWS` is 50,000** and truncation is LOUD — the file name gains
 `_PARTIAL`, the Notes sheet says how many were left out, and the dashboard
 figures still cover every matching row. Silently returning the first 50,000 of

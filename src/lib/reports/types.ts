@@ -366,7 +366,22 @@ export type ReportDefinition = {
   description: string;
   columns: ReportColumn[];
   filters: ReportFilter[];
-  /** Sensible default range when the picker opens: months back from today. */
+  /**
+   * NOT WIRED TO ANYTHING, AND THAT IS DELIBERATE.
+   *
+   * It used to pre-fill the picker's date boxes — three months on the order
+   * register, two on line detail. Nothing was wrong with the file that came
+   * out; it carried exactly the window it was handed. But the window had been
+   * chosen by a default nobody set, so somebody exported "their orders",
+   * searched the sheet for order 420 and found nothing, because 420 was raised
+   * in May and the box silently said June. Ten orders and 535 lines were
+   * missing with nothing on screen to suggest it.
+   *
+   * The dates now start BLANK, which the route reads as the whole period. This
+   * field is kept only as a record of what each report once considered a
+   * sensible window; if it is ever used again it must be as a visible
+   * SUGGESTION the person can see and accept, never a silent pre-fill.
+   */
   defaultMonthsBack?: number;
   run: (params: ReportParams) => Promise<ReportResult>;
 };
