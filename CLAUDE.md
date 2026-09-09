@@ -971,6 +971,54 @@ already hold `system_access` for it, so all six can READ the ledger the moment
 it goes live and only the ERP admin can record anything — worth a look before
 the first real entry.
 
+## The home page is an operational brain, not a description of the shell
+
+`/` (`src/app/(app)/page.tsx` + `src/lib/dashboard-brain.ts`). It used to be
+four tiles about the SHELL — systems configured, user rows, "modules queued" —
+over a panel reading *"no activity yet, once Phase 2 wires up
+authentication"*, printed over an audit table that had had rows in it for
+weeks. Nothing on it was a thing anybody could act on, on the one screen
+everybody opens first.
+
+It now reads in the order somebody asks: **what needs me** (six figures, then
+the exceptions with a link straight to the screen that clears them) → **what
+has been happening** (real audit rows) → **is everything up** (the old system
+registry, kept, because that genuinely is the view of the system).
+
+- **EVERY FIGURE IS GATED BY `system_access`.** The caller passes the codes it
+  already resolved for the sidebar and a probe whose code is missing NEVER
+  RUNS. A home page printing "₹7.73 cr still to deliver" to somebody with no
+  Orders access would be the one place in this ERP where that leaks, and it is
+  the most commercially sensitive number we hold. Proven, not assumed: a
+  four-module account renders three tiles and no Petty Cash or Checklist
+  figure; an account with none renders no tiles at all.
+- **Help Slip's figure goes through `withHelpSlip`** under the viewer's own
+  profile, so RLS decides what they may count exactly as it decides what they
+  may read — a bare count runs as `postgres`, which bypasses RLS and would put
+  a confidential HR concern into somebody's total. No profile, no tile.
+- **It must never run a REPORT.** Every probe is one aggregate against an
+  index, 4–15ms, awaited IN TURN (five-wide pool, transaction pooler). The
+  whole page renders in ~0.24s. Production status alone is 6,000 rows.
+- **It does not invent definitions.** "Live line" means what
+  `order-entry/shared.ts` means by it — not deleted and not cancelled. A home
+  page saying 274 open orders over a Reports page saying 270 is the
+  two-screens-disagree failure this module keeps writing rules to avoid, so the
+  figures are deliberately COUNTS and a balance, never a derived rate.
+- **Mobile is TWO tiles a row.** At 390px the old cards were one per row with
+  18px padding and a 26px figure, so four of them filled a phone before a word
+  of content. `grid-cols-2` from the smallest width, padding and figure stepped
+  down to match: six tiles cost three short rows, and the panels start above
+  the fold.
+- **A built sentence has to agree with its own count.** It shipped reading
+  *"1 petty cash entries have no proof recorded"*. `plural()` handles the noun;
+  `be()`/`have()` in `dashboard-brain.ts` handle the verb.
+
+**`.scratch/mint-session.ts` must set `token.userId`, not just `id`.** The real
+session callback (`auth.config.ts`) maps `token.userId → session.user.id`, so a
+token carrying only `id` produces a session that LOOKS signed in and has no
+user id — every permission-gated figure then resolves to "you have no modules"
+and the page looks broken when it is the harness that is.
+
 ## Reports — one engine, ten definitions built
 
 `/reports`, and it is the shell's own screen rather than a module: it is where
