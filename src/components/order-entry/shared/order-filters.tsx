@@ -31,6 +31,7 @@ import {
   monthRange,
   type MonthKey,
 } from "@/lib/order-entry/months";
+import { Autocomplete } from "@/components/order-entry/orders/autocomplete";
 import { useLookup } from "@/components/order-entry/orders/use-lookups";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +123,82 @@ const SELECT_CLASS = cn(
   "focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-ring/25",
 );
 
+/**
+ * Type to search, but only ever commit a REAL fabric name.
+ *
+ * A plain `<select>` over 244 fabrics is a scroll, not a search — the owner's
+ * words were "make it smart and dynamic like modern search as I type". The
+ * order form's `Autocomplete` already does the searching part well (ranked so
+ * a name STARTING with what you typed comes first, keyboard navigable), so it
+ * does the work here and this only adds the one rule it deliberately does not
+ * have: the value must exist.
+ *
+ * ── WHY IT CANNOT JUST BE FREE TEXT ──────────────────────────────────────
+ *
+ * Both endpoints match fabric EXACTLY, and they have to: 48 of the fabrics in
+ * use are contained inside another one. `INDIANA` sits inside `INDIANA CHECKS`
+ * and `INDIANA STRIPE`, `BARCODE` inside `BARCODE PLAIN`. Matching "contains"
+ * would quietly fold three fabrics into one and report a number nobody could
+ * tell was wrong. So typing narrows the LIST; only a name from that list
+ * becomes the filter.
+ *
+ * Typing a full name by hand counts as picking it, case-insensitively, and
+ * commits the canonical spelling. Anything else is a half-finished search:
+ * on blur the box goes back to whatever the filter actually is, so it can
+ * never sit showing text that is not what the table is filtered by.
+ */
+function FabricPicker({
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  value: string;
+  options: readonly string[];
+  onChange: (next: string) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = React.useState(value);
+  // The committed value, readable from inside the blur timeout without making
+  // the timeout depend on a stale render.
+  const committed = React.useRef(value);
+  committed.current = value;
+
+  React.useEffect(() => setDraft(value), [value]);
+
+  const canonical = React.useCallback(
+    (typed: string) =>
+      options.find((o) => o.toLowerCase() === typed.trim().toLowerCase()) ?? null,
+    [options],
+  );
+
+  return (
+    <Autocomplete
+      className={className}
+      placeholder="All fabrics"
+      aria-label="Fabric"
+      value={draft}
+      suggestions={options as string[]}
+      onValueChange={(v) => {
+        setDraft(v);
+        // Empty clears the filter outright — that is how you get back to all
+        // fabrics without hunting for a Clear.
+        if (v.trim() === "") {
+          onChange("");
+          return;
+        }
+        const exact = canonical(v);
+        if (exact) onChange(exact);
+      }}
+      onBlur={() => {
+        // After the list's own 120ms grace, so a click on a suggestion has
+        // already committed by the time this runs.
+        window.setTimeout(() => setDraft(committed.current), 160);
+      }}
+    />
+  );
+}
+
 export function OrderFilters({
   value,
   onChange,
@@ -195,25 +272,19 @@ export function OrderFilters({
 
         <label className="flex flex-col gap-1">
           <span className={LABEL_CLASS}>Fabric</span>
-          <select
-            className={SELECT_CLASS}
+          <FabricPicker
+            className={FIELD_CLASS}
             value={value.fabric}
-            onChange={(e) => set({ fabric: e.target.value })}
-          >
-            <option value="">All fabrics</option>
-            {/* A fabric that was filtered on and has since been switched off
-                in Masters would otherwise vanish from the list while still
-                being the active filter — the box would read "All fabrics"
-                over a narrowed table. */}
-            {value.fabric && !fabrics.includes(value.fabric) ? (
-              <option value={value.fabric}>{value.fabric}</option>
-            ) : null}
-            {fabrics.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
+            /* A fabric that is the active filter but has since been switched
+               off in Masters is kept in the list, or it would vanish from the
+               suggestions while still narrowing the table. */
+            options={
+              value.fabric && !fabrics.includes(value.fabric)
+                ? [value.fabric, ...fabrics]
+                : fabrics
+            }
+            onChange={(fabric) => set({ fabric })}
+          />
         </label>
 
         <label className="flex flex-col gap-1">
