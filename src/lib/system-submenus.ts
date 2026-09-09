@@ -26,7 +26,11 @@ export const SYSTEM_SUBMENUS: Record<string, SystemSubmenuItem[]> = {
   // would reasonably mistake for the whole archive.
   "help-slip": [
     { label: "Dashboard", href: "/help-slip", exact: true },
-    { label: "Raise a concern", href: "/help-slip/concerns/new" },
+    // "Raise a concern" is NOT here, on the owner's instruction. It is an
+    // ACTION, and the two screens it belongs to already offer it: the employee
+    // dashboard has the button, and My concerns has one in its header and
+    // another in its empty state. A menu entry beside those is a third door to
+    // the same room, and it made the sidebar list a verb among five nouns.
     { label: "My concerns", href: "/help-slip/concerns" },
     { label: "All concerns", href: "/help-slip/all" },
     { label: "Notifications", href: "/help-slip/notifications" },
