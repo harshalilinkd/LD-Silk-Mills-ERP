@@ -620,7 +620,13 @@ export const orderRegister: ReportDefinition = {
     { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad" } },
     { key: "live_lines", label: "Lines", type: "int", note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column." },
     { key: "finished_lines", label: "Lines finished", type: "int" },
-    { key: "lines_through", label: "Lines through", type: "percent", total: "avg", note: "How much of this order has finished." },
+    { key: "lines_through", label: "Lines through", type: "percent", total: "avg",
+      // WEIGHTED BY THE LINES, because this is a RATIO. Unweighted, a
+      // one-line order that finished counts as much as a forty-line order
+      // that did not: the foot read 33.07% where finished-over-live is
+      // 32.71%. Small here and the same class of error as the "Avg order"
+      // mean-of-means that read 24% low.
+      avgWeightBy: "live_lines", note: "How much of this order has finished." },
     { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
     { key: "last_tick", label: "Last ticked", type: "datetime" },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },

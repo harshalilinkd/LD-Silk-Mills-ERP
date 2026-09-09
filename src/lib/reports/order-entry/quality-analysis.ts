@@ -190,7 +190,7 @@ export const qualityAnalysis: ReportDefinition = {
     { key: "customers", label: "Customers", type: "int", total: "none", note: "Customers who bought it. Not added up, for the same reason." },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
-    { key: "share", label: "Share", type: "percent" },
+    { key: "share", label: "Share", type: "percent", total: "none", note: "Of the total value in this file's period. NOT added up at the foot — a share is already a share, and adding them gives 100. The rule its sibling percent columns already follow." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres — weighted, so a big line counts more. The foot is weighted the same way." },
     { key: "median_rate", label: "Middle rate", type: "money", total: "none", note: "The median line's rate — unweighted, so one big line cannot drag it. Not totalled: a median of medians means nothing." },
     { key: "min_rate", label: "Lowest rate", type: "money", total: "none" },

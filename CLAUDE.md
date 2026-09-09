@@ -1658,6 +1658,45 @@ which it was not: the ORDER BY has carried a total tie-break on the line id all
 along. A report describes one moment, the moment it was run. Read once, use
 everywhere.
 
+**THE SECOND AUDIT (Sep 2026) — 57 findings, 4 real.** The owner asked for the
+reports to be audited again. `.scratch/audit-all.ts` goes at the SHAPE rather
+than the figures — empty columns, totals that cannot honestly be added,
+sentences carrying a NaN, headers drifted from their definitions, two runs
+differing. **Fifty-three of the fifty-seven were thrown out**, and throwing them
+out was most of the work:
+
+- **Eight "column is empty in every row"** — checked against the source column
+  in the database, one at a time. All eight are empty because nobody has filled
+  the field in: `lot_no`, `challan_no`, `custom_reason`, `receiving_notes`,
+  `proof_other`, CRM `notes` and `completed_by`. `line-detail`'s Remarks reads
+  the LINE's remarks (0 of 6,466 filled), which is a different column from the
+  order's. The check stays because this is the exact signature of the fabric
+  rename that silently blanked a column — but a blank column is only a defect
+  when the source has data.
+- **Four "CSV formula guard did not fire" on `-`** — deliberate and documented
+  in `csv.ts`: a lone `-` is neither executed nor coerced by Excel, and
+  guarding it stopped the file round-tripping.
+- **Thirteen "average with no weight"** on day and count columns — a plain mean
+  IS the honest average of a per-row quantity. The `avgWeightBy` rule is about
+  RATIOS, not about every average.
+- **Four "badge map matches nothing"** — exception badges that have not fired
+  yet. That is what an exception badge looks like before the exception.
+
+The four that survived:
+
+- **`Lines through` is a RATIO and was averaged unweighted.** A one-line order
+  that finished counted as much as a forty-line order that did not, so the foot
+  read **33.07%** where finished-over-live is **32.71%**. Now
+  `avgWeightBy: "live_lines"`; real Excel computes 32.7% beside the 2,080 and
+  6,359 it is made of. Small, and the same class as the "Avg order" mean-of-means
+  that read 24% low.
+- **Three `Share` columns defaulted to SUM**, so their foot read `100.00%` —
+  while their own sibling percent columns in the same reports already declared
+  `total: "none"` (agent performance's "From that one") or a weight (party
+  analysis's "Cost as % of value"). Inconsistency inside one sheet is the
+  evidence it was an oversight rather than a decision. All three are `none` now;
+  Excel prints blank feet for them and still computes the weighted one.
+
 **The regression suite that has to stay green** (`.scratch/` while it lasts):
 `verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
 independently-written SQL, byte-identical double runs; `filters-honest.ts` —

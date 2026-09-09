@@ -246,7 +246,7 @@ export const partyAnalysis: ReportDefinition = {
     { key: "qty", label: "Metres", type: "number", unit: "MTR" },
     { key: "pieces", label: "Pieces", type: "int", unit: "PCS" },
     { key: "value", label: "Value returned", type: "money" },
-    { key: "share", label: "Share of returns", type: "percent", note: "Of everything returned in this file's period." },
+    { key: "share", label: "Share of returns", type: "percent", total: "none", note: "Of everything returned in this file's period. NOT added up at the foot — a share is already a share, and adding them gives 100. The rule its sibling percent columns already follow." },
     { key: "avg_return", label: "Avg return", type: "money", total: "avg", avgWeightBy: "returns", note: "Value divided by the returns that carry a value — the value-less ones are excluded from both sides, the same as everywhere else on this sheet. The foot is the file-wide average, weighted by how many returns each party sent." },
     { key: "no_value", label: "With no value", type: "int", note: "Returns from this party where no figure was entered." },
     { key: "cost", label: "Cost of moving it", type: "money" },
