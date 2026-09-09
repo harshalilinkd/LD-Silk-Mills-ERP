@@ -682,11 +682,61 @@ export async function loadInsights(
       and resolved_at::date <= ${to}::date
   `);
 
+  // ── THE THREE MEASURES THE PAGE WAS MISSING ──────────────────────────
+  //
+  // ONE statement, not three. Each is a different question, but they all read
+  // the same rows, and this dashboard already costs a pinned RLS connection —
+  // three round trips to answer three `count(*) filter (...)`s would be three
+  // times the connection hold for no extra truth.
+  //
+  // Deliberately NOT windowed by the date range. "How long have the open ones
+  // been waiting" is a question about now; clipping it to the chart's window
+  // would hide a concern that has been sitting since before it, which is
+  // exactly the one worth seeing.
+  const depth = await db.execute<{
+    first_reply_median: number | null;
+    awaiting_reply: number;
+    own_fix_used: number;
+    resolved_all: number;
+    age_0_1: number;
+    age_1_3: number;
+    age_3_7: number;
+    age_7_plus: number;
+  }>(sql`
+    select
+      round(percentile_cont(0.5) within group (
+        order by extract(epoch from (first_response_at - created_at)) / 3600.0
+      ) filter (where first_response_at is not null)::numeric, 1)::float8 as first_reply_median,
+      count(*) filter (where resolved_at is null and first_response_at is null)::int as awaiting_reply,
+      count(*) filter (where accepted_solution_id is not null)::int                  as own_fix_used,
+      count(*) filter (where resolved_at is not null)::int                           as resolved_all,
+      count(*) filter (where resolved_at is null and age_hours <  24)::int           as age_0_1,
+      count(*) filter (where resolved_at is null and age_hours >= 24  and age_hours < 72)::int  as age_1_3,
+      count(*) filter (where resolved_at is null and age_hours >= 72  and age_hours < 168)::int as age_3_7,
+      count(*) filter (where resolved_at is null and age_hours >= 168)::int          as age_7_plus
+    from ld_help_slip.v_concerns
+  `);
+
+  const d = [...depth][0];
   const res = resolution[0];
 
   return {
     from,
     to,
+    firstReply: {
+      medianHours: d?.first_reply_median ?? null,
+      awaiting: Number(d?.awaiting_reply ?? 0),
+    },
+    openAgeing: [
+      { label: "Under a day", count: Number(d?.age_0_1 ?? 0) },
+      { label: "1–3 days", count: Number(d?.age_1_3 ?? 0) },
+      { label: "3–7 days", count: Number(d?.age_3_7 ?? 0) },
+      { label: "Over a week", count: Number(d?.age_7_plus ?? 0) },
+    ],
+    ownFix: {
+      used: Number(d?.own_fix_used ?? 0),
+      ofResolved: Number(d?.resolved_all ?? 0),
+    },
     daily: [...daily].map((r) => ({
       d: r.d,
       filed: Number(r.filed),

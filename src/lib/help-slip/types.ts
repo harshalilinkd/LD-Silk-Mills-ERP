@@ -323,6 +323,36 @@ export type Insights = {
     medianHours: number | null;
     withinSla: number;
   };
+  /**
+   * ── THREE MEASURES THAT ARE NOT THE SAME MEASURE ───────────────────────
+   *
+   * The dashboard had five panels describing one number: a "Resolved" tile, a
+   * "1 resolved" chip, a 100% SLA figure, a chart spike and a one-bar
+   * department breakdown. Everything below answers a question none of the
+   * others do.
+   *
+   * FIRST REPLY is the one this module is actually about. Somebody raising a
+   * concern wants to know it was READ; how long it then took to fix is a
+   * different promise, and averaging the two into "responsiveness" hides
+   * whichever is worse.
+   */
+  firstReply: {
+    /** Median hours from raised to the first response. Null if none replied. */
+    medianHours: number | null;
+    /** Open concerns nobody has answered yet — the real chase list. */
+    awaiting: number;
+  };
+  /**
+   * How long the concerns that are STILL OPEN have been waiting. Not a
+   * history of what was resolved: this is what is on the floor now.
+   */
+  openAgeing: { label: string; count: number }[];
+  /**
+   * How often the fix the RAISER proposed was the one applied. CLAUDE.md
+   * calls the proposed solutions "the point of the slip"; nothing on this
+   * screen measured whether they get used.
+   */
+  ownFix: { used: number; ofResolved: number };
 };
 
 /**

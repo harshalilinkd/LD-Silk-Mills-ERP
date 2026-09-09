@@ -568,6 +568,46 @@ included, with no error and no warning.
     The upload route is the ONE place that opens two RLS transactions in a
     request (check → upload → record); they are sequential, not concurrent,
     and the reason is written in the route.
+**THE COORDINATOR DASHBOARD SAID ONE THING FIVE TIMES** (Sep 2026, owner:
+*"more in depth but easy to understand charts, no repetitive data"*). With one
+visible concern it drew a "Resolved 1" tile, a "1 resolved" chip, a 100% SLA
+figure, a one-spike chart AND a department bar of length one — five panels,
+one fact. What it never showed was anything a coordinator could not already
+see on the strip.
+
+- **Three figures, three questions.** Time to FIRST REPLY is the measure this
+  module is about — somebody raising a concern wants to know it was READ, and
+  how long the fix then took is a different promise; averaging them into
+  "responsiveness" hides whichever is worse. Time to resolve and within-SLA sit
+  beside it, and the resolved count stays as the denominator those two need.
+- **"The fix the person proposed was used in N of M."** CLAUDE.md calls the
+  proposed solutions the point of the slip and nothing measured whether they
+  get used. It is a footnote, not a panel, because it is one number.
+- **ONE DEPARTMENT IS NOT A BREAKDOWN.** A full-width bar labelled "Analytics
+  1 total" is a sentence drawn as a chart. Below two departments it prints the
+  sentence; the chart earns its place from the second onwards — the same rule
+  the workbook dashboards follow.
+- **The open-ageing panel draws only when it has something to say**: two or
+  more non-empty buckets get the chart, exactly one gets a sentence, none draws
+  nothing. Four bars with three at zero reads as three facts and is one.
+- **Depth here is capped by DATA, not by design.** The module holds three
+  concerns — one resolved, two withdrawn — so the panels above are built to
+  fill themselves out as concerns arrive rather than to look full today. Adding
+  workload, priority-mix and source charts now would have produced five more
+  one-bar panels, which is what the owner asked to remove.
+
+**A WITHDRAWN CONCERN IS ALREADY INVISIBLE, AND THAT IS RLS DOING IT.** Worth
+recording because it looks exactly like a counting bug: `v_concerns` reports a
+withdrawn concern as `status = 'new'` with `is_overdue = true`, and NOTHING in
+`queries.ts` filters `withdrawn_at`. It is not a bug — the select policy starts
+`withdrawn_at IS NULL`, so those rows never reach any query. **A probe that
+sees them has bypassed RLS**: a bare `sql` connects as `postgres`, which has
+`rolbypassrls`. Verified under `withHelpSlip` for both a coordinator and the
+employee who raised them — each sees one concern and a strip reading
+`new 0, overdue 0`. Do not add a `withdrawn_at is null` filter to these
+queries; it is dead code duplicating the policy, and writing it implies the
+policy cannot be trusted.
+
 - Not ported: realtime (we refetch instead), and Help Slip's own
   login/password/Google-linking — the ERP owns sign-in, Help Slip owns role.
   `profiles.id` is a FK to `auth.users`, so this app can edit a person but

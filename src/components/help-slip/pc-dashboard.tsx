@@ -747,6 +747,10 @@ function InsightsPanels({
 
   const labels = insights.daily.map((d) => dayLabel(d.d));
   const { medianHours, resolvedTotal, withinSla } = insights.resolution;
+  // Only the buckets that hold anything: an ageing chart with four bars and
+  // three of them at zero reads as three facts, and it is one.
+  const openBuckets = insights.openAgeing.filter((b) => b.count > 0);
+  const openTotal = insights.openAgeing.reduce((n, b) => n + b.count, 0);
   const slaPct =
     resolvedTotal > 0 ? Math.round((withinSla / resolvedTotal) * 100) : null;
 
@@ -765,17 +769,39 @@ function InsightsPanels({
     // below uses, so the seam between the figures card and the charts row is
     // the seam between the two charts.
     <div className="flex flex-col gap-3.5">
+      {/*
+        THREE FIGURES, THREE QUESTIONS.
+
+        This card carried two, and between them, the KPI strip and the chart
+        the page said "one concern was resolved" five times. Time to FIRST
+        REPLY is the measure this module is actually about — somebody raising a
+        concern wants to know it was read, and how long the fix then took is a
+        different promise. Averaging the two into "responsiveness" hides
+        whichever is worse.
+      */}
       <SectionCard
-        title="Resolution performance"
+        // "How we answer", not "how QUICKLY" — the three tiles are speed, but
+        // the line under them is about WHOSE fix was used, which is not a
+        // speed at all. The heading has to cover what is under it.
+        title="How we answer"
         icon={<IconGauge stroke={1.6} />}
-        // Both figures are "of everything resolved in this window", and until
-        // now the window's denominator was invisible.
+        // The denominator, said once, for the two figures that need one.
         aside={<CountChip>{resolvedTotal} resolved</CountChip>}
       >
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <StatTile
             icon={IconClock}
-            labelEn="Typical time to resolve"
+            labelEn="Time to first reply"
+            helpEn="Raised to the first response. Being READ is the first promise."
+            value={
+              insights.firstReply.medianHours === null
+                ? null
+                : `${insights.firstReply.medianHours} h`
+            }
+          />
+          <StatTile
+            icon={IconGauge}
+            labelEn="Time to resolve"
             helpEn="The middle of the window, so one slow case does not move it."
             value={medianHours === null ? null : `${medianHours} h`}
           />
@@ -786,7 +812,71 @@ function InsightsPanels({
             value={slaPct === null ? null : `${slaPct}%`}
           />
         </div>
+
+        {/* Only when it is true. A zero here is not news; a number is. */}
+        {insights.firstReply.awaiting > 0 ? (
+          <p className="mt-2.5 text-[12px] text-status-amber">
+            {insights.firstReply.awaiting === 1
+              ? "1 open concern has had no reply at all yet."
+              : `${insights.firstReply.awaiting} open concerns have had no reply at all yet.`}
+          </p>
+        ) : null}
+
+        {/* The point of the slip, and nothing on this screen measured it. */}
+        {insights.ownFix.ofResolved > 0 ? (
+          <p className="mt-1.5 text-[12px] text-text-3">
+            The fix the person proposed was the one used in{" "}
+            <strong className="font-semibold text-text-1">
+              {insights.ownFix.used} of {insights.ownFix.ofResolved}
+            </strong>{" "}
+            resolved {insights.ownFix.ofResolved === 1 ? "concern" : "concerns"}.
+          </p>
+        ) : null}
       </SectionCard>
+
+      {/*
+        HOW LONG THE OPEN ONES HAVE WAITED — and it draws only when it has
+        something to say. All-zero means nothing is open, which the strip above
+        already says; ONE non-zero bucket is a bar of length one, which is the
+        thing this page was asked to stop doing, so it becomes a sentence.
+      */}
+      {openBuckets.length >= 2 ? (
+        <Panel>
+          <PanelHead
+            titleEn="How long the open ones have waited"
+            icon={<IconClock stroke={1.6} />}
+            note={`${openTotal} open`}
+          />
+          <div className="p-4 sm:p-5">
+            <BarList
+              emptyLabel="Nothing open."
+              unitLabel="open"
+              // Nothing in an ageing bucket is "past its SLA" on its own — the
+              // bucket IS the age. The alert column is for the department
+              // breakdown, where overdue is a separate fact from the count.
+              alertLabel={null}
+              items={openBuckets.map((b) => ({
+                key: b.label,
+                label: b.label,
+                value: b.count,
+              }))}
+            />
+          </div>
+        </Panel>
+      ) : openBuckets.length === 1 ? (
+        <Panel>
+          <PanelHead
+            titleEn="How long the open ones have waited"
+            icon={<IconClock stroke={1.6} />}
+          />
+          <p className="px-4 py-3.5 text-[13px] text-text-2 sm:px-5">
+            All {openTotal} open {openTotal === 1 ? "concern has" : "concerns have"}{" "}
+            been waiting <strong className="font-semibold text-text-1">
+              {openBuckets[0].label.toLowerCase()}
+            </strong>.
+          </p>
+        </Panel>
+      ) : null}
 
       <div className="grid gap-3.5 lg:grid-cols-[1.6fr_1fr] lg:items-start">
         {/* `overflow-visible` because TrendChart's tooltip is an absolutely
@@ -838,17 +928,36 @@ function InsightsPanels({
             icon={<IconBuildingFactory2 stroke={1.6} />}
           />
           <div className="p-4 sm:p-5">
-            <BarList
-              emptyLabel="No concerns to break down yet."
-              unitLabel="total"
-              alertLabel="Past its SLA"
-              items={insights.byDepartment.map((d) => ({
-                key: d.name,
-                label: d.name,
-                value: d.total,
-                alert: d.overdue,
-              }))}
-            />
+            {/*
+              ONE DEPARTMENT IS NOT A BREAKDOWN. A single full-width bar
+              labelled "Analytics 1 total" is a sentence drawn as a chart, and
+              it was one of the five panels on this page all reporting the same
+              concern. With one source it says so in words; the chart earns its
+              place from the second department onwards.
+            */}
+            {insights.byDepartment.length === 1 ? (
+              <p className="text-[13px] text-text-2">
+                Every concern so far came from{" "}
+                <strong className="font-semibold text-text-1">
+                  {insights.byDepartment[0].name}
+                </strong>
+                {insights.byDepartment[0].overdue > 0
+                  ? `, and ${insights.byDepartment[0].overdue} of them ${insights.byDepartment[0].overdue === 1 ? "is" : "are"} past the SLA.`
+                  : "."}
+              </p>
+            ) : (
+              <BarList
+                emptyLabel="No concerns to break down yet."
+                unitLabel="total"
+                alertLabel="Past its SLA"
+                items={insights.byDepartment.map((d) => ({
+                  key: d.name,
+                  label: d.name,
+                  value: d.total,
+                  alert: d.overdue,
+                }))}
+              />
+            )}
           </div>
         </Panel>
       </div>
