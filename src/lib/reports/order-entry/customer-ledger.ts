@@ -182,7 +182,7 @@ export const customerLedger: ReportDefinition = {
     { key: "lines", label: "Lines", type: "int" },
     { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR" },
     { key: "value", label: "Value", type: "money" },
-    { key: "share", label: "Share", type: "percent", note: "Of the total value in this file's period." },
+    { key: "share", label: "Share", type: "percent", total: "none", note: "Of the total value in this file's period. NOT added up at the foot — a share is already a share, and adding them gives 100. The rule its sibling percent columns already follow." },
     { key: "avg_order", label: "Avg order", type: "money", total: "avg", avgWeightBy: "orders", note: "Value divided by orders. The foot is the average order across the whole file, WEIGHTED by how many orders each customer placed — a plain mean of this column counts a one-order customer the same as a ninety-order one, and read 24% low." },
     { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres. The foot is weighted by metres." },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },

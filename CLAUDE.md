@@ -1694,8 +1694,30 @@ The four that survived:
   while their own sibling percent columns in the same reports already declared
   `total: "none"` (agent performance's "From that one") or a weight (party
   analysis's "Cost as % of value"). Inconsistency inside one sheet is the
-  evidence it was an oversight rather than a decision. All three are `none` now;
-  Excel prints blank feet for them and still computes the weighted one.
+  evidence it was an oversight rather than a decision. All four are `none` now
+  — **four, because the first pass fixed three and missed customer-ledger's**:
+  the triage was done off a TRUNCATED terminal dump, and what is not printed is
+  not reviewed. Excel prints blank feet for all four and still computes the
+  weighted one.
+
+**AND THEN THE SCRIPT WAS TAUGHT WHAT THE HAND-CHECK KNEW.** Leaving 53 known
+false positives in it would have made the next audit worthless: somebody runs
+it, sees 54 lines, and either re-does an afternoon of verification or stops
+believing the script — both worse than no script. So:
+
+- `EMPTY_AT_SOURCE` is a REGISTER, not a silencer: 27 columns each checked
+  against its own table and recorded with the count (`crm_followups.contacted_at
+  — 0 of 75; no call has been made`). A column that is empty and NOT on the
+  list is still HIGH, because that is the fabric-rename signature.
+- The `avgWeightBy` check fires on RATIOS only. Thirteen day and count columns
+  were flagged and every one was fine.
+- The CSV check mirrors `csv.ts` exactly, lone `-` included.
+- **The determinism check ignores clock columns.** "Days since move" steps every
+  72 minutes, so two runs seconds apart legitimately differ on a few of six
+  thousand rows; `verify.ts` only escapes this because its two runs are
+  milliseconds apart. Ordering that is not pinned still fails it.
+
+A clean run now says something: **0 to act on, 27 noted.**
 
 **The regression suite that has to stay green** (`.scratch/` while it lasts):
 `verify.ts` + `verify-gr.ts` + `verify4.ts` — 69 figures against
