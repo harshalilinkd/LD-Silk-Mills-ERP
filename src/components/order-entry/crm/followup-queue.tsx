@@ -43,7 +43,7 @@ import { FollowupPanel, type PanelRow } from "./followup-panel";
 import { Pill, PriorityBar, StatusPill } from "./pill";
 import { Stars } from "./stars";
 
-type Range = "today" | "7" | "30" | "month" | "all";
+type Range = "today" | "7" | "30" | "month" | "all" | "custom";
 
 const selectCls =
   "h-9 rounded-field border border-border bg-surface px-2.5 text-[12.5px] font-medium text-text-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/40";
@@ -60,6 +60,7 @@ const RANGES: { value: Range; label: string }[] = [
   { value: "30", label: "30 days" },
   { value: "month", label: "This month" },
   { value: "all", label: "All" },
+  { value: "custom", label: "Pick dates…" },
 ];
 
 /** `all` returns null — no date params at all, not a window covering everything. */
@@ -82,6 +83,15 @@ type KpiKey =
 
 export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
   const [range, setRange] = React.useState<Range>("all");
+  // ── A PERIOD SOMEBODY CHOOSES, NOT ONE OF FIVE WE CHOSE ────────────────
+  //
+  // The five presets answer "recently"; they cannot answer "what was waiting
+  // in August". Both boxes are OPTIONAL and either one alone works — a `from`
+  // with no `to` is everything since that date, which is what somebody
+  // reaching for a date filter usually means. Debounced, because a date input
+  // fires on every keystroke of a typed year.
+  const [fromInput, setFromInput] = React.useState("");
+  const [toInput, setToInput] = React.useState("");
   const [sort, setSort] = React.useState<FollowupSort>("priority");
   const [rawSearch, setRawSearch] = React.useState("");
   const [kpi, setKpi] = React.useState<KpiKey | null>(null);
@@ -90,8 +100,23 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
 
   // Live as you type. A slow round trip must never read as "press Enter".
   const search = useDebouncedValue(rawSearch, 250);
+  const customFrom = useDebouncedValue(fromInput, 350);
+  const customTo = useDebouncedValue(toInput, 350);
 
-  const dates = rangeToDates(range);
+  // A backwards range returns nothing and then announces a period that runs
+  // backwards. The export route and the dashboards both swap it rather than
+  // arguing; this is another entry point and it does the same.
+  const custom =
+    customFrom && customTo && customFrom > customTo
+      ? { from: customTo, to: customFrom }
+      : { from: customFrom, to: customTo };
+
+  const dates: { from?: string; to?: string } | null =
+    range === "custom"
+      ? custom.from || custom.to
+        ? custom
+        : null
+      : rangeToDates(range);
 
   const params = new URLSearchParams();
   params.set("page", String(page));
@@ -103,8 +128,8 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
   if (kpi) params.set("kpi", kpi);
   if (search) params.set("q", search);
   if (dates) {
-    params.set("from", dates.from);
-    params.set("to", dates.to);
+    if (dates.from) params.set("from", dates.from);
+    if (dates.to) params.set("to", dates.to);
   }
   const qs = params.toString();
 
@@ -117,7 +142,7 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
   // Reset to page 1 whenever the filters change under our feet.
   React.useEffect(() => {
     setPage(1);
-  }, [range, sort, search, kpi]);
+  }, [range, sort, search, kpi, customFrom, customTo]);
 
   const data = q.data;
   const rows = data?.rows ?? [];
@@ -227,6 +252,45 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
               </option>
             ))}
           </select>
+
+          {/*
+            Shown only while "Pick dates…" is the selection. Two date boxes
+            sitting permanently beside five presets that already answer the
+            common questions is four controls doing one job.
+          */}
+          {range === "custom" ? (
+            <>
+              <input
+                type="date"
+                className={cn(selectCls, "num flex-1 sm:flex-none")}
+                value={fromInput}
+                max={toInput || undefined}
+                onChange={(e) => setFromInput(e.target.value)}
+                aria-label="From date"
+              />
+              <span className="shrink-0 text-[12.5px] text-text-2">–</span>
+              <input
+                type="date"
+                className={cn(selectCls, "num flex-1 sm:flex-none")}
+                value={toInput}
+                min={fromInput || undefined}
+                onChange={(e) => setToInput(e.target.value)}
+                aria-label="To date"
+              />
+              {fromInput || toInput ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFromInput("");
+                    setToInput("");
+                  }}
+                  className="shrink-0 cursor-pointer text-[12.5px] font-medium text-text-2 underline underline-offset-2 hover:text-text-1"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </>
+          ) : null}
 
           <select
             className={cn(selectCls, "flex-1 sm:flex-none")}
