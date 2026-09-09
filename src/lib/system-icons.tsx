@@ -7,6 +7,7 @@ import {
   IconUsersGroup,
   IconTruckReturn,
   IconCashBanknote,
+  IconTrendingUp,
   IconHeadset,
   IconApps,
 } from "@tabler/icons-react";
@@ -23,6 +24,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "goods-return-lr": IconTruckReturn,
   checklist: IconChecklist,
   "petty-cash": IconCashBanknote,
+  "gross-profit": IconTrendingUp,
 };
 
 export function getSystemIcon(systemCode: string) {
