@@ -227,7 +227,12 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
           rather than three. Search gets its own full-width row on a phone
           (`sm:contents` folds the rest back into one line once there's room),
           the same pattern `customers-view.tsx` in this folder already uses. */}
-      <div className="flex flex-col gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm sm:flex-row sm:items-center">
+      {/* `sm:flex-wrap`: at 768px the sidebar takes 264px and the single row
+          ended EXACTLY at the viewport edge even before the date boxes existed
+          — adding them put the sort dropdown 310px off-screen with no scroll to
+          reach it. Wrapping costs a second line only when the row genuinely does
+          not fit, and nothing is ever unreachable. */}
+      <div className="flex flex-col gap-2 rounded-card border border-border bg-surface p-2.5 shadow-sm sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:min-w-[220px] sm:flex-1">
           <IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-2" />
           <Input
@@ -239,7 +244,7 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
           />
         </div>
 
-        <div className="flex items-center gap-2 sm:contents">
+        <div className="flex flex-wrap items-center gap-2 sm:contents">
           <select
             className={cn(selectCls, "flex-1 sm:flex-none")}
             value={range}
@@ -259,10 +264,19 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
             common questions is four controls doing one job.
           */}
           {range === "custom" ? (
-            <>
+            // ── ITS OWN ROW ON A PHONE ──────────────────────────────────
+            //
+            // Two date boxes, a dash and a Clear link do not fit beside the
+            // range and sort dropdowns at 390px — they pushed "Worst first"
+            // and the refresh button off the right edge. `w-full` makes the
+            // group wrap, and `order-last` sends it BELOW the two dropdowns
+            // rather than between them, which would have cost a third row.
+            // Above `sm` the group dissolves (`sm:contents`) and the dates sit
+            // where they read best: straight after the range they belong to.
+            <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto sm:contents">
               <input
                 type="date"
-                className={cn(selectCls, "num flex-1 sm:flex-none")}
+                className={cn(selectCls, "num min-w-0 flex-1 sm:flex-none")}
                 value={fromInput}
                 max={toInput || undefined}
                 onChange={(e) => setFromInput(e.target.value)}
@@ -271,7 +285,7 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
               <span className="shrink-0 text-[12.5px] text-text-2">–</span>
               <input
                 type="date"
-                className={cn(selectCls, "num flex-1 sm:flex-none")}
+                className={cn(selectCls, "num min-w-0 flex-1 sm:flex-none")}
                 value={toInput}
                 min={fromInput || undefined}
                 onChange={(e) => setToInput(e.target.value)}
@@ -289,7 +303,7 @@ export function FollowupQueue({ canEdit }: { canEdit: boolean }) {
                   Clear
                 </button>
               ) : null}
-            </>
+            </div>
           ) : null}
 
           <select
