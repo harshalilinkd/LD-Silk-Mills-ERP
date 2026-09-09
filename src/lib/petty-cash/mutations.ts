@@ -700,6 +700,72 @@ export async function setMemberRole(
 }
 
 /**
+ * Take Petty Cash away from somebody entirely.
+ *
+ * ── THIS IS A DIFFERENT THING FROM CLEARING A ROLE ───────────────────────
+ *
+ * `clearMemberRole` sets them back to "Not set", and "Not set" still READS
+ * the ledger — every balance, every payee, every amount — because the tick in
+ * Settings → Access is what decides who may open the module at all, and that
+ * tick is untouched. Somebody who used the dropdown expecting to remove a
+ * person would have removed nothing they could see.
+ *
+ * So this revokes the tick as well, in the same transaction, which is the
+ * only thing that actually shuts the door: `resolvePettyCashViewer` requires
+ * `can_view` for EVERYBODY, an ERP administrator included, so there is no
+ * bypass left behind.
+ *
+ * Nothing is destroyed. The access row is set to false rather than deleted,
+ * the member row is deactivated rather than removed, and every entry they
+ * ever recorded keeps their name on it — the same rule the rest of this
+ * module follows. Putting them back is one tick in Settings → Access.
+ */
+export async function removeFromPettyCash(
+  viewer: PettyCashViewer,
+  userId: string,
+): Promise<void> {
+  if (userId === viewer.userId) {
+    // An administrator who removes their own access cannot grant it back from
+    // inside the module — the screen that does it is behind the door they
+    // just shut. Same reasoning as the role rule below.
+    throw new Error("You cannot remove your own Petty Cash access.");
+  }
+
+  await pg.begin(async (tx) => {
+    const [account] = await tx<{ id: string; name: string }[]>`
+      select id, name from ld_erp_core.users
+       where id = ${userId}::uuid and status = 'active'
+       limit 1`;
+    if (!account) throw new Error("That person could not be found.");
+
+    const revoked = await tx<{ id: string }[]>`
+      update ld_erp_core.system_access a
+         set can_view = false, updated_at = now()
+        from ld_erp_core.systems s
+       where s.id = a.system_id
+         and s.system_code = 'petty-cash'
+         and a.user_id = ${userId}::uuid
+         and a.can_view
+      returning a.id`;
+
+    await tx`
+      update ld_petty_cash.members
+         set active = false, updated_at = now()
+       where user_id = ${userId}::uuid and active`;
+
+    // Nothing to revoke and nothing to deactivate means they were already out
+    // — say so rather than writing an audit row for a change that did not
+    // happen.
+    if (revoked.length === 0) return;
+
+    await audit(tx, viewer.userId, "petty-cash.access_removed", {
+      targetUserId: userId,
+      targetName: account.name,
+    });
+  });
+}
+
+/**
  * Take somebody's Petty Cash role away.
  *
  * The row is deactivated, not deleted, so the audit trail still resolves and

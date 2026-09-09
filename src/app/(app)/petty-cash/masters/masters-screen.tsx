@@ -6,6 +6,7 @@ import {
   IconCategory,
   IconPlus,
   IconShieldLock,
+  IconTrash,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -44,6 +45,7 @@ import {
   addEmployee,
   clearPersonRole,
   editCategory,
+  removePersonFromPettyCash,
   renamePayee,
   setCategoryEnabled,
   setEmployeeEnabled,
@@ -738,6 +740,24 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // Removing somebody shuts a door; it asks first, and it names them while
+  // asking. The confirm holds the whole person, not an id, so the dialog can
+  // say who without looking them up again.
+  const [removing, setRemoving] = React.useState<PettyCashPerson | null>(null);
+
+  const remove = async (person: PettyCashPerson) => {
+    setBusyId(person.userId);
+    setError(null);
+    try {
+      await removePersonFromPettyCash(person.userId);
+      setRemoving(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That could not be removed.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const change = async (userId: string, value: string) => {
     setBusyId(userId);
@@ -776,6 +796,9 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
                   <th className={cn(th, "w-full")}>Person</th>
                   <th className={th}>What they may do</th>
                   <th className={th}>How they got it</th>
+                  <th className={cn(th, "text-right")}>
+                    <span className="sr-only">Remove</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -824,6 +847,20 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
                         ) : (
                           <Pill tone="grey">Read only</Pill>
                         )}
+                      </td>
+                      <td className={cn(td, "text-right whitespace-nowrap")}>
+                        <QuietButton
+                          onClick={() => setRemoving(p)}
+                          disabled={isSelf || busyId === p.userId}
+                          title={
+                            isSelf
+                              ? "You cannot remove your own access"
+                              : `Remove ${p.name} from Petty Cash`
+                          }
+                        >
+                          <IconTrash className="size-4" />
+                          Remove
+                        </QuietButton>
                       </td>
                     </tr>
                   );
@@ -881,6 +918,17 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
                       {ROLE_META[p.effective].help}
                     </p>
                   </div>
+                  {!isSelf && (
+                    <div className="mt-2 flex justify-end">
+                      <QuietButton
+                        onClick={() => setRemoving(p)}
+                        disabled={busyId === p.userId}
+                      >
+                        <IconTrash className="size-4" />
+                        Remove
+                      </QuietButton>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -895,6 +943,42 @@ function People({ rows }: { rows: PettyCashPerson[] }) {
         has not been given a role here runs Petty Cash anyway, because otherwise
         nobody could give out the first one. You cannot change your own row.
       </p>
+
+      {/* ── REMOVING IS NOT THE SAME AS "NOT SET" ─────────────────────────
+          "Not set" leaves somebody reading every balance and every amount,
+          because the tick in Settings → Access is what opens the module. This
+          says what it actually does and what it does not destroy, because a
+          confirm that only says "are you sure" makes the reader guess. */}
+      <Modal
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        title="Remove from Petty Cash?"
+        footer={
+          <>
+            <QuietButton onClick={() => setRemoving(null)}>Cancel</QuietButton>
+            <DialogSave
+              destructive
+              busy={busyId !== null}
+              onClick={() => removing && void remove(removing)}
+            >
+              Remove
+            </DialogSave>
+          </>
+        }
+      >
+        <p className="text-[13px] text-text-2">
+          <strong className="font-semibold text-text-1">
+            {removing?.name}
+          </strong>{" "}
+          will no longer be able to open Petty Cash at all — not the ledger, not
+          the balance, not the reports.
+        </p>
+        <p className="mt-2 text-[12.5px] text-text-3">
+          Nothing they recorded is deleted, and every entry keeps their name on
+          it. Putting them back is one tick in Settings → Access.
+        </p>
+        <ErrorNote>{error}</ErrorNote>
+      </Modal>
     </div>
   );
 }

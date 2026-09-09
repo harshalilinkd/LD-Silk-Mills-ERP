@@ -21,6 +21,7 @@ import {
 } from "@/lib/petty-cash/queries";
 import {
   clearMemberRole,
+  removeFromPettyCash,
   createCategory,
   createEmployee,
   createTransaction,
@@ -374,5 +375,19 @@ export async function clearPersonRole(userId: string): Promise<void> {
   const viewer = await requirePettyCashMasters();
   if (!userId) throw new Error("That person could not be found.");
   await clearMemberRole(viewer, userId);
+  paths();
+}
+
+/**
+ * Remove somebody from Petty Cash altogether.
+ *
+ * Not the same as setting their role to "Not set": that leaves them reading
+ * the ledger. This revokes the Settings → Access tick, which is what actually
+ * decides who may open the module — see `removeFromPettyCash`.
+ */
+export async function removePersonFromPettyCash(userId: string): Promise<void> {
+  const viewer = await requirePettyCashMasters();
+  if (!userId) throw new Error("That person could not be found.");
+  await removeFromPettyCash(viewer, userId);
   paths();
 }
