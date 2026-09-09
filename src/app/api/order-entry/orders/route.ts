@@ -57,6 +57,7 @@ export async function GET(req: Request) {
   const challanNo = q.get("challan_no")?.trim() ?? "";
   const lotNo = q.get("lot_no")?.trim() ?? "";
   const haste = q.get("haste")?.trim() ?? "";
+  const fabric = q.get("fabric")?.trim() ?? "";
   const from = q.get("from") ?? "";
   const to = q.get("to") ?? "";
 
@@ -78,6 +79,17 @@ export async function GET(req: Request) {
     ISO_DATE.test(to) ? lte(customerOrders.orderDate, to) : undefined,
   );
 
+  // ── FABRIC IS A PROPERTY OF THE LINE, NOT THE ORDER ──────────────────
+  //
+  // So "filter by fabric" means "orders that HAVE a line in this fabric" —
+  // which is the EXISTS this query already runs to hide orders whose every
+  // line was deleted. Adding the condition there keeps it one subquery and
+  // one index scan rather than a join that would multiply the order rows and
+  // inflate every count on the screen.
+  //
+  // `eq`, not `ilike`: the control is a select over the real fabric list, and
+  // the Tracking view's endpoint matches the same param with `eq`. One param
+  // cannot mean "exactly this" on one screen and "contains this" on another.
   const hasVisibleLine = exists(
     db
       .select({ one: sql`1` })
@@ -86,6 +98,7 @@ export async function GET(req: Request) {
         and(
           eq(orderLineItems.orderId, customerOrders.id),
           eq(orderLineItems.isDeleted, false),
+          fabric ? eq(orderLineItems.quality, fabric) : undefined,
         ),
       ),
   );
@@ -110,7 +123,13 @@ export async function GET(req: Request) {
       })
       .from(orderLineItems)
       .innerJoin(customerOrders, eq(customerOrders.id, orderLineItems.orderId))
-      .where(and(filter, eq(orderLineItems.isDeleted, false)))
+      // `visibleFilter`, not `filter` — otherwise the cancelled summary counts
+      // orders the list itself is hiding. It made no difference until fabric
+      // arrived, because every order with a non-deleted line already passed
+      // `hasVisibleLine`; now that the same subquery also carries the fabric,
+      // using the narrower one is what keeps the totals describing the rows
+      // on screen rather than a wider set nobody asked for.
+      .where(and(visibleFilter, eq(orderLineItems.isDeleted, false)))
       .groupBy(orderLineItems.orderId),
   ]);
   const total = totalRes[0].value;

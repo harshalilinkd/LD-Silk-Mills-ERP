@@ -31,6 +31,7 @@ import {
   monthRange,
   type MonthKey,
 } from "@/lib/order-entry/months";
+import { useLookup } from "@/components/order-entry/orders/use-lookups";
 import { cn } from "@/lib/utils";
 
 // Re-exported so a screen only ever imports one module to build a query.
@@ -40,6 +41,15 @@ export type OrderFilterState = {
   order_no: string;
   challan_no: string;
   lot_no: string;
+  /**
+   * A fabric NAME, exactly as it is on the line — never a fragment.
+   *
+   * It is a select rather than a text box, and that is not a style choice:
+   * the Tracking view's endpoint matches fabric with `eq`, so a typed "lio"
+   * would find nothing there while finding LIO LINEN on the Orders table.
+   * One control cannot mean two things, so it only ever emits a real name.
+   */
+  fabric: string;
   haste: string;
   from: string;
   to: string;
@@ -49,6 +59,7 @@ export const EMPTY_ORDER_FILTERS: OrderFilterState = {
   order_no: "",
   challan_no: "",
   lot_no: "",
+  fabric: "",
   haste: "",
   from: "",
   to: "",
@@ -76,6 +87,11 @@ export function appendOrderFilterParams(
     ["order_no", "order_no"],
     ["challan_no", "challan_no"],
     ["lot_no", "lot_no"],
+    // The Order-status BOARD sets `fabric` itself, from its own select. It
+    // builds its row by hand and never renders this panel, so its copy of the
+    // state keeps `fabric: ""` and this line writes nothing there — the two
+    // cannot both set the param.
+    ["fabric", "fabric"],
     ["haste", "haste"],
     ["from", "from"],
     ["to", "to"],
@@ -132,6 +148,11 @@ export function OrderFilters({
   const hasDates = Boolean(value.from || value.to);
   const monthValue = derivedMonth ?? (hasDates ? CUSTOM : "");
 
+  // The real fabric list, so the control can only emit a name that exists.
+  // `useLookup` is shared with the order form and the status board, so this
+  // costs one cached request per session rather than one per screen.
+  const fabrics = useLookup("FABRIC");
+
   const active = hasActiveOrderFilters(value);
 
   return (
@@ -141,7 +162,7 @@ export function OrderFilters({
         className,
       )}
     >
-      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         <label className="flex flex-col gap-1">
           <span className={LABEL_CLASS}>Order no</span>
           <Input
@@ -170,6 +191,29 @@ export function OrderFilters({
             placeholder="—"
             onChange={(e) => set({ lot_no: e.target.value })}
           />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className={LABEL_CLASS}>Fabric</span>
+          <select
+            className={SELECT_CLASS}
+            value={value.fabric}
+            onChange={(e) => set({ fabric: e.target.value })}
+          >
+            <option value="">All fabrics</option>
+            {/* A fabric that was filtered on and has since been switched off
+                in Masters would otherwise vanish from the list while still
+                being the active filter — the box would read "All fabrics"
+                over a narrowed table. */}
+            {value.fabric && !fabrics.includes(value.fabric) ? (
+              <option value={value.fabric}>{value.fabric}</option>
+            ) : null}
+            {fabrics.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="flex flex-col gap-1">
