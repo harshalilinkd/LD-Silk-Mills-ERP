@@ -496,9 +496,9 @@ export function TableCard({
  * that shows twenty-five of them.
  */
 export const th =
-  "sticky top-0 z-10 border-r border-b border-border/70 bg-surface px-3 py-2 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0";
+  "sticky top-0 z-10 border-r border-b border-border-strong bg-surface px-3 py-2 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0";
 export const td =
-  "border-r border-b border-border/45 px-3 py-2.5 align-middle text-[13px] text-text-2 last:border-r-0";
+  "border-r border-b border-border-strong px-3 py-2.5 align-middle text-[13px] text-text-2 last:border-r-0";
 
 export function EmptyState({
   icon,

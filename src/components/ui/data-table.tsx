@@ -77,7 +77,15 @@ export function Th({ className, ...props }: React.ComponentProps<"th">) {
       className={cn(
         // Spec: uppercase 13px bold tracking-[0.04em] ink, right rule,
         // last:border-r-0.
-        "border-r border-b border-border/70 px-3 py-2 text-[13px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0",
+        // ── ONE COLUMN RULE, ONE WEIGHT ──────────────────────────────
+        // The rules were `border/70` in the header and `border/45` in the
+        // body — 7.7% and 4.9% alpha, so faint that a column deliberately
+        // ruled at `border-strong` (18%) stood out as a different kind of
+        // line entirely. The owner saw one column that looked ruled and the
+        // rest that did not. `border-strong` throughout: the same rule
+        // everywhere, and a table that reads as a grid rather than as one
+        // emphasised seam.
+        "border-r border-b border-border-strong px-3 py-2 text-[13px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0",
         className,
       )}
       {...props}
@@ -91,7 +99,7 @@ export function Td({ className, ...props }: React.ComponentProps<"td">) {
       // Spec: px-3 py-2.5, right rule, last:border-r-0. `...props` is spread
       // so callers can set `title` for a tooltip on truncated text (§3.5).
       className={cn(
-        "border-r border-border/45 px-3 py-2.5 align-middle last:border-r-0",
+        "border-r border-border-strong px-3 py-2.5 align-middle last:border-r-0",
         className,
       )}
       {...props}
