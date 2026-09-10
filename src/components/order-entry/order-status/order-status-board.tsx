@@ -154,10 +154,22 @@ export function OrderStatusBoard({
   const { role, caps } = useOrderEntrySession();
   const canUpdate = role === "ADMIN" || hasCap(caps, "operations.edit");
 
+  // ── A DESIGN ROW HAS NO ORDER-LEVEL FACTS, AND SHOULD NOT DRAW BOXES ──
+  //
+  // Date, party, haste, challan, lot and the salesperson belong to the ORDER.
+  // A design row leaving them blank is right — repeating "PR EXPO TRADELINK
+  // LLP" down 34 rows is noise, and there is nothing else true to put there.
+  //
+  // But blank CELLS are not blank SPACE: the table rules every column, so each
+  // design read as a row of empty boxes and looked like data that had failed
+  // to load. Spanning a run of them draws one quiet gap instead, which is what
+  // "these belong to the order above" looks like.
   const { hidden, isVisible, toggle, reset } = useColumnPrefs(
     `oe:order-status:cols:${userKey ?? "anon"}`,
     STATUS_COLUMNS,
   );
+
+  const spanOf = (...ids: string[]) => ids.filter((id) => isVisible(id)).length;
 
   const parties = useLookup("PARTY");
   const fabrics = useLookup("FABRIC");
@@ -878,9 +890,14 @@ export function OrderStatusBoard({
                                       </span>
                                     </div>
                                   </Td>
-                                  {isVisible("date") && <Td />}
-                                  {isVisible("party") && <Td />}
-                                  {isVisible("haste") && <Td />}
+                                  {/* One quiet span, not three empty boxes —
+                                      see `spanOf`. */}
+                                  {spanOf("date", "party", "haste") > 0 && (
+                                    <Td
+                                      colSpan={spanOf("date", "party", "haste")}
+                                      className="border-r-0"
+                                    />
+                                  )}
                                   {isVisible("fabric") && (
                                     <Td
                                       className={cn(
@@ -893,7 +910,13 @@ export function OrderStatusBoard({
                                       </span>
                                     </Td>
                                   )}
-                                  {isVisible("designs") && <Td />}
+                                  {/* A design row is one design; saying so
+                                      beats an empty box in a numeric column. */}
+                                  {isVisible("designs") && (
+                                    <Td className="num text-right text-text-3">
+                                      1
+                                    </Td>
+                                  )}
                                   {isVisible("qty") && (
                                     <Td
                                       className={cn(
@@ -916,9 +939,12 @@ export function OrderStatusBoard({
                                         : `₹${formatNumber(Number(line.lineTotal))}`}
                                     </Td>
                                   )}
-                                  {isVisible("challan") && <Td />}
-                                  {isVisible("lot") && <Td />}
-                                  {isVisible("sales") && <Td />}
+                                  {spanOf("challan", "lot", "sales") > 0 && (
+                                    <Td
+                                      colSpan={spanOf("challan", "lot", "sales")}
+                                      className="border-r-0"
+                                    />
+                                  )}
                                   {isVisible("stages") &&
                                     STAGE_COLUMNS.map((c) => {
                                       const cell = line.stages.find(
