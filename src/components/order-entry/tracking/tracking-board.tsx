@@ -797,7 +797,7 @@ export function TrackingBoard({ orderId }: { orderId: string }) {
                       {/* The sticky identity column's right rule is a SHADOW,
                           not a border: a border on a sticky cell scrolls with
                           the cell's own box and leaves a gap at the seam. */}
-                      <Th className="sticky left-0 z-30 border-r-0 bg-surface px-4 shadow-[1px_0_0_var(--border)]">
+                      <Th className="sticky left-0 z-30 border-r-0 bg-surface px-4 shadow-[1px_0_0_var(--border-strong)]">
                         Quality
                       </Th>
                       <Th>Design</Th>
@@ -1053,7 +1053,7 @@ function LineRow({
       {/* The sticky column's right rule is a SHADOW, not a border: a border
           belongs to the cell's own box and shows a seam as columns scroll
           under it. */}
-      <td className="sticky left-0 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--border)]">
+      <td className="sticky left-0 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--border-strong)]">
         <div className="font-medium whitespace-nowrap text-text-1">
           {line.quality}
         </div>

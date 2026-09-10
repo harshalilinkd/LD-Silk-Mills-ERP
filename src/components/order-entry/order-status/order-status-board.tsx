@@ -97,7 +97,11 @@ const selectCls = cn(
 // a 1px box-shadow does not. **The shadow IS the border** for the two pinned
 // Order-no cells — hence `border-r-0` alongside it (our Td/Th carry a right
 // rule by default).
-const STICKY_RULE = "border-r-0 shadow-[1px_0_0_var(--border)]";
+// A pinned column cannot carry `border-r` — it scrolls under its
+// neighbours and the border goes with it — so its rule is a 1px shadow
+// that stays put. `--border-strong`, the same token every other column
+// rule uses, or this one seam reads as the only unruled column.
+const STICKY_RULE = "border-r-0 shadow-[1px_0_0_var(--border-strong)]";
 
 async function fetchOrderStatus(qs: string): Promise<OrderStatusList> {
   const res = await fetch(`/api/order-entry/order-status?${qs}`);
