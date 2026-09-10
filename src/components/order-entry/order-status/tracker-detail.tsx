@@ -198,7 +198,20 @@ export function TrackerDetail({
     "inline-flex size-9 items-center justify-center rounded-field border border-border-strong bg-surface text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1 disabled:opacity-40 sm:size-7";
 
   return (
-    <div className="flex h-full flex-col bg-surface">
+    // ── `min-h-0 flex-1`, NOT `h-full` ──────────────────────────────────
+    //
+    // The frame around this is a flex column with a MAX height and no height:
+    // it is pinned to a corner and allowed to grow until it runs out of screen.
+    // `height: 100%` against a parent with no definite height computes to
+    // `auto`, so this root grew to fit its content, the `flex-1 min-h-0`
+    // scroller below never got a bounded height, and the frame's
+    // `overflow-hidden` quietly clipped whatever did not fit — 455px of it on
+    // a phone, 412px on a desktop, with nothing to scroll and no scrollbar to
+    // say so. "Colours in FUSION" simply ended mid-row.
+    //
+    // As a flex ITEM instead, it takes the height the frame has and hands the
+    // rest of the job to the scroller, which is what was meant all along.
+    <div className="flex min-h-0 flex-1 flex-col bg-surface">
       {/* Header: who / what, navigation, and how far along. It is also the
           drag handle — the panel covers part of the table, so it has to be
           movable. Double-click snaps it back to its default corner. */}
@@ -446,7 +459,7 @@ export function TrackerDetail({
             <SectionLabel>Whole order {order.orderNo}</SectionLabel>
             <div className="mt-2 rounded-card border border-border bg-surface-2 px-3 py-1">
               <div className="divide-y divide-border">
-                <Row label="Qualities">
+                <Row label="Fabrics">
                   <span className="num">{order.fabrics.length}</span>
                 </Row>
                 <Row label="Designs">
