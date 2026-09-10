@@ -1,0 +1,50 @@
+[
+ {
+  "stage_key": "order_entry",
+  "label": "Order Entry",
+  "sort_order": 1,
+  "planned_offset_days": 8
+ },
+ {
+  "stage_key": "stock_checking",
+  "label": "Stock Checking",
+  "sort_order": 2,
+  "planned_offset_days": 8
+ },
+ {
+  "stage_key": "rolling_checking",
+  "label": "Rolling & Checking",
+  "sort_order": 3,
+  "planned_offset_days": 8
+ },
+ {
+  "stage_key": "challan",
+  "label": "Challan",
+  "sort_order": 4,
+  "planned_offset_days": 8
+ },
+ {
+  "stage_key": "bill",
+  "label": "Bill",
+  "sort_order": 5,
+  "planned_offset_days": 10
+ },
+ {
+  "stage_key": "dispatch",
+  "label": "Dispatch",
+  "sort_order": 6,
+  "planned_offset_days": 12
+ },
+ {
+  "stage_key": "received_lr",
+  "label": "Received LR",
+  "sort_order": 7,
+  "planned_offset_days": 12
+ },
+ {
+  "stage_key": "on_hold",
+  "label": "On hold",
+  "sort_order": 0,
+  "planned_offset_days": 8
+ }
+]
