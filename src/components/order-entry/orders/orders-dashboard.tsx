@@ -68,10 +68,18 @@ import { HScroll } from "@/components/ui/hscroll";
 import { Input } from "@/components/ui/input";
 import { Pager } from "@/components/ui/pager";
 import { Reveal } from "@/components/ui/reveal";
+import { useFillHeight } from "@/components/order-entry/shared/use-fill-height";
 import { Spinner } from "@/components/ui/spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Table, TBody, THead, Th, Tr } from "@/components/ui/data-table";
+import {
+  Table,
+  TBody,
+  Td as BaseTd,
+  THead,
+  Th,
+  Tr,
+} from "@/components/ui/data-table";
 import { useDebouncedValue } from "@/components/order-entry/shared/use-debounced-value";
 import {
   appendOrderFilterParams,
@@ -384,6 +392,13 @@ export function OrdersDashboard({
   }, [rows, selected, list.isFetching]);
 
   // All-orders KPI counts, over the FULL fetched set — never the page.
+  // One scrollbar, not two — the same measured fill the order-status board
+  // uses. The page was scrolling 64px of its own on top of the table's 519.
+  const { ref: cardRef, maxHeight: bodyMax } = useFillHeight([
+    rows.length,
+    data === undefined,
+  ]);
+
   const kpi = React.useMemo(
     () => ({
       total: rows.length,
@@ -616,14 +631,23 @@ export function OrdersDashboard({
               stranding it below two hundred rows; and HScroll puts a second
               scrollbar ABOVE the header where the columns actually are. */}
           <Reveal index={1}>
-            <Card size="sm" className="hidden py-0 lg:block">
-              <HScroll bodyClassName="max-h-[calc(100vh-19rem)] overflow-auto">
+            <Card ref={cardRef} size="sm" className="hidden py-0 lg:block">
+              <HScroll
+                bodyClassName="overflow-auto"
+                bodyStyle={bodyMax ? { maxHeight: bodyMax } : undefined}
+              >
                 <Table className="min-w-[1240px]">
                   <THead>
                     <tr>
                       {/* Pinned both ways: the header never scrolls off the
                           top, the order number never scrolls off the left. */}
-                      <Th className="sticky left-0 z-10 bg-surface">Order no</Th>
+                      {/* A pinned cell cannot carry `border-r` in a collapsed-border
+    table — the rule belongs to the table grid and slides away
+    when it scrolls sideways. Drawn on the cell instead, the
+    same way both order-status boards draw it. */}
+                      <Th className="sticky left-0 z-10 border-r-0 bg-surface after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-strong after:content-['']">
+                        Order no
+                      </Th>
                       <Th>Date</Th>
                       <Th>Party</Th>
                       <Th>Haste</Th>
@@ -656,7 +680,8 @@ export function OrdersDashboard({
                                 // The sticky cell repeats the row hover: without
                                 // it the pinned column keeps its resting
                                 // background and the row appears to break in two.
-                                "sticky left-0 z-10 bg-surface font-medium group-hover:bg-surface-2",
+                                "sticky left-0 z-10 border-r-0 bg-surface font-medium group-hover:bg-surface-2",
+                                "after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-strong after:content-['']",
                                 struck,
                               )}
                             >
@@ -1121,19 +1146,18 @@ export function OrdersDashboard({
   );
 }
 
-// Local, NOT the shared primitive (§3.5): this table's body carries no vertical
-// rules, and `...props` is spread so callers can set `title` for a tooltip on
-// truncated text.
+// The shared cell, plus this table's own `whitespace-nowrap`.
+//
+// It used to be a local `<td>` with no vertical rules at all, on the reasoning
+// that this table reads better without them. Order status has them and this
+// one did not, so the two tables one click apart looked like two different
+// products — the owner's words: "give same style borders to all orders table".
+// One cell, one rule, and a column rule is now the same line everywhere.
 function Td({
-  children,
   className,
   ...props
-}: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return (
-    <td className={cn("px-3 py-2 whitespace-nowrap", className)} {...props}>
-      {children}
-    </td>
-  );
+}: React.ComponentProps<typeof BaseTd>) {
+  return <BaseTd className={cn("whitespace-nowrap", className)} {...props} />;
 }
 
 function IconLink({

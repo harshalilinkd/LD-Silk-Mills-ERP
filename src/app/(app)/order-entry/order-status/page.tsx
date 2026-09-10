@@ -26,15 +26,9 @@ export default async function OrderStatusPage() {
   const userKey = session?.user?.email ?? undefined;
 
   const title = (
-    <div>
-      <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-        Order status
-      </h1>
-      <p className="mt-1 text-[13px] text-text-3">
-        Where every order sits across the seven stages. Read-only — updates
-        happen in Operations.
-      </p>
-    </div>
+    <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+      Order status
+    </h1>
   );
 
   return (

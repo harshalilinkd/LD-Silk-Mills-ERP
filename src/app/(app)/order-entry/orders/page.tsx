@@ -25,15 +25,9 @@ export default async function OrdersListPage() {
     !!authz && (isAdmin || hasCap(authz.caps, "operations.view"));
 
   const title = (
-    <div>
-      <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
-        Orders
-      </h1>
-      <p className="mt-1 text-[13px] text-text-3">
-        Track where an order is, or work the full table — search, filter,
-        expand a row for its designs, and export the whole filtered set.
-      </p>
-    </div>
+    <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
+      Orders
+    </h1>
   );
 
   return (
