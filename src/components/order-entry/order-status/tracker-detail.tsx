@@ -9,7 +9,7 @@
 //   1. header / drag handle + progress bar
 //   2. cancelled banner, when applicable
 //   3. Facts grid          — the identifying fields, in plain ink
-//   4. Progress            — the seven stages
+//   4. Progress            — the stages, in order
 //   5. Whole order         — the order-level rollup
 //   6. Colours in <quality> — only when the group has more than one line
 //

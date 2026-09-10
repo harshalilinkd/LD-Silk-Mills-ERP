@@ -184,11 +184,38 @@ export function formatCount(value: number): string {
   );
 }
 
+/**
+ * A figure for the SCREEN: Indian grouping, and no trailing `.00`.
+ *
+ * ── IT USED TO PRINT TWO DECIMALS ON EVERYTHING ──────────────────────
+ *
+ * `3,400.00`, `160.00`, `₹5,44,000.00` — on every quantity, rate, line total
+ * and order total in the module. Almost all of this business's figures are
+ * whole, so those two zeros were noise on nearly every cell of the widest
+ * tables in the ERP, and the owner asked for them gone (Sep 2026).
+ *
+ * **They are dropped only when they are ZEROS.** Hard-rounding was the obvious
+ * reading of "remove decimals" and it is the wrong one: 88 line quantities, 59
+ * rates and 23 order totals in the live data carry a real fraction. Rounding
+ * would turn a rate of `82.50` into `83` and a quantity of `100.02` into
+ * `100` — misstating real orders on the screen people price from, to save two
+ * characters. A whole number prints whole; a fractional one keeps both places,
+ * so `4,704.50` stays `4,704.50` rather than becoming a ragged `4,704.5`.
+ *
+ * The rounding happens BEFORE the whole-number test, or a float that is
+ * `4699.999999999999` prints as `4,700.00` while claiming to be fractional.
+ *
+ * This is the SCREEN's formatter only. The CSV exports write the raw values
+ * and the workbook has `indianFormat()`, both deliberately — a file is the
+ * machine's copy and must not be rounded for looks.
+ */
 export function formatNumber(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  const places = Number.isInteger(rounded) ? 0 : 2;
   return new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+    minimumFractionDigits: places,
+    maximumFractionDigits: places,
+  }).format(rounded);
 }
 
 export function formatDate(value: string | null): string {

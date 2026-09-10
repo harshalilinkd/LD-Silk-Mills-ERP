@@ -379,7 +379,7 @@ export function OrderStatusBoard({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* ── Region A — Summary cards (§4A.3) ───────────────────────────── */}
       {/* All five are filters. The counts are ORDER-level, matching the rows
           the click produces. */}

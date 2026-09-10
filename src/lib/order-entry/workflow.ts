@@ -1,130 +1,31 @@
 // Ported verbatim from Order Entry's lib/workflow.ts — operations-stage logic
 // (seeding, status derivation, tick/untick transaction) lives only here, same
 // as the source.
+//
+// The stage vocabulary and every PURE function live in `workflow-constants.ts`
+// and are re-exported below unchanged, so nothing that already imports from
+// this file needs to change. Only `applyStageProgress` — the one function
+// that touches the database — stays here. Importing ANYTHING from a module
+// pulls in that module's own imports too; `STAGE_LABELS` living in the same
+// file as `orderEntryDb` was what dragged `postgres` (and Node's `net`) into
+// a CLIENT bundle that only wanted a label string. See the constants file's
+// header for the full story.
 import { eq } from "drizzle-orm";
 import { orderEntryDb as dbx } from "@/db/order-entry";
 import { lineStageProgress } from "@/db/order-entry/schema";
+import {
+  STAGE_INDEX,
+  STAGE_LABELS,
+  isAsideStage,
+  computeLineStatus,
+  computeDelayMinutes,
+  type StageKey,
+  type StockStatus,
+  type OperationsStatus,
+  WorkflowError,
+} from "./workflow-constants";
 
-export const STAGE_KEYS = [
-  "order_entry",
-  "stock_checking",
-  "rolling_checking",
-  "challan",
-  "bill",
-  "dispatch",
-  "received_lr",
-] as const;
-
-export type StageKey = (typeof STAGE_KEYS)[number];
-
-export type StockStatus = "in_stock" | "out_of_stock";
-
-export class WorkflowError extends Error {}
-
-const STAGE_INDEX: Record<string, number> = Object.fromEntries(
-  STAGE_KEYS.map((k, i) => [k, i]),
-);
-
-export const STAGE_LABELS: Record<StageKey, string> = {
-  order_entry: "Order entry",
-  stock_checking: "Stock checking",
-  rolling_checking: "Rolling & checking",
-  challan: "Challan",
-  bill: "Bill",
-  dispatch: "Dispatch",
-  received_lr: "Received LR",
-};
-
-export type OperationsStatus =
-  | "COMPLETED"
-  | "PARTIALLY COMPLETED"
-  | "PENDING"
-  | "CANCELLED";
-
-export function plannedAtForOffset(orderDate: string, offsetDays: number): Date {
-  const d = new Date(`${orderDate}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  return d;
-}
-
-export function buildInitialStageRows(
-  orderLineItemId: string,
-  orderDate: string,
-  offsets: Record<string, number>,
-) {
-  return STAGE_KEYS.map((stageKey) => ({
-    orderLineItemId,
-    stageKey,
-    plannedAt: plannedAtForOffset(orderDate, offsets[stageKey] ?? 1),
-    actualAt: null,
-    isDone: false,
-    delayMinutes: null,
-  }));
-}
-
-export const PROGRESS_STAGE_KEYS_LIST = [
-  "rolling_checking",
-  "challan",
-  "bill",
-  "dispatch",
-  "received_lr",
-] as const;
-const PROGRESS_STAGE_KEYS = new Set<string>(PROGRESS_STAGE_KEYS_LIST);
-
-export function computeLineStatus(
-  stages: { stageKey: string; isDone: boolean }[],
-): OperationsStatus {
-  if (stages.length === 0) return "PENDING";
-  if (stages.every((s) => s.isDone)) return "COMPLETED";
-  const started = stages.some(
-    (s) => s.isDone && PROGRESS_STAGE_KEYS.has(s.stageKey),
-  );
-  return started ? "PARTIALLY COMPLETED" : "PENDING";
-}
-
-export function lineStatusFromCounts(counts: {
-  stageRows: number;
-  doneRows: number;
-  anyProgressStageDone: boolean;
-}): OperationsStatus {
-  if (counts.stageRows === 0) return "PENDING";
-  if (counts.doneRows === counts.stageRows) return "COMPLETED";
-  return counts.anyProgressStageDone ? "PARTIALLY COMPLETED" : "PENDING";
-}
-
-export function computeOrderStatus(
-  lineStatuses: OperationsStatus[],
-): OperationsStatus {
-  if (lineStatuses.length === 0) return "PENDING";
-  if (lineStatuses.every((s) => s === "COMPLETED")) return "COMPLETED";
-  if (lineStatuses.every((s) => s === "PENDING")) return "PENDING";
-  return "PARTIALLY COMPLETED";
-}
-
-export function isOrderCancelled(total: number, cancelled: number): boolean {
-  return total > 0 && cancelled === total;
-}
-
-export function isOrderDeleted(total: number, deleted: number): boolean {
-  return total > 0 && deleted === total;
-}
-
-export function lineMatchKey(parts: {
-  quality: string;
-  designNo: string;
-  qtyMtr: string | number;
-}): string {
-  return [
-    parts.quality.trim().toLowerCase(),
-    parts.designNo.trim().toLowerCase(),
-    Number(parts.qtyMtr),
-  ].join("|");
-}
-
-export function computeDelayMinutes(planned: Date | null, actual: Date): number {
-  if (!planned) return 0;
-  return Math.round((actual.getTime() - planned.getTime()) / 60000);
-}
+export * from "./workflow-constants";
 
 export async function applyStageProgress(params: {
   orderLineItemId: string;
@@ -170,7 +71,14 @@ export async function applyStageProgress(params: {
     if (isStock && !byKey.get("order_entry")?.isDone) {
       throw new WorkflowError(`Complete "${STAGE_LABELS.order_entry}" first.`);
     }
-    if (becomingDone && idx > STAGE_INDEX.stock_checking) {
+    // ── A HOLD IS NOT GATED BY THE SEQUENCE ────────────────────────────
+    //
+    // `on_hold` is an aside (see `ASIDE_STAGE_KEYS`), and goods can be held at
+    // any point — including before anybody has checked stock. Its position in
+    // `STAGE_KEYS` puts it past `stock_checking` in `STAGE_INDEX`, so without
+    // this it would inherit the sequence's gate and refuse the one case the
+    // column exists to record.
+    if (becomingDone && !isAsideStage(stageKey) && idx > STAGE_INDEX.stock_checking) {
       if (!byKey.get("stock_checking")?.isDone) {
         throw new WorkflowError(
           `Set "${STAGE_LABELS.stock_checking}" to In stock first.`,

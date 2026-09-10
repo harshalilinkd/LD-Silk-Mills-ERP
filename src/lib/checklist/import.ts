@@ -43,7 +43,24 @@ export function detectDelimiter(text: string): Delimiter {
  * newlines inside a quoted field, CRLF, and the byte-order mark Excel puts at
  * the front of every file it saves as CSV.
  */
-export function parseDelimited(text: string, delimiter?: Delimiter): string[][] {
+export function parseDelimited(
+  text: string,
+  delimiter?: Delimiter,
+  opts?: {
+    /**
+     * Keep rows that are entirely empty instead of dropping them.
+     *
+     * The checklist's own pastes do not want them — a blank line in a pasted
+     * block is noise. The ORDER IMPORT does
+     * (`lib/order-entry/import/parse-file.ts`), and the reason is line
+     * NUMBERS: it reports every problem as "line 47" against the person's own
+     * sheet, and dropping a blank row here shifts every number after it. An
+     * error report that points at the wrong row is worse than one that points
+     * at nothing.
+     */
+    keepEmptyRows?: boolean;
+  },
+): string[][] {
   const src = text.replace(/^﻿/, "");
   const delim = delimiter ?? detectDelimiter(src);
 
@@ -94,7 +111,10 @@ export function parseDelimited(text: string, delimiter?: Delimiter): string[][] 
     rows.push(row);
   }
 
-  return rows.map((r) => r.map((f) => f.trim())).filter((r) => r.some((f) => f !== ""));
+  const trimmed = rows.map((r) => r.map((f) => f.trim()));
+  return opts?.keepEmptyRows
+    ? trimmed
+    : trimmed.filter((r) => r.some((f) => f !== ""));
 }
 
 /**

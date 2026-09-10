@@ -17,6 +17,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   IconDatabase,
+  IconFileImport,
   IconShieldCheck,
   IconStopwatch,
   IconTrash,
@@ -50,6 +51,15 @@ const TABS = [
     label: "Role permissions",
     href: "/order-entry/settings/access",
     icon: IconShieldCheck,
+  },
+  // Added Sep 2026: half of this financial year is still in the Google Sheet
+  // the ERP replaced, and it has to come across. It sits in Order Entry rules
+  // rather than beside "New order" because it is a one-off administrative act
+  // over the whole module, not a thing anybody does in a working day.
+  {
+    label: "Import",
+    href: "/order-entry/settings/import",
+    icon: IconFileImport,
   },
   { label: "Trash", href: "/order-entry/settings/trash", icon: IconTrash },
 ];

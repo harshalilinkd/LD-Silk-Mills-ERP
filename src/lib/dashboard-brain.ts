@@ -117,7 +117,12 @@ export async function getOperationalSnapshot(
                                      and exists (select 1 from ld_order_entry.line_stage_progress p
                                                  join ld_order_entry.workflow_stages w on w.stage_key = p.stage_key
                                                  where p.order_line_item_id = l.id and p.is_done
-                                                   and w.sort_order = (select max(sort_order) from ld_order_entry.workflow_stages))) as done
+                                                   and w.sort_order = (select max(sort_order) from ld_order_entry.workflow_stages))
+                                     -- ...and not on hold. A hold is the one thing that takes a
+                                     -- line back out of finished (see computeLineStatus).
+                                     and not exists (select 1 from ld_order_entry.line_stage_progress h
+                                                     where h.order_line_item_id = l.id
+                                                       and h.stage_key = 'on_hold' and h.is_done)) as done
         from ld_order_entry.customer_orders o
         left join ld_order_entry.order_line_items l on l.order_id = o.id
         group by o.id

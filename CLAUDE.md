@@ -227,6 +227,28 @@ Translate SCREENS.md's colour names to ours: `ink→text-1`, `ink-soft→text-2`
 `ink-muted→text-3`, `line→border`, `inset→chip`, `accent→primary`,
 `accent-soft→accent`, `success/warning/danger→status-green/amber/red`.
 
+**A WHOLE NUMBER PRINTS WHOLE.** `formatNumber` (`lib/order-entry/orders.ts`)
+forced two decimals on every quantity, rate, line total and order total in the
+module — `3,400.00`, `160.00`, `₹5,44,000.00` — and almost every figure in this
+business is whole, so those zeros were noise on nearly every cell of the widest
+tables in the ERP. The owner asked for them gone (Sep 2026).
+
+**They are dropped only when they ARE zeros.** Hard-rounding is the obvious
+reading of "remove the decimals" and it is the wrong one: 88 line quantities, 59
+rates and 23 order totals in the live data carry a real fraction, so rounding
+turns a rate of `82.50` into `83` and a quantity of `100.02` into `100` —
+misstating real orders on the screen people price from, to save two characters.
+A whole number prints whole; a fractional one keeps BOTH places, so `4,704.50`
+stays `4,704.50` rather than becoming a ragged `4,704.5`. The rounding happens
+before the whole-number test, or a float that is `4699.999999999999` prints as
+`4,700.00` while testing as fractional.
+
+One helper feeds all five columns on all three order tables plus the designs
+panel, the trash view and CRM — which is why this was one edit and not six.
+**The CSV exports and the workbook are untouched**: they write raw values and
+`indianFormat()` respectively, because a file is the machine's copy and must
+not be rounded for looks.
+
 **Use `.num`, never `font-mono`, on figures/money/dates** — it's tabular
 figures in Manrope. SCREENS.md §0.3 rejects mono there (it reads as code on
 screens that are mostly money), and Manrope's default digits are proportional,
@@ -440,6 +462,560 @@ you're inside that section). Toggling a system's `status`/`route`/
   settings tab, the Tracking view (§4B — the default view of Orders, behind
   a `ViewSwitch`), and the five-stage draggable call panel (§7.2).
 
+## Importing the old Google Sheet — orders
+
+`/order-entry/settings/import` (Order Entry rules → Import), Sep 2026. Half of
+this financial year was entered in the Google Sheet this ERP replaced and has
+to come across; the new system's own data starts **17 May 2026**. The owner's
+framing was the important part: *"old google sheet ke data me mistakes honge,
+data types may be not match to our system"* — so this is a screen with a
+mapping step and a preview, not a one-off script.
+
+`src/lib/order-entry/import/` is the core — `fields.ts` (what a column can
+become, plus the auto-guess), `coerce.ts` (reading a cell nobody validated),
+`build.ts` (rows → a plan), `parse-file.ts` (CSV/TSV/XLSX → rows).
+`src/app/api/order-entry/import/route.ts` writes.
+
+**THE SERVER RE-READS THE ROWS.** The browser posts the raw cells and the
+mapping, never the plan it drew, and the route runs `buildPlan` again against
+order numbers and master lists read fresh in that request. Same rule as the
+checklist importer and for the same reason: a preview built minutes ago
+describes a database that has moved, and a client is a thing somebody can edit
+before it posts.
+
+**FOUR TABLES, NOT TWO.** An order is `customer_orders` + `order_line_items` +
+**every `line_stage_progress` row per line** (seven until Sep 2026, eight since
+`on_hold` was added — `buildInitialStageRows` writes whatever `STAGE_KEYS` holds) + `design_database`. The
+stage rows are the one that gets forgotten: without them an order renders on
+the Operations board as permanently "not started" and can never be ticked, and
+nothing anywhere reports it. `line_total` is a GENERATED column
+(`qty_mtr * rate`) and must never be inserted — a sheet's own Amount column is
+mappable as `check_total`, which is READ and compared and never written.
+
+**A BLANK ORDER NUMBER MEANS "THE ONE ABOVE".** This is the behaviour the
+importer lives or dies on. A person writing an order into Sheets types the
+number, party and date once and lists the designs underneath — visually a
+merged cell, and once exported those cells are empty strings. The first version
+grouped on the raw cell and dropped every continuation row: a four-design order
+imported with one design, and the report said "no order number on this row"
+three times, which reads like a broken file rather than a completely normal
+one. The number forward-fills, but only onto a row that CARRIES LINE DATA, so a
+trailing note is not swallowed as a design. It is reported once for the file,
+never per row — on a real sheet this is most of the rows.
+
+**IT IS SAFE TO RUN TWICE, AND EVERYTHING RESTS ON THAT.** An order number
+already present is SKIPPED (the owner's choice over overwrite). That is what
+lets the browser send the file in batches, lets each ORDER be its own
+transaction rather than one all-or-nothing block, and lets somebody fix three
+bad rows and re-run the same file — the orders already in are stepped over.
+**Batches are cut only at a row that carries its own order number**, or the
+rows that inherited it would be lost or filed as a second order; the route
+refuses a batch whose first row has no number.
+
+**Order numbers overlap, and that was the trap worth finding first.** The new
+system already holds 148–1305 dated 17 May–9 Sep. An old sheet covering the
+earlier half of the same financial year uses the same series, so collisions are
+expected rather than exceptional — which is why skip-and-report is the default
+and why the report names every skipped number.
+
+**"Already there: 40" is a number nobody can act on.** The report counted the
+skipped orders and listed only the REFUSED ones, so the forty that did not come
+across could not be found again — and a skipped order is one that is NOT in from
+that file, not one that was merged. The numbers are printed as plain
+comma-separated text (a table row each would be two hundred identical reasons on
+a real file), with a line saying they were not imported and to check them in the
+old sheet. Covered by `.scratch/skip-e2e.mjs`, which imports a file twice.
+
+**It may CLEAN a value but never quietly.** `₹1,23,456` → 123456,
+`1,200 mtr` → 1200, `(250)` → −250, a spreadsheet date serial → a date, invisible
+non-breaking and zero-width characters stripped (`"PR EXPO"` with a trailing
+U+00A0 is a different party to every comparison in this system and nothing on
+screen shows why). Each of those prints a note against its own line number.
+Dates are DAY-FIRST like the rest of the ERP, and an ambiguous one — both
+halves 12 or under — says so, because `05/06/2026` is 5 June here and 6 May in
+a US export with nothing in the cell to say which. **A range like `12-15` is
+REFUSED, not guessed**, and an unrecognised word in a yes/no column is refused
+rather than read as no — a cancellation flag read as "not cancelled" puts money
+into a total that should not have it.
+
+**Line numbers must match the person's own sheet**, so `parseDelimited` gained
+a `keepEmptyRows` option: dropping blank rows shifts every number after them,
+and an error report pointing at the wrong row is worse than one pointing at
+nothing. The checklist's own callers are unchanged (the option defaults off).
+
+**Parsing happens in the BROWSER.** Vercel refuses a request body over 4.5 MB
+before our code runs — the same cap that forced petty cash receipts
+browser-to-storage — and only the finished batches are posted. ExcelJS's
+browser build is dynamically imported and only when an .xlsx is chosen, so a
+CSV import never downloads it. A date CELL comes back from ExcelJS as a JS
+`Date` whose `toString()` no parser here can read, and it is UTC midnight, so
+it is emitted as ISO from the UTC parts — formatting it locally gives the day
+before, east of Greenwich.
+
+**A name the master lists do not have still imports.** `party_name` is TEXT,
+not a foreign key. But a name that is not in `lookup_values` cannot be picked
+from a dropdown or a filter afterwards, so the preview lists every unknown name
+with how many rows use it and the nearest existing match, ticked by default, to
+be added in one go. The nearest-match suggestion is deliberately conservative
+(exact normalised match, or containment at five characters or more) — an
+edit-distance match would confidently propose "LONDON" for "LONDAN" and also
+"EARTH" for "EARTHY", and an import that quietly merges two fabrics cannot be
+undone by looking at the result.
+
+**Imported historical orders read as PENDING and overdue, and that is
+correct.** Planned stage dates are computed from the order date plus the
+`workflow_stages` offsets, so a June order's planned dates are months past.
+Until the production-status data is imported too, every imported order sits in
+the Overdue count. Expect that; it is not a defect.
+
+**Proven end to end against the live tables** (`.scratch/import-core.mts`,
+`import-e2e.mjs`, `import-verify.mts`). Three test orders written and removed
+again: 21 and 14 stage rows (3×5 and 2×7), `line_total` computed by Postgres,
+design `01` keeping its leading zero, `60.5 @ 82.50` keeping both decimals, and
+the 31-February order refused. `import-verify.mts --clean` removes the
+`design_database` rows FIRST — its `order_id` is ON DELETE SET NULL, so they
+survive the order and would be left pointing at nothing.
+
+**`setInputFiles` BEFORE HYDRATION FIRES NOTHING.** The e2e test passed once
+and then failed on a re-run: the file lands in the input, no React handler is
+attached yet, and the run dies sixty seconds later on a selector that was never
+going to appear. The first pass only worked because a warm-up curl happened to
+buy it a second. CLAUDE.md already recorded this trap for form filling; it
+applies to a file input identically.
+
+**THE REAL WORKBOOK BROKE ALL OF THAT, AND FOUR THINGS HAD TO CHANGE.** The
+owner sent `LinkD dataEntryInterface.xlsx` (tab **`orders`** — TIMESTAMP, DATE,
+ORDER NO., SALES PERSON, PARTY NAME, AGENT, HASTE, TRANSPORT, FABRIC, DEPT.,
+DSGN-MATCHING, MTR-YARD, RATE, plus `cancelled order`). Run against it as first
+written, the importer produced **three orders, zero lines and twenty-three
+errors**. Each of these was on its own enough to do that:
+
+1. **`"OK"` was read as CANCELLED.** The sheet's `cancelled order` column holds
+   exactly two words — `OK` for a live line, `Cancelled` for a dead one — and
+   `ok` sat in `TRUE_WORDS`. Every healthy line in half a financial year would
+   have imported as cancelled, with no error and no warning; the orders all look
+   real until somebody asks why the year has no sales. `ok` is FALSE now, and
+   `done` is in NEITHER list — in a cancellation column it is genuinely
+   ambiguous, and a refusal somebody reads beats a guess nobody sees.
+2. **FABRIC is merged down INSIDE an order**, not just at its head. The
+   order-level forward-fill did not cover it, because `quality` is a LINE field:
+   the fabric is written once per block and blank on every design under it, so
+   most rows failed "Fabric is required". It now carries within an order only —
+   an order opening on a blank fabric still fails rather than inheriting the
+   previous ORDER's cloth — and every carry is reported.
+3. **`DSGN-MATCHING` and `MTR-YARD` did not auto-map.** Those spellings were not
+   in the aliases.
+4. **`DEPT.` had no field at all.** `customer_orders.department` has existed all
+   along (varchar 40, default `LD`), and the importer never wrote it — so every
+   `LINKD` order would have become `LD`, silently, because the column's own
+   default covers it. **Map DEPT. or the two departments merge.**
+
+Also: `-` is read as blank. `SALES PERSON` is `-` on thousands of rows and was
+being stored literally, creating a party and a salesperson actually NAMED "-"
+in the master lists and every dropdown.
+
+**`Status` is deliberately NOT an alias for the cancelled flag.** The workbook
+has both a `Cancelled order` column and a `Status` column, and the
+production-status sheet is nothing but status columns — claiming the generic
+word would let a stage word land in `is_cancelled`.
+
+**EXPORT THE `.xlsx`, NOT THE CSV.** The CSV the owner first sent came off the
+`all_orders` tab, which is the same data through a `QUERY()` and has **no
+AGENT, HASTE or TRANSPORT columns at all**. All three are optional, so importing
+it loses them with no error. The workbook also carries `dropDown` (the master
+lists), `linkD` and `LD_entry` (the same rows filtered by department) and
+`Interface` (a data-entry form, not data).
+
+## Importing the old Google Sheet — production status
+
+The second pass, same screen: Order Entry rules → Import → **Production
+status** tab (`import-tabs.tsx`, both screens kept mounted so switching tabs
+does not throw away a loaded file). `status-layout.ts` finds the columns,
+`status-build.ts` turns rows into stage ticks, `api/order-entry/import/status/`
+writes.
+
+**IT ONLY EVER TICKS. It creates nothing and it never unticks.** A row whose
+order is not in the system is REPORTED, not inserted — the orders sheet is what
+creates orders. And a stage that is blank in the sheet but ticked here is left
+alone: the sheet is half a year old, so a blank is the sheet being out of date,
+not an instruction to undo somebody's work. That is also what makes the file
+safe to run twice and safe to run on a working day. The rule is in the UPDATE's
+own `WHERE is_done = false`, not only in the plan, so a stage ticked in the
+seconds between the read and the write is still not overwritten.
+
+**THE HEADINGS CANNOT SAY WHICH STAGE A COLUMN IS.** The sheet repeats
+`Planned, Actual, Status, Time Delay` once per stage — `Planned` appears eight
+times — and the stage NAME lives in a merged cell one row above. So the layout
+is DETECTED and then shown for confirmation, one row per stage with a real value
+from the file under it. Twenty-five dropdowns would be unusable and, worse, easy
+to set wrong by one column, which would file every dispatch date under `bill`
+with nothing on screen to show it.
+
+- **The heading row is not the first non-empty row.** This file opens with a
+  timestamp row and three rows of department names and SLA text; the real
+  heading is row 6. It is found by looking for the row that repeats `Planned`
+  and `Actual`. `SheetData` gained `raw` (every row, heading included) so the
+  status importer can do that without distorting the orders importer's view.
+- **The label row is not the NEAREST row above either**, and that cost a whole
+  run. Four rows sit above the heading, all populated at exactly the stage
+  columns: names, then who owns it, then where, then the SLA. Taking the first
+  non-empty one labelled every block `NEXT EOD`, matched no stage, and the
+  importer reported that this system has none of the stages in the sheet. The
+  label row is chosen by SCORING each candidate on how many blocks it names.
+
+**`"OK"` MEANS DONE HERE AND MEANT NOT-CANCELLED IN THE ORDERS SHEET.** Same
+three letters, opposite meanings, one column apart in the same workbook. That is
+why `coerceStageFlag` exists beside `coerceFlag` instead of one shared helper —
+whichever meaning a shared one picked would silently corrupt the other sheet.
+Stock checking also uses `Yes`/`No` where every other stage uses `TRUE`/`FALSE`,
+which maps onto `stock_status` in/out of stock.
+
+**THE SAME NUMBER IS NOT THE SAME ORDER, AND THIS IS THE ONE THAT PROTECTS THE
+NEW BOOK.** The old sheet's order numbers OVERLAP the new system's — the book
+runs 148-1305 and the sheet has 50, 321, 478, 2726. An old order whose number is
+already taken is SKIPPED by the orders import (correctly) and never enters the
+system. The status pass then looks that number up and finds the NEW order
+wearing it: match on order + fabric + design alone and a 2024 production status
+can be written onto an order raised in August 2026, silently, whenever the
+fabric and design happen to coincide. Nothing would ever have reported it.
+
+So the sheet's own `OD DATE` and `PARTY NAME` are read and CHECKED — never
+written. A different date is a different order and the row is REFUSED; a
+different party on the same date is a warning, because a party gets respelt far
+more often than a date changes. Both templates carry an ORDER DATE column for
+this reason. Covered in `.scratch/status-core.mts` under "the same NUMBER is not
+the same ORDER".
+
+**THE MATCH IS ORDER + FABRIC + DESIGN, NOT QUANTITY.** `lineMatchKey` in
+`workflow-constants.ts` keys on quantity too, which is right for the order form.
+The status sheet's `MTR-YARD` holds `190` and also `2-SET` and `1-BALE`, so
+keying on it would fail to match every row measured in bales. The quantity is
+checked instead — and only when it IS a number, or `2-SET` "disagrees" with 60
+metres on most rows of some orders.
+
+**TWO DECISIONS ARE THE OWNER'S, NOT THE CODE'S** (Sep 2026):
+
+- **A later stage ticked with an earlier one blank BACKFILLS the earlier ones.**
+  The sheet has such lines (order 2756 has CHALLAN done and STOCK CHECKING
+  blank) and this system's own rules say that cannot happen —
+  `applyStageProgress` refuses to tick past stock checking until it is in stock,
+  so the line would import and then be impossible to work with on the board. A
+  backfilled tick takes the sheet's own Actual for that stage if it has one and
+  otherwise NOTHING; a made-up date would go straight into delay figures people
+  read as fact. Every backfill is reported as one.
+- **Our planned dates are kept; only Actual and the tick come from the sheet**,
+  and `delay_minutes` is recomputed from the two. The sheet's own planned dates
+  are visibly a bulk fill (every line's stock-checking planned is
+  `24-05-2025 18:39`) and its `Time Delay` column reads `5617:39:42`.
+
+**The file is 99% empty and that is normal.** 21,310 rows, 38 with data: the
+rest are array-formula spill carrying the word `FALSE`, and a dozen carry `OK`
+with no order, fabric or design at all. Rows with no design number are counted
+and reported ONCE — reporting each would bury the real problems under twenty
+thousand identical lines. **File-level issues are never truncated out of the
+report**, because forty per-row notes had pushed "21,266 rows were skipped" off
+the bottom of the list.
+
+**`ON HOLD` used to be a stage the sheet had and this system did not** — it was
+reported as not imported. The owner asked for it (Sep 2026) and it is now the
+eighth stage. Read the section below before touching it: it is an ASIDE, not a
+step, and the importer never backfills it.
+
+**The browser collects before it posts, and that is the one deviation from
+"the server re-reads the rows".** 21,310 rows by 44 columns is far past the
+4.5 MB body cap. The browser drops the rows with no design and resolves the
+merged order number and fabric; everything that could go stale — which line a
+row matches, which stages are already ticked, what the planned dates are — is
+still read fresh in the request and re-decided there.
+
+**`workflow.ts` was split.** The stage vocabulary and every pure function are in
+**`workflow-constants.ts`** and re-exported from `workflow.ts`, so nothing that
+imported from there changed. `workflow.ts` opens the database at module scope,
+so a client component importing `STAGE_LABELS` from it pulled `postgres` into
+the browser bundle and the build died on `Can't resolve 'net'` / `'perf_hooks'`
+/ `'fs'` — with the page rendering blank and saying nothing useful.
+
+**Proven end to end against the live tables** (`.scratch/status-core.mts` —
+46 assertions, `status-e2e.mjs`, `status-verify.mts`, `status-twice.mts`).
+Twelve orders and 38 lines built from the REAL status sheet's own rows, imported
+through both screens, then removed (table back to 351 orders / 6,466 lines /
+45,262 stage rows): 266 stage rows, 43 ticked, the gate-breaking line coming out
+`order_entry, stock_checking, rolling_checking, challan` with the backfilled
+stock check `in_stock` and the backfilled rolling tick carrying no date, and a
+**second run of the same file writing nothing at all**.
+
+### The import templates
+
+A **Download the template** button on each of the two import tabs
+(`template-button.tsx`), building an .xlsx from
+`lib/order-entry/import/templates.ts`. Copies are also written to `templates/`
+for handing to whoever does the data entry.
+
+**They are BUILT, not served, and that is the point.** Two files in `public/`
+would have been less code and would go stale silently: the day a column joins
+`IMPORT_FIELDS`, or the day `on_hold` becomes a stage, the file on disk still
+describes the importer as it was and the person filling it in has no way to
+tell. Generating from the same constants the importer reads means a template
+cannot describe a shape the importer refuses. ExcelJS is dynamically imported on
+click, the same rule the .xlsx parser follows.
+
+**A template is only worth anything if it imports cleanly itself.**
+`.scratch/templates-verify.mts` generates both and runs them back through
+`parseImportFile` → `suggestMapping` → `buildPlan` / `buildStatusPlan`. All 18
+order fields must auto-map, nothing required may be left for a person to map by
+hand, and the sample rows must plan with zero errors. A template whose headings
+the mapper does not recognise is worse than none — it teaches a shape the system
+then refuses, and the person who filled in four hundred rows is the one who
+finds out.
+
+**The sample rows ARE the documentation.** Each demonstrates something a header
+row cannot express: the order number and party written once and left blank
+underneath, the fabric written once per block, `OK` against `Cancelled`, `LINKD`
+in its own column, a design number of `01`, decimals in qty and rate. They are
+obviously fake (`SAMPLE-1`), italic and grey, and both notes sheets say to
+delete them — a sample that gets imported as a real order is the one thing worse
+than no sample.
+
+**`DESIGN NO` is formatted as text (`@`)** in both templates. It is the only
+formatting decision that changes what imports rather than how it looks: without
+it Excel turns `01` into `1` and merges it with a different design.
+
+**The status template's row 1 is the stage names, merged across each block of
+four; row 2 is the headings; data starts on row 3.** That is the shape
+`detectStatusLayout` needs and the shape the old workbook already has. Note
+ExcelJS reports a merged cell's value on EVERY column it spans, so reading row 1
+back gives thirty-two labels rather than eight — `blockCell` takes the first
+non-empty cell of each block, so this is read behaviour and not a defect.
+
+`on_hold` appears in the status template where the old sheet puts it, after
+stock checking, because that is where the people filling it in expect it.
+Nothing about column ORDER tells the importer anything — the stage is recognised
+by its NAME — so moving it breaks nothing.
+
+**Proven in a real browser too** (`.scratch/templates-e2e.mjs`): both buttons
+clicked, both downloads saved and re-read. A dynamic import that fails in the
+browser bundle fails silently — the spinner stops and no file arrives — which no
+server-side test can see.
+
+## `on_hold` is an EIGHTH stage that is not a step, and that distinction is load-bearing
+
+Added Sep 2026 on the owner's instruction, so the old sheet's `ON HOLD` column
+stops being dropped on import. Read this before touching anything that counts
+stages.
+
+**"Completed" in this system means EVERY stage row on the line is done.** Add an
+eighth stage that is almost never ticked and it means nothing is ever complete.
+Measured on the live table first: **2,047 completed lines and 72 completed
+orders** would have stopped being complete the moment the row was inserted —
+across the Order status board, All orders, the home page, the AI assistant and
+two reports, on the same day, for a column about something that did not happen.
+
+So it is an **aside**: a real stage row that can be ticked, carries a date and
+shows on the board, but that no sequence computation may count.
+`ASIDE_STAGE_KEYS` / `FLOW_STAGE_KEYS` / `isAsideStage` / `FLOW_STAGE_SQL` in
+`workflow-constants.ts` are that rule; the SQL constant exists because half the
+places that needed it are raw queries.
+
+**`sort_order = 0`, and that is not cosmetic.** `dashboard-brain.ts` decides a
+line is delivered by finding the stage with
+`sort_order = (select max(sort_order) from workflow_stages)`. Given the hold the
+highest sort order, "delivered" would silently have come to mean "put on hold".
+At 0 it sorts before `order_entry`, so `max()` is still Received LR and that
+query needed no change at all — nor did `order-register.ts` or
+`line-detail.ts`, whose `coalesce(max(sort_order) filter (is_done), 0)` reads 0
+for a hold, which is the same answer as nothing ticked. Verified after the
+write: max(sort_order) is still `received_lr`, and the home page still reads
+273 of 346 orders open.
+
+**Where the exclusion had to be written, and what each would have done:**
+
+| File | Left in, it would have said |
+|---|---|
+| `order-status-query.ts` (the `grid` CTE) | every order in the business is sitting "On hold" — `first_undone` resolves to it for nearly every line |
+| `orders/route.ts` (the per-line counts) | every line unfinished — `lineStatusFromCounts` compares done against TOTAL |
+| `ai/tools.ts` | every order "still in progress", forever |
+| `workflow-constants.ts` `computeLineStatus` | the 2,047 lines above |
+| `tracking-board.tsx` `lineStatusOf` | the same, in the browser — this file knowingly duplicates the server's rules, and its own comment says the two change in one commit |
+
+`tracking-board.tsx` also compares stage POSITIONS for its two confirmations
+("later stages are still done", "stock is being dropped with work after it").
+The hold sits last in `STAGE_KEYS`, so without the filter un-ticking Dispatch on
+a held line would warn that "On hold" comes after it.
+
+**The gate does not apply to it.** `applyStageProgress` refuses any stage past
+stock checking until stock checking is in stock. Goods can be held at any point
+— including before anybody has checked stock — and the hold's position in
+`STAGE_KEYS` would otherwise make it inherit that gate and refuse the one case
+the column exists to record.
+
+**The status importer never BACKFILLS it.** The backfill ticks everything up to
+the furthest tick, which is only meaningful for a sequence. Counted in that walk
+it would do damage both ways: a held line would backfill every stage before the
+hold, and a line that reached Challan would be recorded as having been held when
+it never was. The walk runs over `FLOW_STAGE_KEYS`; the hold is taken exactly as
+the sheet writes it.
+
+**Its dot is GREY** (`STAGE_DOT.on_hold`), not because the palette ran out —
+that is the documented reason the last two are both teal — but because it must
+not read as one of the seven coloured stages a line moves through.
+
+**Production status reports it, in two columns OUTSIDE the stage loop.**
+`STAGES` in `reports/order-entry/shared.ts` is still the SEVEN and must stay
+that way: `production-status.ts` derives `reached`, `waiting_on`, `Still open`
+and the funnel from those columns BY INDEX, and `days_start_to_finish` reads
+`s6_at`, which is Received LR by position and nothing else. Adding an eighth
+entry there shifts every one of those. So the hold is read as its own
+`hold_done` / `hold_at` aggregate and lands as **On hold** (badged only on Yes —
+a hold is the exception, and tinting "No" would colour the whole sheet) and
+**Held on**, beside Waiting on. `last_tick` — which drives "days since move" —
+also excludes it, because a line has not moved just because somebody held it
+three weeks ago. An insight appears only when something IS held, and a caveat
+says a hold never counts as progress.
+
+Verified against the live tables with a real hold on a finished line
+(`.scratch/report-hold-live.mts`): still `Still open = No`, still
+`Reached = Received LR`, still `Stages done = 7` and waiting on nothing. The
+other five Order Entry reports needed no change — `sort_order = 0` keeps every
+`max(sort_order) filter (is_done)` reading exactly what it read before.
+
+`.scratch/verify.ts`'s section 4 used to trace `test-002` by name and started
+failing the day that order was deleted. It picks the newest order with live
+lines now: a check that hangs on one particular row breaks when somebody tidies
+up, and says nothing about the reports when it does.
+
+**The 6,460 backfilled rows.** `.scratch/add-on-hold.mts` inserts the config row
+and one progress row per existing line (a stage with no row cannot be ticked,
+and the board renders the rows that exist). Both writes are
+`on conflict do nothing`, so it is safe to run twice. It refuses to write unless
+every existing `planned_at` is UTC midnight plus a whole number of days, which
+is what proves the date arithmetic matches `plannedAtForOffset` rather than
+drifting by a timezone.
+
+**Only 25,663 of 45,220 existing planned dates match today's offsets**, and that
+is not a fault: the offsets were raised from the schema default of 1 to 8/10/12
+after those orders were entered, and changing an offset does not rewrite dates
+already written. There is a "recompute" endpoint for that; it was not run.
+
+**Proven on the live tables** (`.scratch/on-hold-tick.mts`,
+`on-hold-screens.mjs`): order 1040, every flow stage ticked, was put on hold
+through the real endpoint — 200, still `COMPLETED`, still 2,047 completed lines
+across the book — then taken off hold and the row left exactly as it was. The
+Order status board reports no order on hold, and no page errors anywhere.
+
+**The standalone Order Entry app read eight rows, saw seven done, and showed a
+finished order as partially completed.** It was patched on the owner's
+instruction — see "The standalone Order Entry app was patched too" below.
+
+## FINISHED MEANS THE LAST STAGE IS TICKED, AND NOT ON HOLD
+
+The owner's rule (Sep 2026), in their words: *"if anyone click on on hold that
+order will became un completed thats the onlly logic for completing order its
+not necessary to tick all stages"*.
+
+**It replaced "every stage row is done", which disagreed with half the ERP.**
+33 live lines have Received LR ticked with an earlier stage never ticked — a
+missed tick behind work that has plainly left the mill. Counting ticks called
+those 33 unfinished while the reports, the production dashboard and the home
+page all read the LAST stage and called them finished. The same book was
+**2,047 complete on the board and 2,080 in the reports**, and CLAUDE.md already
+recorded that split as a known defect. One rule now, everywhere: 2,080.
+
+Where it is written, and every one of these had to move together or the split
+comes back:
+
+| File | What decides it |
+|---|---|
+| `workflow-constants.ts` | `computeLineStatus` — the last FLOW stage done, and no aside stage done |
+| `workflow-constants.ts` | `lineStatusFromCounts` — now takes `lastStageDone` + `onHold`, not just counts |
+| `order-status-query.ts` | `line_finished` / `line_held` CTEs feed `line_status` |
+| `orders/route.ts` | reads `lastStageDone` and `onHold` per line instead of filtering the hold out |
+| `dashboard-brain.ts` | already read the max-sort_order stage; gained "and not held" |
+| `reports/production-status.ts` | `isOpen` gained `|| held` |
+| `reports/order-register.ts` | `finished_lines` excludes held lines; `is_complete` needs `held_lines = 0`; new **Lines on hold** column |
+
+**A held line reads PARTIALLY COMPLETED, not PENDING**, because the work up to
+the hold really did happen. **`Stages done` beside the status is where a missed
+tick still shows** — the figure is not hidden, it just no longer decides.
+
+Proven on the live tables (`.scratch/rule-live.mts`): 2,080 by hand-written SQL,
+2,080 from the production report, then one finished line put on hold — the count
+drops to 2,079, `computeLineStatus` stops saying COMPLETED, the report flips it
+to `Still open = Yes` with `On hold = Yes`, the order register counts
+`held_lines = 1` and `is_complete = false` — and the hold is released and every
+figure comes back.
+
+## The standalone Order Entry app was patched too
+
+`Desktop/LD Order Entry/LD-Order-Entry`, six files, on the owner's instruction
+(Sep 2026). CLAUDE.md's "this repo never modifies them" still stands as the
+default — this was asked for, and the six files were checked to be clean of the
+other person's uncommitted work first (`CLAUDE.md`, `middleware.ts` and three
+CRM components were, and are, untouched).
+
+**The concept is one sentence: count only the stages that app knows about.**
+`KNOWN_STAGE_KEYS` / `isKnownStage` / `KNOWN_STAGE_SQL_LIST` in its
+`lib/workflow.ts`, applied in `computeLineStatus`, `dashboard-query.ts`,
+`monthly-report.ts`, `order-status-query.ts`, `app/api/orders/route.ts` and
+`components/tracking/tracking-board.tsx`.
+
+Deliberately NOT "ignore `on_hold`": if this ERP ever adds another aside stage,
+that app keeps working. **Nothing there writes** — only the counting changed.
+
+Two traps it had that are worth knowing if it is ever touched again:
+
+- **`stageCount()` is `select count(*) from workflow_stages`** in both
+  `dashboard-query.ts` and `monthly-report.ts`, compared as
+  `doneCount >= stageCount()`. That became 8, which no line could reach.
+- **`doneCount` had to be filtered as well, not just `stageCount()`.** It counts
+  every done stage row on the line, so a line with six flow stages done AND a
+  ticked hold would have counted 7 against a stageCount of 7 and reported as
+  finished — a wrong number rather than a missing one.
+
+Its `order-status-query.ts` loads the stage list straight out of
+`workflow_stages`, so without the filter its board would also have drawn an
+eighth column nobody there can tick.
+
+Verified with its own module under its own env: a finished line comes back
+COMPLETED with an unknown stage present, and a ticked hold never drags an
+unfinished line over the line. It cannot be exercised end-to-end from here — it
+is a separate deployment on its own port — so tsc, eslint and that logic test
+are the checks that were run.
+
+## The Import screen's layout
+
+Rebuilt Sep 2026 after the owner reported it "not looking good". Four things
+were wrong and each is a rule worth keeping:
+
+- **TWO IDENTICAL PILL STRIPS, STACKED.** The Orders / Production status switch
+  used the same `Tabs` component at the same size in the same box as the
+  settings strip directly above it, so the page opened with two full-width
+  strips and nothing said which was subordinate. The switch is smaller now and
+  sits INSIDE the header card beside the title it changes — it is the only
+  control on the page that looks like that, which is what makes it read as a
+  choice within Import rather than beside it.
+- **PROSE AT THE CARD WIDTH, BECAUSE THAT IS THIS APP'S MEASURE.** A reading
+  measure (`max-w-[78ch]`) was tried here and reported as worse, and measuring
+  said why: every other settings page runs its description across the whole
+  1,288px card — the page subtitle above it, Design Database's own note — so a
+  619px column made this page the odd one out, cramped lines with half a card of
+  white beside them. Match the house, not the typography textbook.
+- **THE HOLE IN THE MIDDLE.** Prose left, template button pinned right, 400px of
+  nothing between them. One column now: what this is, then the thing you
+  download before doing it. Whitespace at the edge reads as a margin; whitespace
+  in the middle reads as a mistake.
+- **A FILE CHOOSER IS ONE ROW, NOT A ROOM — AND NOT A FRAME INSIDE A FRAME.**
+  It was a 230px-tall card with a button floating in the middle; the first fix
+  put a dashed box inside a Card, which is two borders drawing the same edge.
+  The dashed strip IS the element now, and its whole area is the click target.
+  It stacks below `sm`, where a row would push the button off the edge.
+
+The two screens no longer carry their own intro card — `import-tabs.tsx` owns
+the header for whichever is active, so there is one header and one working area
+rather than two features stacked. Both screens stay MOUNTED behind `hidden`:
+switching to check the other sheet and coming back to find the file gone,
+mapping and preview and all, is the kind of small loss that makes somebody
+re-upload rather than look.
+
 ## Outbound integration — the order feed (`/api/export/orders`)
 Two external systems pull orders from us. **We are the source; we never call
 them.** `docs/SCOT-INTEGRATION.md` is the handover note given to the SCOT team
@@ -479,8 +1055,44 @@ and is the contract of record.
 - Shared primitives live in `src/components/ui/` (`HScroll`, `Pager`,
   `StatCard`, `StatusBadge`, `Segmented`, `Reveal`, `Money`, `data-table`)
   and `src/components/order-entry/shared/` (`ViewSwitch`, `OrderFilters`,
-  `useTrackView`, `useDebouncedValue`, `useColumnPrefs`, `csv`). Reuse them;
-  §0.4 exists because these were hand-rolled inconsistently before.
+  `useTrackView`, `useDebouncedValue`, `useColumnPrefs`, `ColumnPicker`,
+  `csv`). Reuse them; §0.4 exists because these were hand-rolled
+  inconsistently before.
+- **THE COLUMN PICKER IS ON ALL THREE ORDER TABLES** (Sep 2026, owner: *"in
+  order status table we have given choose column option … so I need this same
+  option in All orders and Operations table"*). It was written for the Order
+  status board and lived under `order-status/`, which read as belonging to that
+  screen. It moved to `shared/` — the old path is a re-export, so nothing that
+  imported it had to change — and All orders (`orders-dashboard.tsx`) and
+  Operations (`tracking-index.tsx`) now carry it too. These are the same orders
+  on three screens, and somebody who never reads Haste never reads it on any of
+  them.
+  - **One key per table, never one shared key.** `oe:order-status:cols:<email>`,
+    `oe:orders:cols:<email>`, `oe:operations:cols:<email>`. The column SETS
+    differ — the board has Stages and Overall, the other two have Agent and
+    Actions — and a shared key would fill everybody's storage with ids that
+    mean nothing on the other screens. `useColumnPrefs` filters restored ids
+    against the current list, so it would not break; it would just quietly
+    forget half of what you chose.
+  - **A COLUMN IS GATED IN THE HEADER AND IN THE BODY, OR THE TABLE LIES.**
+    Hiding a `<th>` and forgetting its `<td>` renders perfectly: the table just
+    shifts one column left from that point down, so every figure sits under the
+    wrong heading and nothing errors. `.scratch/col-picker.mjs` counts the
+    header cells and every row's cells and requires them to agree, before and
+    after switching columns off. Any expanded row's `colSpan` is computed from
+    the same list, never hardcoded — the designs panel on All orders was a
+    hard `13`.
+  - **The min-width has to follow the choice.** The board pins its table at
+    `min-w-[1240px]` whatever is hidden, so switching four columns off there
+    stretches the eight left and the sideways scroll never goes away — which
+    is the one thing the control exists to fix. The two new tables give each
+    column a `w` and ask for the sum of the VISIBLE ones; the widths add up to
+    the width that table always had, so nothing moves until something is
+    switched off. The board still has the old behaviour.
+  - **No picker where there is no table.** Both new tables become a card list
+    below their breakpoint (`lg` on All orders, `md` on Operations), so the
+    button is hidden there. A control offering to hide columns on a screen with
+    no columns does nothing when tapped.
 - **The order form's Order details pairs up on a phone.** Ten stacked fields
   was most of a screen of scrolling before the first fabric block, so the SHORT
   ones share a row — date + order no, sales person + agent, challan + lot —
@@ -825,6 +1437,22 @@ only that way, and `/masters` prints "ERP administrator" beside them rather
 than letting them believe it was deliberate. An explicit member row always
 wins, so an ERP admin can be deliberately limited to VIEWER here.
 
+**The unified People screen (`(app)/settings/users/people-table.tsx`) does NOT
+grant a Petty Cash role — it never has.** Its `PersonDialog` has pickers for
+ERP, Orders & CRM and Help Slip only. Ticking "Petty Cash" in Settings →
+Access, or setting someone's ERP role there, only satisfies "may they open
+it" (`system_access.canView`); it does not touch `ld_petty_cash.members`, so
+the person defaults to `VIEWER` (or `ADMIN` if they happen to be an ERP admin
+with no member row — the bootstrap above) and does not get the "New
+transaction" button. The only way to grant OPERATOR/ADMIN is Petty Cash →
+Masters → "Who may use it", same as every other module here keeping its own
+role table. Real confusion this caused once (Sep 2026): an admin granted "all
+system access" through the unified screen and could not see why the person
+still had no create button. Considered and declined: adding a Petty Cash
+picker to `PersonDialog` — the architecture is deliberate (see the
+`system_access` vs `members` split above), and the fix is a documentation gap,
+not a missing feature. If this bites again, that picker is where to add it.
+
 **Every figure in the module comes from `lib/petty-cash/queries.ts`.** `LIVE`
 (not deleted) is written once, `CREDIT_SUM`/`DEBIT_SUM` once, and balance is
 always `credits − debits` computed in SQL. The fastest way to lose a company's
@@ -885,25 +1513,59 @@ Asia/Kolkata).
 sent the file inside the Server Action's FormData and the first real receipt
 died on `Body exceeded 1 MB limit`. Raising Next's cap is the obvious fix and
 the wrong one: **Vercel refuses any request body over 4.5 MB** before our code
-runs, so the 10 MB this module offers could never have worked that way. The
-server now issues a one-use SIGNED UPLOAD URL, the browser PUTs the bytes
-straight to Supabase Storage, and the form submits only the path — carrying an
-HMAC over it, which `verifySignedPath` re-checks so a client cannot point its
-entry at a path we never issued. `next.config.ts` caps Server Action bodies at
-4 MB to match the platform, and **Goods Return and Help Slip were lowered from
-10 MB and 8 MB to 4 MB** because they still upload through the server; the
-signed-URL pattern in `lib/petty-cash/attachments.ts` is where they go if that
-ever bites.
+runs, so the 50 MB this module offers per file could never have worked that
+way. The server issues a one-use SIGNED UPLOAD URL per file, the browser PUTs
+the bytes straight to Supabase Storage, and the form submits only the paths —
+each carrying an HMAC over it, which `verifySignedPath` re-checks so a client
+cannot point its entry at a path we never issued. `next.config.ts` caps Server
+Action bodies at 4 MB to match the platform, and **Goods Return and Help Slip
+were lowered from 10 MB and 8 MB to 4 MB** because they still upload through
+the server; the signed-URL pattern in `lib/petty-cash/attachments.ts` is where
+they go if that ever bites.
 
-**Receipts use a PRIVATE bucket** (`petty-cash-attachments`) and are proxied
-through `/api/petty-cash/entries/[id]/attachment`, re-authorised on every view.
-Never signed URLs: a signed URL is a bearer token in a query string that keeps
-working for anyone holding it, and these are bills carrying names and amounts.
-Both that route and `/api/petty-cash/entries/[id]` re-check
+**A transaction can carry up to `ATTACHMENT_MAX_FILES` (5) receipts of ANY
+file type, up to `ATTACHMENT_MAX_BYTES` (50 MB) each** (Sep 2026, on the
+owner's instruction — the old shape was one JPG/PNG/WEBP/HEIC/PDF up to
+10 MB). Files live in `ld_petty_cash.entry_attachments` (`transaction_id`,
+`file_path`, `file_name`, `file_size_bytes`, `mime_type`), a real table rather
+than a second pair of columns, the same shape Help Slip's
+`concern_attachments` already uses. **`transactions.attachment_path` /
+`attachment_name` are the OLD shape and are read-only from here on** — kept
+so entries saved before this table existed still show their receipt, never
+written to by a new save. Editing ANY entry (even one still on the old shape,
+even if the set of files does not change) migrates it: `updateTransaction`
+always clears the legacy pair and writes the full current set to
+`entry_attachments`, so a row is never split across both shapes. The dialog
+always submits the FULL desired set — new uploads and previously-existing
+files alike — as one whole-set replacement; there is no diff and no
+"unchanged" sentinel, because the dialog always knows the current state.
+`pathFor` derives the storage extension from the uploaded FILENAME now, not a
+fixed MIME→extension table, since any type is accepted; an unrecognised or
+missing extension falls back to `.bin`.
+
+**Receipts use a PRIVATE bucket** (`petty-cash-attachments`, size limit and
+MIME allow-list updated directly via the Storage API when the 50 MB /
+any-type change shipped — `ensureBucket()` now creates-or-updates so it stays
+idempotent against future limit changes too) and are proxied through
+`/api/petty-cash/entries/[id]/attachment/[attachmentId]`, re-authorised on
+every view. `attachmentId` is either a real `entry_attachments.id` — checked
+to belong to THIS entry, never trusted from the request — or the literal
+string `legacy` for the old single-column shape. Never signed URLs: a signed
+URL is a bearer token in a query string that keeps working for anyone holding
+it, and these are bills carrying names and amounts. A ledger row or card shows
+a receipt COUNT (`📎 3 files`), not a direct link — a table cell can't hold
+several hrefs — and opens the entry's own detail panel, where each file gets
+its own link. Both that route and `/api/petty-cash/entries/[id]` re-check
 `resolvePettyCashViewer()` from scratch — **a route handler runs without the
 layout above it**, the same rule the Checklist's CSV export follows. Storage
 calls use `SUPABASE_SERVICE_ROLE_KEY` and are confined to
 `lib/petty-cash/attachments.ts`.
+
+**"From" is required on the entry form, "What was it for" is optional** (Sep
+2026, on the owner's instruction — the reverse of the original spec). Enforced
+server-side in `mutations.ts`'s `validate()`, not only in the dialog: a direct
+call still gets refused for a blank `fromName`, and a blank `reason` now
+saves cleanly instead of being refused.
 
 **Every write goes through `lib/petty-cash/mutations.ts`, inside one
 transaction with its audit row.** A payment recorded with no audit trail —
@@ -956,10 +1618,14 @@ looked like two. They are `bg-primary/70` now. The rule is the one the reports
 follow: green completed, teal normal, amber pending, red critical, and a
 ranking is not a warning.
 
-**The calendar itself is a grid above `sm` and a LIST below it**: a
-seven-column grid with rupee figures in it is a desktop layout; at 390px each
-cell is 45px and "+ ₹10,000" wraps onto three lines. The list shows only the
-days that had activity and opens the same filtered ledger when tapped.
+**The calendar itself is a grid above `lg` and a LIST below it** (raised from
+`sm` in a later pass — a seven-column grid does not get meaningfully less
+cramped between 640px and 1024px, so `sm` left a phone in landscape or a
+small tablet with the same illegible grid it was built to avoid; `lg`
+matches the breakpoint every other list-to-card conversion in the ERP uses).
+At 390px each cell would be 45px and "+ ₹10,000" wraps onto three lines. The
+list shows only the days that had activity and opens the same filtered
+ledger when tapped.
 
 **IT IS BUILT TO THE OLD SYSTEM'S SHAPE, IN THIS SYSTEM'S COLOURS** (Sep 2026,
 on the owner's instruction after showing the Apps Script screen it replaces).
@@ -1844,6 +2510,16 @@ empty `index.js`); node_modules is gitignored, so it costs nothing and
 disturbs nobody.
 
 ## Known gotchas (hit these once already — don't re-discover them)
+- **`<Card>` GIVES NO HORIZONTAL PADDING.** It sets `py-(--card-spacing)` and
+  nothing else; the left and right padding lives on `CardHeader` and
+  `CardContent`. A card written with raw children — `<Card size="sm"
+  className="flex flex-col gap-3">` with an `<h2>` and a `<p>` inside — renders
+  its text flush against its own border, which is what "the text is touching the
+  grid" looked like on the Import screen. Every card on those screens now
+  carries `px-(--card-spacing)`: the same token the vertical padding uses, so
+  the two match and both follow `size`. Three cards elsewhere had already been
+  patched with a hand-written `px-4`, which is the same fix arrived at twice —
+  if a fourth turns up, reach for the token.
 - **A Server Component's `new Date()` is the SERVER's clock, which on Vercel
   is UTC.** The topbar greeting and date were computed that way, so 5pm in
   Bhiwandi still said "Good morning" and between midnight and 05:30 the date
@@ -1900,6 +2576,13 @@ disturbs nobody.
   advisories** (RLS disabled on all 15 Order Entry tables; a few
   SECURITY DEFINER warnings on Help Slip) — pre-existing, not introduced by
   this repo, out of scope to fix here without an explicit decision.
+- **`HScroll`'s `className` and `bodyClassName` hide different things, and
+  hiding the wrong one leaves a dead scrollbar strip on screen.** `className`
+  is the whole component including its own synced scrollbar-above-header
+  strip; `bodyClassName` is only the inner scrolling `<div>`. Hiding a table
+  on mobile with `hidden lg:block` has to go on `className` — see § List
+  screens → "Below `lg`, a wide table becomes a card list" in `DESIGN.md` for
+  the full pattern, applied across every list screen in the ERP (Sep 2026).
 
 ## Run the functions in the same region as the database
 `vercel.json` pins `regions: ["bom1"]` (Mumbai). The Supabase project is

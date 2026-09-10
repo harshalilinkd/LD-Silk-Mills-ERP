@@ -23,6 +23,26 @@
 // an unchanged table and concluded the data was not there.
 //
 // Enter still works and still applies immediately — it just is not required.
+//
+// ── THE COLUMNS ARE THE READER'S CHOICE (SCREENS.md 4A.4) ─────────────
+//
+// Twelve columns plus the Actions cluster is more than most people want at
+// once, and it is what makes this table scroll sideways. The Order status
+// board has had the picker since it was written; the owner asked for the same
+// control here and on Operations (Sep 2026), because these are the same
+// orders and a person who never reads Haste never reads it on any of the
+// three screens.
+//
+// Its OWN storage key, though: the column sets differ (the board carries
+// Stages and Overall, this one carries Agent and Actions), and a shared key
+// would leave every user's storage full of ids that mean nothing here.
+//
+// **The min-width follows the choice.** The board pins its own at 1240px
+// whatever is hidden, so switching columns off there stretches the ones left
+// and the sideways scroll never goes away — the one thing the control exists
+// to fix. Here each column declares the width it asks for and the table takes
+// the sum of the VISIBLE ones. The widths add up to the 1240px this table has
+// always been, so nothing moves until somebody switches something off.
 
 import * as React from "react";
 import Link from "next/link";
@@ -81,6 +101,11 @@ import {
   Tr,
 } from "@/components/ui/data-table";
 import { useDebouncedValue } from "@/components/order-entry/shared/use-debounced-value";
+import { ColumnPicker } from "@/components/order-entry/shared/column-picker";
+import {
+  useColumnPrefs,
+  type ColumnDef,
+} from "@/components/order-entry/shared/use-column-prefs";
 import {
   appendOrderFilterParams,
   EMPTY_ORDER_FILTERS,
@@ -109,6 +134,28 @@ type StatusFilter =
   | "cancelled";
 
 const PAGE_SIZE = 20;
+
+// Labelled with the HEADER TEXT, verbatim. A picker that calls a column
+// something the table does not is a picker you have to switch on to identify.
+// `w` is the width that column asks of the table (px); they sum to the 1240
+// this table has always been, plus 110 for Actions, which never hides.
+const ORDER_COLUMNS: (ColumnDef & { w: number })[] = [
+  { id: "order", label: "Order no", locked: true, w: 100 },
+  { id: "date", label: "Date", w: 80 },
+  { id: "party", label: "Party", w: 150 },
+  { id: "haste", label: "Haste", w: 90 },
+  { id: "agent", label: "Agent", w: 90 },
+  { id: "fabrics", label: "Fabrics", w: 140 },
+  { id: "designs", label: "Designs", w: 70 },
+  { id: "qty", label: "Total Qty", w: 80 },
+  { id: "total", label: "Total Amount", w: 95 },
+  { id: "challan", label: "Challan", w: 75 },
+  { id: "lot", label: "Lot", w: 70 },
+  { id: "status", label: "Status", w: 90 },
+];
+
+/** The Actions cluster's column — an action, so never pickable. */
+const ACTION_W = 110;
 
 // There is no toast in this shell, so the screen carries a one-line notice.
 // It is where the two confirm dialogs put their outcome: §3.10 has both
@@ -141,11 +188,14 @@ async function patchOrder(path: string, payload: unknown): Promise<void> {
 export function OrdersDashboard({
   canEdit,
   canTrack,
+  userKey,
 }: {
   /** `orders.edit` (or ADMIN), resolved on the server from the session. */
   canEdit: boolean;
   /** `operations.view` — gates the Track action only. */
   canTrack: boolean;
+  /** The signed-in email — the per-user key for the column prefs. */
+  userKey?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -167,6 +217,24 @@ export function OrdersDashboard({
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("");
 
   const debouncedFilters = useDebouncedValue(filters, 300);
+
+  const { hidden, isVisible, toggle, reset } = useColumnPrefs(
+    `oe:orders:cols:${userKey ?? "anon"}`,
+    ORDER_COLUMNS,
+  );
+
+  // What is on screen — see the note in the header. Both the table's width
+  // and the expanded designs row's colSpan are computed from the SAME list the
+  // picker drives, so the panel can never span a different number of columns
+  // than the table has. `shownColumns` counts the data columns (the locked
+  // order number included); Actions is the +1 at the call site.
+  const shownColumns = ORDER_COLUMNS.reduce(
+    (n, c) => (isVisible(c.id) ? n + 1 : n),
+    0,
+  );
+  const tableMin =
+    ACTION_W +
+    ORDER_COLUMNS.reduce((n, c) => (isVisible(c.id) ? n + c.w : n), 0);
 
   // 300ms, the same as the column filters. One request per pause, not one per
   // keystroke — which was the real objection to a live search box, and this is
@@ -438,7 +506,7 @@ export function OrdersDashboard({
   const kpiValue = (n: number) => (data ? String(n) : "—");
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* Region A — KPI cards. Every one of them is a filter. */}
       <Reveal index={0}>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
@@ -523,6 +591,16 @@ export function OrdersDashboard({
                 <span className="ml-1 size-1.5 rounded-full bg-primary" />
               ) : null}
             </Button>
+            {/* Pointless where the table is hidden — below `lg` this screen
+                is the card list, which has no columns to choose. */}
+            <div className="hidden lg:block">
+              <ColumnPicker
+                columns={ORDER_COLUMNS}
+                hidden={hidden}
+                onToggle={toggle}
+                onReset={reset}
+              />
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -636,7 +714,7 @@ export function OrdersDashboard({
                 bodyClassName="overflow-auto"
                 bodyStyle={bodyMax ? { maxHeight: bodyMax } : undefined}
               >
-                <Table className="min-w-[1240px]">
+                <Table style={{ minWidth: tableMin }}>
                   <THead>
                     <tr>
                       {/* Pinned both ways: the header never scrolls off the
@@ -648,17 +726,23 @@ export function OrdersDashboard({
                       <Th className="sticky left-0 z-10 border-r-0 bg-surface after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-strong after:content-['']">
                         Order no
                       </Th>
-                      <Th>Date</Th>
-                      <Th>Party</Th>
-                      <Th>Haste</Th>
-                      <Th>Agent</Th>
-                      <Th>Fabrics</Th>
-                      <Th className="text-right">Designs</Th>
-                      <Th className="text-right">Total Qty</Th>
-                      <Th className="text-right">Total Amount</Th>
-                      <Th>Challan</Th>
-                      <Th>Lot</Th>
-                      <Th>Status</Th>
+                      {isVisible("date") && <Th>Date</Th>}
+                      {isVisible("party") && <Th>Party</Th>}
+                      {isVisible("haste") && <Th>Haste</Th>}
+                      {isVisible("agent") && <Th>Agent</Th>}
+                      {isVisible("fabrics") && <Th>Fabrics</Th>}
+                      {isVisible("designs") && (
+                        <Th className="text-right">Designs</Th>
+                      )}
+                      {isVisible("qty") && (
+                        <Th className="text-right">Total Qty</Th>
+                      )}
+                      {isVisible("total") && (
+                        <Th className="text-right">Total Amount</Th>
+                      )}
+                      {isVisible("challan") && <Th>Challan</Th>}
+                      {isVisible("lot") && <Th>Lot</Th>}
+                      {isVisible("status") && <Th>Status</Th>}
                       <Th className="text-right">Actions</Th>
                     </tr>
                   </THead>
@@ -712,71 +796,110 @@ export function OrdersDashboard({
                                 </Link>
                               </div>
                             </Td>
-                            <Td className={cn("num text-text-1", struck)}>
-                              {o.order_date}
-                            </Td>
-                            <Td
-                              className={cn(
-                                "max-w-[220px] truncate text-text-1",
-                                struck,
-                              )}
-                              title={o.party_name}
-                            >
-                              {o.party_name}
-                            </Td>
-                            <Td
-                              className={cn(
-                                "max-w-[140px] truncate text-text-2",
-                                struck,
-                              )}
-                              title={o.haste ?? undefined}
-                            >
-                              {o.haste ?? "—"}
-                            </Td>
-                            <Td
-                              className={cn(
-                                "max-w-[140px] truncate text-text-2",
-                                struck,
-                              )}
-                              title={o.agent ?? undefined}
-                            >
-                              {o.agent ?? "—"}
-                            </Td>
-                            <Td
-                              className={cn(
-                                "max-w-[200px] truncate text-text-1",
-                                struck,
-                              )}
-                              title={o.fabrics.join(", ")}
-                            >
-                              {o.fabrics.length ? o.fabrics.join(", ") : "—"}
-                            </Td>
-                            <Td className={cn("num text-right text-text-2", struck)}>
-                              {cancelled ? o.total_line_count : o.line_count}
-                              {!cancelled && o.cancelled_line_count > 0 ? (
-                                <span
-                                  className="ml-1 text-[11px] font-medium text-status-red"
-                                  title={`${o.cancelled_line_count} cancelled`}
-                                >
-                                  +{o.cancelled_line_count}
-                                </span>
-                              ) : null}
-                            </Td>
-                            <Td className={cn("num text-right text-text-2", struck)}>
-                              {formatNumber(o.qty_total)}
-                            </Td>
-                            <Td className={cn("num text-right text-text-1", struck)}>
-                              ₹{formatNumber(o.grand_total)}
-                            </Td>
-                            <Td className={cn("num text-text-2", struck)}>
-                              {o.challan_no ?? "—"}
-                            </Td>
-                            <Td className={cn("num text-text-2", struck)}>
-                              {o.lot_no ?? "—"}
-                            </Td>
-                            <Td>
-                              <StatusBadge status={o.operations_status} />
-                            </Td>
+                            {isVisible("date") && (
+                              <Td className={cn("num text-text-1", struck)}>
+                                {o.order_date}
+                              </Td>
+                            )}
+                            {isVisible("party") && (
+                              <Td
+                                className={cn(
+                                  "max-w-[220px] truncate text-text-1",
+                                  struck,
+                                )}
+                                title={o.party_name}
+                              >
+                                {o.party_name}
+                              </Td>
+                            )}
+                            {isVisible("haste") && (
+                              <Td
+                                className={cn(
+                                  "max-w-[140px] truncate text-text-2",
+                                  struck,
+                                )}
+                                title={o.haste ?? undefined}
+                              >
+                                {o.haste ?? "—"}
+                              </Td>
+                            )}
+                            {isVisible("agent") && (
+                              <Td
+                                className={cn(
+                                  "max-w-[140px] truncate text-text-2",
+                                  struck,
+                                )}
+                                title={o.agent ?? undefined}
+                              >
+                                {o.agent ?? "—"}
+                              </Td>
+                            )}
+                            {isVisible("fabrics") && (
+                              <Td
+                                className={cn(
+                                  "max-w-[200px] truncate text-text-1",
+                                  struck,
+                                )}
+                                title={o.fabrics.join(", ")}
+                              >
+                                {o.fabrics.length
+                                  ? o.fabrics.join(", ")
+                                  : "—"}
+                              </Td>
+                            )}
+                            {isVisible("designs") && (
+                              <Td
+                                className={cn(
+                                  "num text-right text-text-2",
+                                  struck,
+                                )}
+                              >
+                                {cancelled ? o.total_line_count : o.line_count}
+                                {!cancelled && o.cancelled_line_count > 0 ? (
+                                  <span
+                                    className="ml-1 text-[11px] font-medium text-status-red"
+                                    title={`${o.cancelled_line_count} cancelled`}
+                                  >
+                                    +{o.cancelled_line_count}
+                                  </span>
+                                ) : null}
+                              </Td>
+                            )}
+                            {isVisible("qty") && (
+                              <Td
+                                className={cn(
+                                  "num text-right text-text-2",
+                                  struck,
+                                )}
+                              >
+                                {formatNumber(o.qty_total)}
+                              </Td>
+                            )}
+                            {isVisible("total") && (
+                              <Td
+                                className={cn(
+                                  "num text-right text-text-1",
+                                  struck,
+                                )}
+                              >
+                                ₹{formatNumber(o.grand_total)}
+                              </Td>
+                            )}
+                            {isVisible("challan") && (
+                              <Td className={cn("num text-text-2", struck)}>
+                                {o.challan_no ?? "—"}
+                              </Td>
+                            )}
+                            {isVisible("lot") && (
+                              <Td className={cn("num text-text-2", struck)}>
+                                {o.lot_no ?? "—"}
+                              </Td>
+                            )}
+                            {isVisible("status") && (
+                              <Td>
+                                <StatusBadge status={o.operations_status} />
+                              </Td>
+                            )}
                             <Td>
                               <div className="flex items-center justify-end gap-0.5">
                                 <IconLink
@@ -851,7 +974,10 @@ export function OrdersDashboard({
 
                           {isOpen ? (
                             <tr className="border-b border-border bg-chip/40 last:border-0">
-                              <td colSpan={13} className="p-0">
+                              {/* Was a hard 13. With the picker on, a stale
+                                  span leaves the panel short of the table and
+                                  the row visibly breaks. */}
+                              <td colSpan={shownColumns + 1} className="p-0">
                                 <OrderDesignsPanel
                                   orderId={o.id}
                                   canEdit={canEdit}

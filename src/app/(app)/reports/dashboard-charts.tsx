@@ -103,7 +103,12 @@ function Box({ children }: { children: React.ReactNode }) {
 
 // ─── how much and how many, over time ──────────────────────────────────────
 
-type MonthPoint = { month: string; value: number; orders: number; metres: number };
+type MonthPoint = {
+  month: string;
+  value: number;
+  orders: number;
+  metres: number;
+};
 
 function MonthTip({
   active,
@@ -124,34 +129,57 @@ function MonthTip({
       <dl className="flex flex-col gap-1">
         <div className="flex items-center gap-4">
           <dt className="text-text-3">Value</dt>
-          <dd className="num ml-auto font-semibold text-text-1">{inr(p.value)}</dd>
+          <dd className="num ml-auto font-semibold text-text-1">
+            {inr(p.value)}
+          </dd>
         </div>
         <div className="flex items-center gap-4">
           <dt className="text-text-3">Orders</dt>
-          <dd className="num ml-auto font-semibold text-text-1">{count(p.orders)}</dd>
+          <dd className="num ml-auto font-semibold text-text-1">
+            {count(p.orders)}
+          </dd>
         </div>
         <div className="flex items-center gap-4">
           <dt className="text-text-3">Metres</dt>
-          <dd className="num ml-auto font-semibold text-text-1">{count(Math.round(p.metres))}</dd>
+          <dd className="num ml-auto font-semibold text-text-1">
+            {count(Math.round(p.metres))}
+          </dd>
         </div>
       </dl>
     </Box>
   );
 }
 
-export function ComboMonthly({ data, height = 280 }: { data: MonthPoint[]; height?: number }) {
+export function ComboMonthly({
+  data,
+  height = 280,
+}: {
+  data: MonthPoint[];
+  height?: number;
+}) {
   const reduce = useReducedMotion();
   return (
     <div role="img" aria-label="Order value and order count, month by month">
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={{ left: -12, right: 4, top: 10, bottom: 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ left: -12, right: 4, top: 10, bottom: 0 }}
+        >
           <defs>
             <linearGradient id="rdValueFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={1} />
-              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.5} />
+              <stop
+                offset="100%"
+                stopColor="var(--chart-1)"
+                stopOpacity={0.5}
+              />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid
+            stroke="var(--border)"
+            strokeDasharray="3 3"
+            vertical={false}
+          />
           <XAxis
             dataKey="month"
             tickFormatter={shortMonth}
@@ -212,12 +240,22 @@ export function ComboMonthly({ data, height = 280 }: { data: MonthPoint[]; heigh
 
 export type Slice = { label: string; value: number; meta?: string };
 
-export function Legend({ items }: { items: { label: string; colour: string; note?: string }[] }) {
+export function Legend({
+  items,
+}: {
+  items: { label: string; colour: string; note?: string }[];
+}) {
   return (
     <ul className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1.5">
       {items.map((i) => (
-        <li key={i.label} className="flex items-center gap-1.5 text-[11.5px] text-text-3">
-          <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: i.colour }} />
+        <li
+          key={i.label}
+          className="flex items-center gap-1.5 text-[11.5px] text-text-3"
+        >
+          <span
+            className="size-2.5 shrink-0 rounded-[3px]"
+            style={{ background: i.colour }}
+          />
           <span className="text-text-2">{i.label}</span>
           {i.note && <span className="num text-text-3">{i.note}</span>}
         </li>
@@ -246,7 +284,10 @@ export function SharePie({
   const fmt = (v: number) => (money ? inr(v) : count(v));
 
   return (
-    <div role="img" aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}>
+    <div
+      role="img"
+      aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}
+    >
       <div className="relative">
         <ResponsiveContainer width="100%" height={height}>
           <PieChart margin={{ top: 4, bottom: 4, left: 4, right: 4 }}>
@@ -259,9 +300,12 @@ export function SharePie({
                     <div className="font-semibold text-text-1">{p.label}</div>
                     <div className="num mt-1 text-text-2">{fmt(p.value)}</div>
                     <div className="num text-text-3">
-                      {total > 0 ? pct((p.value / total) * 100) : "—"} of the total
+                      {total > 0 ? pct((p.value / total) * 100) : "—"} of the
+                      total
                     </div>
-                    {p.meta && <div className="mt-0.5 text-text-3">{p.meta}</div>}
+                    {p.meta && (
+                      <div className="mt-0.5 text-text-3">{p.meta}</div>
+                    )}
                   </Box>
                 );
               }}
@@ -286,10 +330,14 @@ export function SharePie({
         {donut && (centreValue || centreLabel) && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             {centreValue && (
-              <span className="num text-[22px] font-bold text-text-1">{centreValue}</span>
+              <span className="num text-[22px] font-bold text-text-1">
+                {centreValue}
+              </span>
             )}
             {centreLabel && (
-              <span className="mt-0.5 text-[11px] text-text-3">{centreLabel}</span>
+              <span className="mt-0.5 text-[11px] text-text-3">
+                {centreLabel}
+              </span>
             )}
           </div>
         )}
@@ -307,6 +355,14 @@ export function SharePie({
 
 // ─── rankings ──────────────────────────────────────────────────────────────
 
+/** `label`, shortened to fit `maxChars` with an ellipsis — the AXIS text
+ * only; the full name still shows in the tooltip on hover. */
+function truncateLabel(label: string, maxChars: number): string {
+  return label.length > maxChars
+    ? `${label.slice(0, Math.max(1, maxChars - 1))}…`
+    : label;
+}
+
 export function RankedBars({
   data,
   money = true,
@@ -320,19 +376,47 @@ export function RankedBars({
 }) {
   const reduce = useReducedMotion();
   const fmt = (v: number) => (money ? inrShort(v) : count(v));
-  const h = height ?? Math.max(150, data.length * 30 + 24);
-  // Long party names need the room; short stage names should not waste it.
-  const width = Math.min(160, Math.max(78, ...data.map((d) => d.label.length * 6.4)));
+  // 34px a row, not 30: the earlier spacing packed rows tight enough that a
+  // long label's tooltip and the row above it visually ran together.
+  const h = height ?? Math.max(160, data.length * 34 + 28);
+  // Long party/company names need the room; short stage names should not
+  // waste it. Capped at 190, not 160 — a cap so tight that "KATARIA TRANSPORT
+  // CO.(GUJ.) PVT.LTD." had nowhere to go overflowed straight into the bars,
+  // which was the actual clutter. Anything still too long past 190 is
+  // ellipsised on the AXIS ONLY (`shortLabel`, below) — the bar's own
+  // tooltip and its `aria-label` keep the full name, so nothing is lost,
+  // only the label that has no room to print in full.
+  const width = Math.min(
+    190,
+    Math.max(78, ...data.map((d) => d.label.length * 6.4)),
+  );
+  const maxChars = Math.max(6, Math.floor((width - 10) / 6.2));
+  const chartData = data.map((d) => ({
+    ...d,
+    shortLabel: truncateLabel(d.label, maxChars),
+  }));
 
   return (
-    <div role="img" aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}>
+    <div
+      role="img"
+      aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}
+    >
       <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={data} layout="vertical" margin={{ left: 0, right: 46, top: 2, bottom: 2 }}>
-          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
+        <BarChart
+          data={chartData}
+          layout="vertical"
+          margin={{ left: 0, right: 52, top: 4, bottom: 4 }}
+          barCategoryGap="28%"
+        >
+          <CartesianGrid
+            stroke="var(--border)"
+            strokeDasharray="3 3"
+            horizontal={false}
+          />
           <XAxis type="number" hide />
           <YAxis
             type="category"
-            dataKey="label"
+            dataKey="shortLabel"
             width={width}
             tick={{ fontSize: 11.5, fill: "var(--text-2)" }}
             tickLine={false}
@@ -346,21 +430,32 @@ export function RankedBars({
               return (
                 <Box>
                   <div className="font-semibold text-text-1">{p.label}</div>
-                  <div className="num mt-1 text-text-2">{money ? inr(p.value) : count(p.value)}</div>
+                  <div className="num mt-1 text-text-2">
+                    {money ? inr(p.value) : count(p.value)}
+                  </div>
                   {p.meta && <div className="text-text-3">{p.meta}</div>}
                 </Box>
               );
             }}
           />
-          <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={20} isAnimationActive={!reduce}>
-            {data.map((d, i) => (
+          <Bar
+            dataKey="value"
+            radius={[0, 4, 4, 0]}
+            maxBarSize={18}
+            isAnimationActive={!reduce}
+          >
+            {chartData.map((d, i) => (
               <Cell key={d.label} fill={colour ?? colourAt(i)} />
             ))}
             <LabelList
               dataKey="value"
               position="right"
               formatter={(v: unknown) => fmt(Number(v))}
-              style={{ fontSize: 11, fill: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}
+              style={{
+                fontSize: 11,
+                fill: "var(--text-3)",
+                fontVariantNumeric: "tabular-nums",
+              }}
             />
           </Bar>
         </BarChart>
@@ -381,10 +476,20 @@ export function CountColumns({
   const reduce = useReducedMotion();
   const fmt = (v: number) => (money ? inrShort(v) : count(v));
   return (
-    <div role="img" aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}>
+    <div
+      role="img"
+      aria-label={data.map((d) => `${d.label} ${fmt(d.value)}`).join(", ")}
+    >
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ left: -12, right: 4, top: 22, bottom: 4 }}>
-          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+        <BarChart
+          data={data}
+          margin={{ left: -12, right: 4, top: 22, bottom: 4 }}
+        >
+          <CartesianGrid
+            stroke="var(--border)"
+            strokeDasharray="3 3"
+            vertical={false}
+          />
           <XAxis
             dataKey="label"
             tick={{ fontSize: 10.5, fill: "var(--text-3)" }}
@@ -410,13 +515,20 @@ export function CountColumns({
               return (
                 <Box>
                   <div className="font-semibold text-text-1">{p.label}</div>
-                  <div className="num mt-1 text-text-2">{money ? inr(p.value) : count(p.value)}</div>
+                  <div className="num mt-1 text-text-2">
+                    {money ? inr(p.value) : count(p.value)}
+                  </div>
                   {p.meta && <div className="text-text-3">{p.meta}</div>}
                 </Box>
               );
             }}
           />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={54} isAnimationActive={!reduce}>
+          <Bar
+            dataKey="value"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={54}
+            isAnimationActive={!reduce}
+          >
             {data.map((d, i) => (
               <Cell key={d.label} fill={colourAt(i)} />
             ))}
@@ -424,7 +536,11 @@ export function CountColumns({
               dataKey="value"
               position="top"
               formatter={(v: unknown) => fmt(Number(v))}
-              style={{ fontSize: 11, fill: "var(--text-2)", fontVariantNumeric: "tabular-nums" }}
+              style={{
+                fontSize: 11,
+                fill: "var(--text-2)",
+                fontVariantNumeric: "tabular-nums",
+              }}
             />
           </Bar>
         </BarChart>
@@ -466,7 +582,12 @@ export function Gauge({
   return (
     <div className="flex items-center gap-3.5">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          aria-hidden="true"
+        >
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -493,8 +614,14 @@ export function Gauge({
         </span>
       </div>
       <div className="min-w-0">
-        <div className="text-[13px] leading-snug font-semibold text-text-1">{label}</div>
-        {sub && <div className="mt-0.5 text-[11.5px] leading-snug text-text-3">{sub}</div>}
+        <div className="text-[13px] leading-snug font-semibold text-text-1">
+          {label}
+        </div>
+        {sub && (
+          <div className="mt-0.5 text-[11.5px] leading-snug text-text-3">
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -524,7 +651,10 @@ export function FunnelRows({
           // 320px phone has, so the row could not fit and the page scrolled
           // sideways. Below `sm` the stage name takes a line of its own and
           // the bar keeps the rest; from `sm` up nothing moves.
-          <li key={r.label} className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <li
+            key={r.label}
+            className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
+          >
             <span
               className="w-full shrink-0 truncate text-[12px] text-text-2 sm:w-[130px]"
               title={r.label}
@@ -535,7 +665,10 @@ export function FunnelRows({
             <span className="h-5 min-w-0 flex-1 overflow-hidden rounded-[4px] bg-chip">
               <span
                 className="block h-full rounded-[4px] transition-[width]"
-                style={{ width: `${Math.max(share, 0.6)}%`, background: colourAt(i) }}
+                style={{
+                  width: `${Math.max(share, 0.6)}%`,
+                  background: colourAt(i),
+                }}
               />
             </span>
             <span className="num w-[52px] shrink-0 text-right text-[12px] font-semibold text-text-1 sm:w-[62px]">
@@ -547,7 +680,11 @@ export function FunnelRows({
                 r.lost ? "text-status-red" : "text-text-3",
               )}
             >
-              {i === 0 ? pct(share, 0) : r.lost ? `−${count(r.lost)}` : pct(share, 0)}
+              {i === 0
+                ? pct(share, 0)
+                : r.lost
+                  ? `−${count(r.lost)}`
+                  : pct(share, 0)}
             </span>
           </li>
         );

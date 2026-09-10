@@ -86,8 +86,12 @@ const REGISTER_SQL = `
     select
       li.order_id,
       li.id as line_id,
+      -- on_hold is sort_order 0, so it can never inflate "how far it reached"
+      -- (see ASIDE_STAGE_KEYS). It IS read separately below, because a held
+      -- line is not a finished one whatever its stages say.
       coalesce(max(w.sort_order) filter (where p.is_done), 0) as reached,
-      max(p.actual_at) filter (where p.is_done)               as last_tick
+      coalesce(bool_or(p.is_done) filter (where p.stage_key = 'on_hold'), false) as held,
+      max(p.actual_at) filter (where p.is_done and p.stage_key <> 'on_hold') as last_tick
     from ld_order_entry.order_line_items li
     left join ld_order_entry.line_stage_progress p on p.order_line_item_id = li.id
     left join ld_order_entry.workflow_stages w on w.stage_key = p.stage_key
@@ -106,8 +110,11 @@ const REGISTER_SQL = `
       max(reached)   as furthest,
       max(last_tick) as last_tick,
       count(*)       as live_lines,
-      count(*) filter (where reached = (select max(sort_order) from ld_order_entry.workflow_stages))
-                     as finished_lines
+      -- A finished line is one that reached the LAST stage and is not held.
+      count(*) filter (where reached = (select max(sort_order) from ld_order_entry.workflow_stages)
+                         and not held)
+                     as finished_lines,
+      count(*) filter (where held) as held_lines
     from per_line group by order_id
   )
   select
@@ -136,6 +143,7 @@ const REGISTER_SQL = `
     coalesce(pr.reached, 0)            as reached_no,
     coalesce(pr.live_lines, 0)         as live_lines,
     coalesce(pr.finished_lines, 0)     as finished_lines,
+    coalesce(pr.held_lines, 0)         as held_lines,
     pr.last_tick,
     ((now() at time zone 'Asia/Kolkata')::date - o.order_date)      as days_open,
     (o.crr_customer_id is not null)    as in_crr,
@@ -183,6 +191,7 @@ type Raw = {
   reached_no: number;
   live_lines: number;
   finished_lines: number;
+  held_lines: number;
   last_tick: string | null;
   days_open: number;
   in_crr: boolean;
@@ -260,7 +269,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
     // difference between a chase list and a wrong chase list.
     stage: n(r.live_lines) === 0 ? NOTHING_LIVE : r.stage,
     furthest_line: n(r.live_lines) === 0 ? NOTHING_LIVE : r.furthest_line,
-    is_complete: n(r.live_lines) > 0 && n(r.reached_no) >= 7,
+    // `reached_no` is the LOWEST stage any live line reached, so >= the last
+    // stage means every line got there. `held_lines` takes a held order back
+    // out of complete, which is the owner's rule (Sep 2026).
+    is_complete: n(r.live_lines) > 0 && n(r.reached_no) >= 7 && n(r.held_lines) === 0,
+    held_lines: n(r.held_lines),
     // Blank, not zero: an order nothing is waiting on has no age to report,
     // and a 0 would sit in the footer average pulling it down.
     days_open: n(r.live_lines) === 0 ? null : n(r.days_open),
@@ -334,8 +347,12 @@ async function run(params: ReportParams): Promise<ReportResult> {
   // They stay ON the register, because they were placed and their cancelled
   // value is real. They are simply not counted as work outstanding.
   const nothingLive = raw.filter((r) => n(r.live_lines) === 0);
-  const complete = raw.filter((r) => n(r.live_lines) > 0 && n(r.reached_no) >= 7);
-  const open = raw.filter((r) => n(r.live_lines) > 0 && n(r.reached_no) < 7);
+  const complete = raw.filter(
+    (r) => n(r.live_lines) > 0 && n(r.reached_no) >= 7 && n(r.held_lines) === 0,
+  );
+  const open = raw.filter(
+    (r) => n(r.live_lines) > 0 && (n(r.reached_no) < 7 || n(r.held_lines) > 0),
+  );
   /** Orders that could still be finished — the honest denominator. */
   const liveOrders = raw.length - nothingLive.length;
   const openValue = open.reduce((s, r) => s + n(r.value), 0);
@@ -620,6 +637,8 @@ export const orderRegister: ReportDefinition = {
     { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad" } },
     { key: "live_lines", label: "Lines", type: "int", note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column." },
     { key: "finished_lines", label: "Lines finished", type: "int" },
+    { key: "held_lines", label: "Lines on hold", type: "int",
+      note: "A held line is not counted as finished, whatever stages it has ticked." },
     { key: "lines_through", label: "Lines through", type: "percent", total: "avg",
       // WEIGHTED BY THE LINES, because this is a RATIO. Unweighted, a
       // one-line order that finished counts as much as a forty-line order

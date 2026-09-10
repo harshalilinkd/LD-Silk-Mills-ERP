@@ -16,7 +16,8 @@ import {
 } from "./shared";
 
 /**
- * Production status — every line against all seven stages.
+ * Production status — every line against all seven stages of the flow,
+ * plus whether it is on hold (which is not one of them).
  *
  * ── THE FUNNEL IS THE POINT ──────────────────────────────────────────────
  *
@@ -53,7 +54,18 @@ const SQL = `
     max(p.planned_at)        filter (where p.stage_key = '${s.key}') as s${i}_plan,
     max(p.delay_minutes)     filter (where p.stage_key = '${s.key}') as s${i}_delay`,
     ).join(",")},
-    max(p.actual_at) filter (where p.is_done)                            as last_tick,
+    -- The hold is read OUTSIDE the STAGES loop, and must stay that way.
+    -- on_hold is an aside, not a step (see ASIDE_STAGE_KEYS in
+    -- workflow-constants). Adding it to STAGES would be the obvious way onto
+    -- this sheet and it would break the report: every s{i} index shifts,
+    -- "isOpen" would read the LAST entry rather than Received LR, the funnel
+    -- would gain a rung that is not part of the flow, and days_start_to_finish
+    -- reads s6_at, which is Received LR by POSITION and nothing else.
+    max(p.is_done::int) filter (where p.stage_key = 'on_hold') as hold_done,
+    max(p.actual_at)    filter (where p.stage_key = 'on_hold') as hold_at,
+    -- last_tick drives "days since move", which is about the FLOW. A line has
+    -- not moved because somebody put it on hold three weeks ago.
+    max(p.actual_at) filter (where p.is_done and p.stage_key <> 'on_hold')  as last_tick,
     ((now() at time zone 'Asia/Kolkata')::date - o.order_date)                                        as days_open
   from ld_order_entry.order_line_items li
   join ld_order_entry.customer_orders o on o.id = li.order_id
@@ -123,6 +135,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     }
     out.reached = reached;
     out.stages_done = doneCount;
+    const held = n(r.hold_done as number) === 1;
+    out.on_hold = held;
+    out.held_on = held ? (r.hold_at as string | null) : null;
     out.transport = r.transport as string | null;
     out.haste = r.haste as string | null;
 
@@ -136,7 +151,9 @@ async function run(params: ReportParams): Promise<ReportResult> {
     // carried both 3,678 and 3,711 as the number of lines still open. A
     // dispatched line has left the mill; a missed tick behind it is a data
     // gap, and "Stages done" beside this column is where that shows.
-    const isOpen = out[`s${STAGES.length - 1}_done`] !== true;
+    // ...and a HELD line is not finished either, whatever its stages say.
+    // Same rule as computeLineStatus, so this sheet and the board agree.
+    const isOpen = out[`s${STAGES.length - 1}_done`] !== true || held;
     // The first stage NOT ticked, which is not the same as the one after
     // the last tick once a stage has been skipped.
     const firstOpen = STAGES.findIndex((_, i) => out[`s${i}_done`] !== true);
@@ -248,6 +265,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
       `${pct((onTimeStages / doneStages) * 100, 1)} of ${count(doneStages)} completed stages were TICKED on or before their planned date.`,
     );
   }
+  // Only when there IS a hold. A sentence reading "0 lines are on hold" on
+  // every run is a sentence nobody reads, and this file follows the rule that
+  // a figure with nothing behind it does not get a line of its own.
+  const heldRows = raw.filter((r) => n(r.hold_done as number) === 1).length;
+  if (heldRows > 0) {
+    const heldOpen = raw.filter(
+      (r) => n(r.hold_done as number) === 1 && n(r[`s${STAGES.length - 1}_done`] as number) !== 1,
+    ).length;
+    insights.push(
+      `${count(heldRows)} lines are ON HOLD, ${count(heldOpen)} of them still open. ` +
+        `A hold is not a stage: it does not move a line along and it is not counted in Reached, Waiting on or Still open.`,
+    );
+  }
 
   return {
     rows,
@@ -338,6 +368,7 @@ async function run(params: ReportParams): Promise<ReportResult> {
       caveats: [
         RECORDED_CAVEAT,
         "Cancelled and deleted lines are excluded entirely — this report is about work in the mill, not about what was written.",
+        "On hold is recorded beside the flow, never inside it. A held line still shows the stage it actually reached, and a hold never counts as progress or as a finished stage.",
         ...(total > MAX_EXPORT_ROWS
           ? [`Only the first ${count(MAX_EXPORT_ROWS)} of ${count(total)} lines are in the Data sheet. The figures above cover all of them.`]
           : []),
@@ -381,6 +412,14 @@ export const productionStatus: ReportDefinition = {
       // The dash is the good news: nothing is waiting, the line is out.
       badge: { "—": "good" },
       note: "The next stage that has not been ticked. A dash means it has finished." },
+    { key: "on_hold", label: "On hold", type: "boolean",
+      // Only Yes is tinted. A hold is the exception this column exists to
+      // surface; "No" is every other line on the sheet, and colouring that
+      // would be a background rather than a highlight.
+      badge: { Yes: "warn" },
+      note: "Held, as recorded on the line. A hold is NOT a stage in the flow — it does not count towards Reached, Waiting on, Still open or Stages done." },
+    { key: "held_on", label: "Held on", type: "datetime",
+      note: "When the hold was recorded. Blank when the line is not held." },
     { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today \u2014 what the customer is experiencing. Averaged at the foot." },
     { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad", "Finished": "good" } },
     { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },

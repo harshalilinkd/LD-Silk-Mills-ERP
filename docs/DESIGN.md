@@ -524,6 +524,52 @@ these columns are blank" is worth a card on a wide screen and is dead weight
 above a toolbar on a phone, where the blank columns are one thumb-scroll
 away.
 
+**Below `lg`, a wide table becomes a card list — never a horizontal scroll.**
+Established across a full pass over every list screen in the ERP (CRM, Order
+Tracker, Checklist, Petty Cash, Help Slip settings, the Settings screens) after
+most of them shipped as `overflow-x-auto`-only: on a phone that is a table
+squeezed to illegibility with a thumb-scroll bolted on, which is not the same
+thing as a screen designed for the width it is actually shown at. The desktop
+table and the mobile cards are SIBLINGS, not a media query on one table:
+
+```tsx
+<TableCard className="hidden lg:block">
+  <table>…</table>
+</TableCard>
+
+<div className="flex flex-col gap-2 lg:hidden">
+  {rows.map((r) => <RowCard key={r.id} row={r} />)}
+</div>
+```
+
+- **`HScroll` has TWO classNames and hiding the wrong one leaves a dead
+  scrollbar strip on the phone.** `className` wraps the whole component
+  including its own synced scrollbar-above-header strip; `bodyClassName` is
+  only the scrolling `<div>` inside it. `hidden lg:block` has to go on
+  `className` — putting it on `bodyClassName` hides the table but leaves the
+  scrollbar strip rendered above an otherwise-empty space.
+- **Extract the row's stateful logic into a hook, or its render body into a
+  pure function, whenever a `<tr>` carries per-row state** (an expand/collapse
+  toggle, an inline edit form, a resolve-and-save mutation) — never duplicate
+  that logic between the table row and the card. `useIssueResolve` +
+  `IssueResolveForm` (CRM Issues board) and `deriveRow` + `TaskAction`
+  (Checklist Master) are the shape: the hook/function owns the behaviour, the
+  `<tr>` and the card both just call it. Two copies of "save the resolution"
+  is how the desktop and mobile versions of the same action quietly drift.
+- **A card mirrors every column the table has**, not a summary of them — the
+  identifying columns up top, secondary facts folded into one wrapped meta
+  line below, actions bottom-right. Someone on a phone is not looking at a
+  lesser version of the screen.
+- A **grouped** table (a divider row splitting the body into sections, e.g.
+  Petty Cash's Categories-by-group) keeps its grouping in the card list too: a
+  small uppercase divider label above each group's cards, not one flat list
+  that drops the only thing organising it.
+- A table cell that held a single direct link when only one of something
+  could exist (one receipt, one attachment) stops being a link once several
+  can — a table cell / card line can't hold N hrefs. It becomes a count
+  (`📎 3 files`) that opens the row's own detail view, where each one gets a
+  real link. See Petty Cash's ledger Receipt column.
+
 ## Cards
 
 - Base card: `var(--surface)` bg, `1px` `var(--border)`, radius `var(--radius)` (`10px`).

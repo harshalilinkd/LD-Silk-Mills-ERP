@@ -19,7 +19,10 @@ export function inr(n: number | null | undefined): string {
   return (
     sign +
     "₹" +
-    Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    Math.abs(n).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
   );
 }
 
@@ -70,7 +73,20 @@ export function delta(n: number | null | undefined, dp = 1): string {
 /** `Aug 2026` from `2026-08-01` or `2026-08`. */
 export function monthName(key: string): string {
   const [y, m] = key.split("-");
-  const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const names = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   return `${names[Number(m) - 1] ?? m} ${y}`;
 }
 
@@ -86,8 +102,11 @@ export function monthName(key: string): string {
 export function csvValue(v: unknown, type: ColumnType): string {
   if (v === null || v === undefined) return "";
   switch (type) {
+    // Whole rupees — see the note on `excelFormat`'s "money" case. A CSV has
+    // no cell format to hide the `.00` behind, so this is the one place that
+    // actually decided what printed.
     case "money":
-      return Number.isFinite(Number(v)) ? Number(v).toFixed(2) : "";
+      return Number.isFinite(Number(v)) ? String(Math.round(Number(v))) : "";
     case "number":
       return Number.isFinite(Number(v)) ? String(Number(v)) : "";
     case "int":
@@ -117,8 +136,12 @@ export function isoToKolkata(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const p = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(d);
   const g = (t: string) => p.find((x) => x.type === t)?.value ?? "";
   return `${g("year")}-${g("month")}-${g("day")} ${g("hour")}:${g("minute")}`;
@@ -150,13 +173,18 @@ export function indianFormat(dp: 0 | 2): string {
   );
 }
 
-
 export function excelFormat(type: ColumnType): string | undefined {
   switch (type) {
     // Money and quantities carry Indian grouping. A negative shows in red with
     // a real minus sign, which is what a management pack expects.
+    //
+    // Money is WHOLE RUPEES — no paise are ever recorded against an order,
+    // so `.00` on every single cell was pure noise, not precision. `number`
+    // (metres, and any other measured quantity) keeps its two decimals: a
+    // fabric quantity genuinely can be fractional and losing that would be a
+    // real loss, not tidying.
     case "money":
-      return indianFormat(2);
+      return indianFormat(0);
     case "number":
       return indianFormat(2);
     case "int":
@@ -196,20 +224,33 @@ export function unitFormat(c: ReportColumn): string | undefined {
 }
 
 export function isNumeric(type: ColumnType): boolean {
-  return type === "money" || type === "number" || type === "int" || type === "percent";
+  return (
+    type === "money" ||
+    type === "number" ||
+    type === "int" ||
+    type === "percent"
+  );
 }
 
 /** A width that fits the data, not just the heading. */
 export function excelWidth(col: ReportColumn): number {
   if (col.width) return col.width;
   switch (col.type) {
-    case "money": return 15;
-    case "number": return 13;
-    case "int": return 10;
-    case "percent": return 10;
-    case "date": return 12;
-    case "datetime": return 18;
-    case "boolean": return 9;
-    default: return Math.max(14, Math.min(38, col.label.length + 4));
+    case "money":
+      return 15;
+    case "number":
+      return 13;
+    case "int":
+      return 10;
+    case "percent":
+      return 10;
+    case "date":
+      return 12;
+    case "datetime":
+      return 18;
+    case "boolean":
+      return 9;
+    default:
+      return Math.max(14, Math.min(38, col.label.length + 4));
   }
 }

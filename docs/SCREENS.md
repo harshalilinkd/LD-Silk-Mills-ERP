@@ -1429,6 +1429,40 @@ flashed.
 **Groups are collapsed by default.** One row per quality is the point; the
 stage cells already answer "how far along?".
 
+### 4B.4b Mobile (`lg:hidden`, added Sep 2026)
+
+The 1180 px sticky-column table was `hidden lg:block`-only, no phone
+fallback, until this pass — three pinned identity columns plus seven stage
+columns cannot be reasonably shrunk to fit, and scrolling sideways to find
+the one stage that matters is exactly the "lost track of which quality a row
+belonged to" problem the pinned columns exist to solve, just moved to the X
+axis instead of removed.
+
+`flex flex-col gap-2` of `QualityCard` — a full-width `button` at `rounded-card
+border p-3 text-left shadow-sm active:scale-[.99]`, selected state
+`border-primary/50` over `color-mix(in oklch, var(--surface), var(--primary)
+10%)`:
+
+- Top row: order no (`num font-semibold`, toned) · `·` · party (truncate),
+  over the fabric (`text-[13px] font-medium`) on its own line — the pinned
+  columns' three identities, stacked instead of side-by-side. A `TONE_PILL`
+  status badge (same tone/label vocabulary as the desktop text colour) sits
+  top-right.
+- Meta row: OD date · `N designs` · `N mtr` · sales person, `flex flex-wrap
+  gap-x-3 gap-y-1 text-[12px]`.
+- **Dispatched / pending / cancelled**, one coloured dot each
+  (`bg-status-green` / `-amber` / `text-text-3`), shown only when their count
+  is `> 0` — the mobile stand-in for scanning seven stage columns. The exact
+  per-stage state per colour stays in the detail panel; this line answers
+  "roughly where is it", not "which stage exactly".
+
+Tapping a card selects its first line and opens the **same floating detail
+panel** a desktop row click does (§4B.5) — nothing is a lesser mobile
+version, the individual colours (the desktop's expand-to-`ColourRow`s) are
+reached one tap later rather than dropped. The pager, when there is one,
+repeats below the card list in its own bordered strip rather than the
+table's plain `border-t` row.
+
 ### 4B.5 The floating detail panel
 
 Not a sidebar — the table keeps the full width and the panel floats over it, so
@@ -2075,6 +2109,16 @@ table does not blink to empty on a refetch.
 
 **`Pager` only renders when `totalPages > 1`**, inside
 `border-t border-line px-4 py-2.5`.
+
+**Below `lg`, the table becomes a card list** (added Sep 2026, all four —
+Follow-ups, Issues, Call log, Customers). `hidden lg:block` on the table's
+`HScroll`/`TableCard`, a sibling `flex flex-col gap-2 lg:hidden` of one card
+per row underneath. A card mirrors every column the table has, not a
+summary — see DESIGN.md § "Below `lg`, a wide table becomes a card list" for
+the shape. Per-row stateful behaviour is shared, never duplicated: Issues'
+resolve form is `useIssueResolve` + `IssueResolveForm`, called by both the
+`<tr>`'s expand and the card's tap-to-expand; Call log's expand body is the
+pure `CallDetailBody`, same deal.
 
 **Shared vocabulary** — `components/crm/crm-pill.tsx`:
 

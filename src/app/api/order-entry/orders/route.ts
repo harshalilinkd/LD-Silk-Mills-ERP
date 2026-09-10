@@ -23,6 +23,8 @@ import {
 import { orderEntryDb as db } from "@/db/order-entry";
 import { firstZodError, orderPayloadSchema } from "@/lib/order-entry/validation";
 import {
+  ASIDE_STAGE_KEYS,
+  LAST_FLOW_STAGE_KEY,
   PROGRESS_STAGE_KEYS_LIST,
   buildInitialStageRows,
   computeOrderStatus,
@@ -208,6 +210,11 @@ export async function GET(req: Request) {
           stageRows: count(),
           doneRows: sql<number>`count(*) filter (where ${lineStageProgress.isDone})`,
           anyProgressStageDone: sql<boolean>`bool_or(${lineStageProgress.isDone} and ${inArray(lineStageProgress.stageKey, [...PROGRESS_STAGE_KEYS_LIST])})`,
+          // What actually decides COMPLETED — see computeLineStatus. The hold
+          // is read here rather than filtered out, because it is now one of the
+          // two things the answer depends on.
+          lastStageDone: sql<boolean>`bool_or(${lineStageProgress.isDone} and ${lineStageProgress.stageKey} = ${LAST_FLOW_STAGE_KEY})`,
+          onHold: sql<boolean>`bool_or(${lineStageProgress.isDone} and ${lineStageProgress.stageKey} = ${ASIDE_STAGE_KEYS[0]})`,
         })
         .from(lineStageProgress)
         .where(inArray(lineStageProgress.orderLineItemId, lineIds))
@@ -221,6 +228,8 @@ export async function GET(req: Request) {
         stageRows: Number(s.stageRows),
         doneRows: Number(s.doneRows),
         anyProgressStageDone: Boolean(s.anyProgressStageDone),
+        lastStageDone: Boolean(s.lastStageDone),
+        onHold: Boolean(s.onHold),
       }),
     ]),
   );

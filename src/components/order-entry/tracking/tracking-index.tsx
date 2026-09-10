@@ -15,6 +15,22 @@
 // Every order is trackable the moment it is entered. Challan and lot are
 // optional and are NOT a precondition, which is why nothing here filters on
 // them.
+//
+// -- THE COLUMNS ARE THE READER'S CHOICE (SCREENS.md 4A.4) -----------------
+//
+// Twelve columns plus the Track button is more than most people want at once,
+// and it is what makes this table scroll sideways. The same picker the Order
+// status board carries is here, under its OWN storage key: the column sets
+// differ, and sharing a key would leave every user's storage full of ids that
+// mean nothing on the other screen.
+//
+// **The table's min-width follows the choice.** The board pins its own at
+// 1240px whatever is hidden, so switching four columns off there stretches the
+// eight that are left and the sideways scroll never goes away -- which is the
+// one thing the control exists to fix. Here each column declares the width it
+// needs and the table asks for the sum of the VISIBLE ones, so hiding columns
+// actually narrows the table. The widths add up to the 1040px this table
+// always carried, so nothing moves until somebody switches something off.
 
 import * as React from "react";
 import Link from "next/link";
@@ -52,6 +68,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TBody, THead, Th, Td, Tr } from "@/components/ui/data-table";
 import { useDebouncedValue } from "@/components/order-entry/shared/use-debounced-value";
+import { ColumnPicker } from "@/components/order-entry/shared/column-picker";
+import {
+  useColumnPrefs,
+  type ColumnDef,
+} from "@/components/order-entry/shared/use-column-prefs";
 import {
   appendOrderFilterParams,
   EMPTY_ORDER_FILTERS,
@@ -60,7 +81,30 @@ import {
   type OrderFilterState,
 } from "@/components/order-entry/shared/order-filters";
 import { csvFilename, download, toCsv } from "@/components/order-entry/shared/csv";
+import { useFillHeight } from "@/components/order-entry/shared/use-fill-height";
 import { cn } from "@/lib/utils";
+
+// Labelled with the HEADER TEXT, verbatim. A picker that calls a column
+// something the table does not is a picker you have to switch on to identify.
+// `w` is the width that column asks of the table (px); they sum to the 1040
+// this table has always been, plus 100 for the Track button that never hides.
+const OPERATIONS_COLUMNS: (ColumnDef & { w: number })[] = [
+  { id: "order", label: "Order no", locked: true, w: 90 },
+  { id: "date", label: "Date", w: 70 },
+  { id: "party", label: "Party", w: 110 },
+  { id: "haste", label: "Haste", w: 80 },
+  { id: "agent", label: "Agent", w: 80 },
+  { id: "fabrics", label: "Fabrics", w: 100 },
+  { id: "designs", label: "Designs", w: 55 },
+  { id: "qty", label: "Total Qty", w: 70 },
+  { id: "total", label: "Total Amount", w: 85 },
+  { id: "challan", label: "Challan no", w: 70 },
+  { id: "lot", label: "Lot no", w: 60 },
+  { id: "status", label: "Status", w: 70 },
+];
+
+/** The Track button's column, which is an action and is never pickable. */
+const ACTION_W = 100;
 
 async function fetchOrders(qs: string): Promise<OrdersList> {
   const res = await fetch(`/api/order-entry/orders?${qs}`);
@@ -69,7 +113,12 @@ async function fetchOrders(qs: string): Promise<OrdersList> {
   return body.data as OrdersList;
 }
 
-export function TrackingIndex() {
+export function TrackingIndex({
+  /** The signed-in email -- the per-user key for the column prefs. */
+  userKey,
+}: {
+  userKey?: string;
+}) {
   const router = useRouter();
   const [searchInput, setSearchInput] = React.useState("");
   const [search, setSearch] = React.useState("");
@@ -86,6 +135,17 @@ export function TrackingIndex() {
 
   const debouncedFilters = useDebouncedValue(filters, 300);
   const debouncedSearch = useDebouncedValue(searchInput, 300);
+
+  const { hidden, isVisible, toggle, reset } = useColumnPrefs(
+    `oe:operations:cols:${userKey ?? "anon"}`,
+    OPERATIONS_COLUMNS,
+  );
+
+  // Sum of what is on screen -- see the note in the header. Recomputed from
+  // the SAME list the picker drives, so the two can never disagree.
+  const tableMin =
+    ACTION_W +
+    OPERATIONS_COLUMNS.reduce((n, c) => (isVisible(c.id) ? n + c.w : n), 0);
 
   // One query string builder for the list AND the export, so the CSV can never
   // describe a different set of orders than the table above it.
@@ -173,17 +233,26 @@ export function TrackingIndex() {
   const rows = data?.orders ?? [];
   const total = data?.total ?? 0;
 
+  // The same measured fill the two order tables use: `calc(100vh-19rem)` is a
+  // guess, and a guess leaves a band of dead space above the footer.
+  const { ref: cardRef, maxHeight: bodyMax } = useFillHeight([
+    rows.length,
+    list.isLoading,
+  ]);
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        {/* The count moved onto the heading row: it is worth knowing, and the
+            sentence explaining that you click an order to open it was a line
+            of height spent on something the screen already demonstrates. */}
+        <div className="flex flex-wrap items-baseline gap-x-2.5">
           <h1 className="text-[22px] font-bold tracking-[-0.01em] text-text-1">
             Operations
           </h1>
-          <p className="mt-1 text-[13px] text-text-3">
+          <p className="text-[13px] text-text-3">
             <span className="num">{formatCount(total)}</span> order
-            {total === 1 ? "" : "s"} to track · pick one to open its 7-stage
-            board
+            {total === 1 ? "" : "s"}
           </p>
         </div>
       </div>
@@ -212,6 +281,16 @@ export function TrackingIndex() {
                 <span className="ml-1 size-1.5 rounded-full bg-primary" />
               ) : null}
             </Button>
+            {/* Pointless where the table is hidden -- the phone below `md`
+                gets the card list, which has no columns to choose. */}
+            <div className="hidden md:block">
+              <ColumnPicker
+                columns={OPERATIONS_COLUMNS}
+                hidden={hidden}
+                onToggle={toggle}
+                onReset={reset}
+              />
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -250,7 +329,7 @@ export function TrackingIndex() {
       </div>
 
       <Reveal index={0}>
-        <Card size="sm" className="py-0">
+        <Card ref={cardRef} size="sm" className="py-0">
           {list.isLoading ? (
             <div className="flex items-center gap-2 px-4 py-10 text-[13px] text-text-2">
               <Spinner /> Loading orders…
@@ -267,24 +346,37 @@ export function TrackingIndex() {
             <>
               <HScroll
                 className="hidden md:block"
-                bodyClassName="max-h-[calc(100vh-19rem)] overflow-auto"
+                bodyClassName="overflow-auto"
+                bodyStyle={bodyMax ? { maxHeight: bodyMax } : undefined}
               >
-                <Table className="min-w-[1040px]">
+                <Table style={{ minWidth: tableMin }}>
                   <THead>
                     <tr>
                       <Th>Order no</Th>
-                      <Th>Date</Th>
-                      {/* The one column that absorbs the slack (§0.4). */}
-                      <Th className="w-full">Party</Th>
-                      <Th>Haste</Th>
-                      <Th>Agent</Th>
-                      <Th>Fabrics</Th>
-                      <Th className="text-right">Designs</Th>
-                      <Th className="text-right">Total Qty</Th>
-                      <Th className="text-right">Total Amount</Th>
-                      <Th>Challan no</Th>
-                      <Th>Lot no</Th>
-                      <Th>Status</Th>
+                      {isVisible("date") && <Th>Date</Th>}
+                      {/* The one column that absorbs the slack (§0.4) -- and
+                          when it is switched off, Fabrics takes it, so the
+                          table never leaves a ragged gap on the right. */}
+                      {isVisible("party") && <Th className="w-full">Party</Th>}
+                      {isVisible("haste") && <Th>Haste</Th>}
+                      {isVisible("agent") && <Th>Agent</Th>}
+                      {isVisible("fabrics") && (
+                        <Th className={cn(!isVisible("party") && "w-full")}>
+                          Fabrics
+                        </Th>
+                      )}
+                      {isVisible("designs") && (
+                        <Th className="text-right">Designs</Th>
+                      )}
+                      {isVisible("qty") && (
+                        <Th className="text-right">Total Qty</Th>
+                      )}
+                      {isVisible("total") && (
+                        <Th className="text-right">Total Amount</Th>
+                      )}
+                      {isVisible("challan") && <Th>Challan no</Th>}
+                      {isVisible("lot") && <Th>Lot no</Th>}
+                      {isVisible("status") && <Th>Status</Th>}
                       <Th className="text-right" />
                     </tr>
                   </THead>
@@ -303,41 +395,63 @@ export function TrackingIndex() {
                         <Td className="num font-semibold whitespace-nowrap text-accent-text">
                           {o.order_no}
                         </Td>
-                        <Td className="num whitespace-nowrap text-text-2">
-                          {o.order_date}
-                        </Td>
-                        <Td className="whitespace-nowrap text-text-1">
-                          {o.party_name}
-                        </Td>
-                        <Td className="whitespace-nowrap text-text-2">
-                          {o.haste || "—"}
-                        </Td>
-                        <Td className="whitespace-nowrap text-text-2">
-                          {o.agent || "—"}
-                        </Td>
+                        {isVisible("date") && (
+                          <Td className="num whitespace-nowrap text-text-2">
+                            {o.order_date}
+                          </Td>
+                        )}
+                        {isVisible("party") && (
+                          <Td className="whitespace-nowrap text-text-1">
+                            {o.party_name}
+                          </Td>
+                        )}
+                        {isVisible("haste") && (
+                          <Td className="whitespace-nowrap text-text-2">
+                            {o.haste || "—"}
+                          </Td>
+                        )}
+                        {isVisible("agent") && (
+                          <Td className="whitespace-nowrap text-text-2">
+                            {o.agent || "—"}
+                          </Td>
+                        )}
                         {/* The one cell that WRAPS — a five-fabric order is
                             otherwise a single 600px line. */}
-                        <Td className="min-w-[160px] whitespace-normal text-text-2">
-                          {o.fabrics.length ? o.fabrics.join(", ") : "—"}
-                        </Td>
-                        <Td className="num text-right text-text-2">
-                          {o.line_count}
-                        </Td>
-                        <Td className="num text-right whitespace-nowrap text-text-2">
-                          {formatNumber(o.qty_total)}
-                        </Td>
-                        <Td className="num text-right whitespace-nowrap text-text-1">
-                          ₹{formatNumber(o.grand_total)}
-                        </Td>
-                        <Td className="num whitespace-nowrap text-text-2">
-                          {o.challan_no || "—"}
-                        </Td>
-                        <Td className="num whitespace-nowrap text-text-2">
-                          {o.lot_no || "—"}
-                        </Td>
-                        <Td>
-                          <StatusBadge status={o.operations_status} />
-                        </Td>
+                        {isVisible("fabrics") && (
+                          <Td className="min-w-[160px] whitespace-normal text-text-2">
+                            {o.fabrics.length ? o.fabrics.join(", ") : "—"}
+                          </Td>
+                        )}
+                        {isVisible("designs") && (
+                          <Td className="num text-right text-text-2">
+                            {o.line_count}
+                          </Td>
+                        )}
+                        {isVisible("qty") && (
+                          <Td className="num text-right whitespace-nowrap text-text-2">
+                            {formatNumber(o.qty_total)}
+                          </Td>
+                        )}
+                        {isVisible("total") && (
+                          <Td className="num text-right whitespace-nowrap text-text-1">
+                            ₹{formatNumber(o.grand_total)}
+                          </Td>
+                        )}
+                        {isVisible("challan") && (
+                          <Td className="num whitespace-nowrap text-text-2">
+                            {o.challan_no || "—"}
+                          </Td>
+                        )}
+                        {isVisible("lot") && (
+                          <Td className="num whitespace-nowrap text-text-2">
+                            {o.lot_no || "—"}
+                          </Td>
+                        )}
+                        {isVisible("status") && (
+                          <Td>
+                            <StatusBadge status={o.operations_status} />
+                          </Td>
+                        )}
                         {/* The row is the link; this cell stops the click so
                             the Track button does not fire it twice. */}
                         <Td

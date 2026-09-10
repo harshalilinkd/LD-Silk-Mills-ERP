@@ -267,7 +267,11 @@ export function buildTools(ctx: ToolContext) {
                select 1 from ld_order_entry.workflow_stages w
                 left join ld_order_entry.line_stage_progress pr
                        on pr.order_line_item_id = l.id and pr.stage_key = w.stage_key
-                where coalesce(pr.is_done, false) = false)`;
+                -- on_hold is an aside, not a step, and is almost never
+                -- ticked: counted here every order in the book would answer
+                -- "still in progress" forever.
+                where w.stage_key <> 'on_hold'
+                  and coalesce(pr.is_done, false) = false)`;
         out.orders = oe;
       }
       return Object.keys(out).length

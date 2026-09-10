@@ -9,13 +9,21 @@ import { canRunModule, resolveReportViewer } from "@/lib/reports/authz";
 import { salesDashboard } from "@/lib/reports/dashboards/order-entry";
 import { count, pct } from "@/lib/reports/format";
 
-import { ComboMonthly, CountColumns, RankedBars, SharePie } from "../dashboard-charts";
+import {
+  ComboMonthly,
+  CountColumns,
+  RankedBars,
+  SharePie,
+} from "../dashboard-charts";
 import { loadOptions, readParams } from "../dashboard-common";
 import { DashboardFilters } from "../dashboard-filters";
-import { Card, Caveats, HeatGrid, Insights, KpiStrip } from "../dashboard-parts";
+import { Card, Caveats, Insights, KpiStrip } from "../dashboard-parts";
+import { CustomersMatrixCard } from "../customers-matrix-card";
 import { ReportsTabs } from "../reports-tabs";
 
-export const metadata: Metadata = { title: "Sales dashboard — LD Silk Mills ERP" };
+export const metadata: Metadata = {
+  title: "Sales dashboard — LD Silk Mills ERP",
+};
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -63,7 +71,8 @@ export default async function SalesDashboardPage({
   const a = d.analysis;
 
   const period = `${formatDate(q.from)} to ${formatDate(q.to)}`;
-  const completeShare = d.orders > 0 ? (d.completion.complete / d.orders) * 100 : 0;
+  const completeShare =
+    d.orders > 0 ? (d.completion.complete / d.orders) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -170,7 +179,11 @@ export default async function SalesDashboardPage({
             >
               <RankedBars data={d.bySalesPerson} />
             </Card>
-            <Card title="Which transports carried them" sub="by value" className="xl:col-span-1">
+            <Card
+              title="Which transports carried them"
+              sub="by value"
+              className="xl:col-span-1"
+            >
               <RankedBars data={d.byTransport} />
             </Card>
             <Card
@@ -183,9 +196,10 @@ export default async function SalesDashboardPage({
           </div>
 
           {a.matrix && (
-            <Card title={a.matrix.title} note={a.matrix.note}>
-              <HeatGrid matrix={a.matrix} />
-            </Card>
+            <CustomersMatrixCard
+              matrix={a.matrix}
+              allCustomers={d.allCustomers}
+            />
           )}
 
           <Card title="Worth knowing about these figures">

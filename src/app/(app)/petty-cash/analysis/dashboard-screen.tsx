@@ -124,7 +124,7 @@ function MonthRail({
   }, [month, year]);
 
   return (
-    <aside className="shrink-0 overflow-hidden rounded-card border border-border bg-surface sm:w-[170px]">
+    <aside className="shrink-0 overflow-hidden rounded-card border border-border bg-surface lg:w-[170px]">
       <div className="flex items-center justify-between gap-1 border-b border-border px-2 py-1.5">
         <QuietButton
           aria-label="Previous year"
@@ -145,7 +145,7 @@ function MonthRail({
 
       <div
         ref={strip}
-        className="flex gap-1 overflow-x-auto p-1.5 sm:flex-col sm:gap-0 sm:overflow-x-visible sm:p-0"
+        className="flex gap-1 overflow-x-auto p-1.5 lg:flex-col lg:gap-0 lg:overflow-x-visible lg:p-0"
       >
         {MONTHS.map((name, i) => {
           const on = i + 1 === month;
@@ -158,14 +158,14 @@ function MonthRail({
               onClick={() => onMonth(i + 1)}
               className={cn(
                 "shrink-0 cursor-pointer rounded-pill px-3 py-1.5 text-[12.5px] transition-colors",
-                "sm:rounded-none sm:border-b sm:border-border sm:px-4 sm:py-2.5 sm:text-left sm:last:border-b-0",
+                "lg:rounded-none lg:border-b lg:border-border lg:px-4 lg:py-2.5 lg:text-left lg:last:border-b-0",
                 on
                   ? "bg-primary/10 font-semibold text-primary"
                   : "text-text-2 hover:bg-surface-2 hover:text-text-1",
               )}
             >
-              <span className="sm:hidden">{name.slice(0, 3)}</span>
-              <span className="hidden sm:inline">{name}</span>
+              <span className="lg:hidden">{name.slice(0, 3)}</span>
+              <span className="hidden lg:inline">{name}</span>
             </button>
           );
         })}
@@ -440,7 +440,7 @@ export function DashboardScreen({
           </span>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
           <MonthRail
             year={y}
             month={m}
@@ -479,10 +479,13 @@ export function DashboardScreen({
             {/*
               A seven-column grid with rupee figures in it is a desktop layout.
               At 390px each cell is 45px wide and "+ ₹10,000" wraps onto three
-              lines. Below `sm` the same data is a list instead: only the days
-              that had activity, opening the same day when tapped.
+              lines — and it doesn't get much better up to 1024px, so the
+              switch is `lg`, not `sm`; a phone in landscape or a small tablet
+              got the cramped grid under `sm` and that is what this was
+              fixing. Below `lg` the same data is a list instead: only the
+              days that had activity, opening the same day when tapped.
             */}
-            <div className="sm:hidden">
+            <div className="lg:hidden">
               {days.length === 0 ? (
                 <p className="px-4 py-10 text-center text-[13px] text-text-3">
                   Nothing was recorded in {monthLabel(from)}.
@@ -496,7 +499,9 @@ export function DashboardScreen({
                       <li key={day.date}>
                         <button
                           type="button"
-                          onClick={() => router.push(`/petty-cash?on=${day.date}`)}
+                          onClick={() =>
+                            router.push(`/petty-cash?on=${day.date}`)
+                          }
                           className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2"
                         >
                           <span className="flex w-11 shrink-0 flex-col items-center">
@@ -532,7 +537,7 @@ export function DashboardScreen({
               )}
             </div>
 
-            <div className="hidden p-4 sm:block">
+            <div className="hidden p-4 lg:block">
               {/*
                 ONE CONTINUOUS GRID, NOT THIRTY FLOATING TILES.
 
@@ -550,14 +555,16 @@ export function DashboardScreen({
               */}
               <div className="overflow-hidden rounded-md border border-border">
                 <div className="grid grid-cols-7 gap-px bg-border">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                    <div
-                      key={d}
-                      className="bg-surface-2 py-2 text-center text-[10px] font-semibold tracking-[0.06em] text-text-2 uppercase"
-                    >
-                      {d}
-                    </div>
-                  ))}
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                    (d) => (
+                      <div
+                        key={d}
+                        className="bg-surface-2 py-2 text-center text-[10px] font-semibold tracking-[0.06em] text-text-2 uppercase"
+                      >
+                        {d}
+                      </div>
+                    ),
+                  )}
 
                   {cells.map((cell, i) => {
                     // The days either side of the month. They keep their cell -
@@ -777,7 +784,6 @@ export function DashboardScreen({
           </div>
         )}
       </section>
-
     </div>
   );
 }

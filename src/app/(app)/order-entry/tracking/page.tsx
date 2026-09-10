@@ -9,8 +9,15 @@
 // keystroke was a navigation and the phone layout was a 900px scroller. §5.1
 // wants a live, debounced, client-side list — so the work moved into
 // <TrackingIndex />.
+//
+// It reads the session for ONE thing: the signed-in email, which keys the
+// per-user column choices (§4A.4). The layout above has already redirected
+// anyone without a session, so this is a storage key — never an access
+// decision. Same shape as the Order status page.
+import { auth } from "@/auth";
 import { TrackingIndex } from "@/components/order-entry/tracking/tracking-index";
 
-export default function OperationsTrackingPage() {
-  return <TrackingIndex />;
+export default async function OperationsTrackingPage() {
+  const session = await auth();
+  return <TrackingIndex userKey={session?.user?.email ?? undefined} />;
 }

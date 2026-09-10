@@ -88,4 +88,9 @@ export const STAGE_DOT: Record<string, string> = {
   bill: "bg-status-green",
   dispatch: "bg-status-purple",
   received_lr: "bg-accent-text",
+  // GREY, on purpose, and not because the palette ran out. `on_hold` is an
+  // aside rather than a step in the flow (see ASIDE_STAGE_KEYS), so it must not
+  // read as one of the seven coloured stages a line moves through. Grey is what
+  // this ERP already uses for neutral everywhere else.
+  on_hold: "bg-text-3",
 };

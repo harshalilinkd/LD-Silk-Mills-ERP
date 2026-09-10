@@ -215,7 +215,15 @@ export async function loadOrderStatus(
       select a.order_id, a.line_id, w.sort_order, w.stage_key,
              coalesce(p.is_done, false) as is_done, p.planned_at
       from active a
-      cross join ${workflowStages} w
+      -- ── THE HOLD IS NOT IN THIS GRID, AND MUST NOT BE ────────────────
+      --
+      -- Everything below is built on this CTE: which stage a line is on, what
+      -- is overdue, whether an order is complete, and which stage a GROUP is
+      -- at. on_hold is an aside, not a step (see ASIDE_STAGE_KEYS in
+      -- workflow-constants). Left in, it is a row that is almost never done,
+      -- so first_undone would resolve to it for nearly every line and this
+      -- board would report every order in the business as sitting "On hold".
+      cross join (select * from ${workflowStages} where stage_key <> 'on_hold') w
       left join ${lineStageProgress} p
         on p.order_line_item_id = a.line_id and p.stage_key = w.stage_key
     ),
@@ -224,14 +232,37 @@ export async function loadOrderStatus(
       from grid where not is_done
       order by line_id, sort_order
     ),
+    -- ── FINISHED IS THE LAST STAGE TICKED, NOT EVERY STAGE TICKED ──────
+    --
+    -- 33 live lines have Received LR ticked with an earlier stage never
+    -- ticked. "No stage left undone" called those unfinished while the
+    -- reports and the home page called them finished, so the same book read
+    -- 2,047 complete on one screen and 2,080 on another. The owner settled it
+    -- (Sep 2026): the last stage decides, and a HOLD is the one thing that
+    -- takes a line back out of finished. See computeLineStatus.
+    line_finished as (
+      select line_id, bool_or(is_done) filter (where sort_order = (select max(sort_order) from ${workflowStages} where stage_key <> 'on_hold')) as finished
+      from grid group by line_id
+    ),
+    line_held as (
+      select a.line_id,
+             coalesce(bool_or(p.is_done), false) as held
+      from active a
+      left join ${lineStageProgress} p
+        on p.order_line_item_id = a.line_id and p.stage_key = 'on_hold'
+      group by a.line_id
+    ),
     line_status as (
       select a.order_id,
-        case when fu.line_id is null then 'completed'
+        case when lf.finished and not lh.held then 'completed'
              when fu.planned_at is not null
                and fu.planned_at < ${now.toISOString()}::timestamptz
                then 'overdue'
              else 'in_progress' end as overall
-      from active a left join first_undone fu on fu.line_id = a.line_id
+      from active a
+      left join first_undone fu on fu.line_id = a.line_id
+      left join line_finished lf on lf.line_id = a.line_id
+      left join line_held lh on lh.line_id = a.line_id
     ),
     per_order as (
       select order_id, count(*)::int as active_lines,

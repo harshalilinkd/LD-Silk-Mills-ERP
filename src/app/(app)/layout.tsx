@@ -43,7 +43,10 @@ export default async function AppLayout({
               email={dbUser.email}
               avatar={dbUser.avatar}
             />
-            <main className="flex-1 overflow-y-auto p-4 md:p-6">
+            {/* `md:py-4`, not `md:p-6`: the side padding keeps a table off the
+                sidebar, but 24px above the heading and 24px under the last
+                row is margin the data could be using. */}
+            <main className="flex-1 overflow-y-auto p-4 md:px-6 md:py-4">
               {children}
             </main>
           </div>

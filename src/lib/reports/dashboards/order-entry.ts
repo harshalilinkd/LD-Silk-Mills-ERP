@@ -51,7 +51,12 @@ const SIZE_BANDS = [
   { label: "₹5 – 10 lakh", under: 1_000_000 },
   { label: "Over ₹10 lakh", under: Number.POSITIVE_INFINITY },
 ];
-export type MonthPoint = { month: string; value: number; orders: number; metres: number };
+export type MonthPoint = {
+  month: string;
+  value: number;
+  orders: number;
+  metres: number;
+};
 
 /** Sorted biggest first, then by name, so the same data always draws the same. */
 function rank(m: Map<string, number>, limit?: number): Slice[] {
@@ -99,11 +104,16 @@ export type SalesDashboard = {
   byTransport: Slice[];
   bySize: Slice[];
   topCustomers: Slice[];
+  /** Every customer in the period, not the top 10 — for "view all" on the
+   * customer matrix, which itself only ever draws its top 8. */
+  allCustomers: Slice[];
   topQualities: Slice[];
   completion: { complete: number; open: number };
 };
 
-export async function salesDashboard(params: ReportParams): Promise<SalesDashboard> {
+export async function salesDashboard(
+  params: ReportParams,
+): Promise<SalesDashboard> {
   const reg = await orderRegister.run(params);
   const qual = await qualityAnalysis.run(params);
 
@@ -118,7 +128,12 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
   for (const r of reg.rows) {
     const key = s(r.order_date).slice(0, 7);
     if (key) {
-      const p = months.get(key) ?? { month: key, value: 0, orders: 0, metres: 0 };
+      const p = months.get(key) ?? {
+        month: key,
+        value: 0,
+        orders: 0,
+        metres: 0,
+      };
       p.value += n(r.value);
       p.orders += 1;
       p.metres += n(r.qty_mtr);
@@ -145,7 +160,9 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
   const sizeCount = new Map<string, number>();
   const sizeValue = new Map<string, number>();
   for (const r of reg.rows) {
-    const band = SIZE_BANDS.find((b) => n(r.value) < b.under) ?? SIZE_BANDS[SIZE_BANDS.length - 1];
+    const band =
+      SIZE_BANDS.find((b) => n(r.value) < b.under) ??
+      SIZE_BANDS[SIZE_BANDS.length - 1];
     add(sizeCount, band.label, 1);
     add(sizeValue, band.label, n(r.value));
   }
@@ -162,6 +179,13 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
     .filter((x) => x.label !== "Others")
     .map((x) => ({ ...x, meta: `${partyOrders.get(x.label) ?? 0} orders` }));
 
+  // No limit: `rank()` only appends an "Others" bucket when it truncates, so
+  // every real customer comes back on its own row.
+  const allCustomers = rank(byParty).map((x) => ({
+    ...x,
+    meta: `${partyOrders.get(x.label) ?? 0} orders`,
+  }));
+
   return {
     analysis: reg.analysis,
     capped: cappedNote(reg.rows.length, reg.totalRows, "orders"),
@@ -177,6 +201,7 @@ export async function salesDashboard(params: ReportParams): Promise<SalesDashboa
       meta: `${inrShort(sizeValue.get(b.label) ?? 0)} in all`,
     })).filter((b) => b.value > 0),
     topCustomers,
+    allCustomers,
     topQualities: rank(byQuality, 10)
       .filter((x) => x.label !== "Others")
       .map((x) => ({ ...x, meta: `${qualityLines.get(x.label) ?? 0} lines` })),
@@ -226,22 +251,34 @@ export type ProductionDashboard = {
   pendingTotal: number;
 };
 
-const AGE_ORDER = ["0–7 days", "8–15 days", "16–30 days", "31–60 days", "Over 60 days"];
+const AGE_ORDER = [
+  "0–7 days",
+  "8–15 days",
+  "16–30 days",
+  "31–60 days",
+  "Over 60 days",
+];
 
-export async function productionDashboard(params: ReportParams): Promise<ProductionDashboard> {
+export async function productionDashboard(
+  params: ReportParams,
+): Promise<ProductionDashboard> {
   const prod = await productionStatus.run(params);
   const rows = prod.rows;
   const total = rows.length;
 
   const stages: StageRow[] = STAGES.map((st, i) => {
     const done = rows.filter((r) => r[`s${i}_done`] === true);
-    const late = done.map((r) => n(r[`s${i}_late`])).filter((x) => Number.isFinite(x));
+    const late = done
+      .map((r) => n(r[`s${i}_late`]))
+      .filter((x) => Number.isFinite(x));
     return {
       no: i + 1,
       label: st.label,
       done: done.length,
       pct: total ? (done.length / total) * 100 : 0,
-      avgLate: late.length ? late.reduce((a, b) => a + b, 0) / late.length : null,
+      avgLate: late.length
+        ? late.reduce((a, b) => a + b, 0) / late.length
+        : null,
       lost: 0,
     };
   });
@@ -294,10 +331,17 @@ export async function productionDashboard(params: ReportParams): Promise<Product
     stages,
     waiting: [...waiting]
       .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => STAGES.findIndex((x) => x.label === a.label) - STAGES.findIndex((x) => x.label === b.label)),
+      .sort(
+        (a, b) =>
+          STAGES.findIndex((x) => x.label === a.label) -
+          STAGES.findIndex((x) => x.label === b.label),
+      ),
     // Oldest last, so the bar chart reads left-to-right as time passing rather
     // than as a ranking.
-    ageing: AGE_ORDER.filter((k) => ageing.has(k)).map((label) => ({ label, value: ageing.get(label) ?? 0 })),
+    ageing: AGE_ORDER.filter((k) => ageing.has(k)).map((label) => ({
+      label,
+      value: ageing.get(label) ?? 0,
+    })),
     // "Others" is KEPT. rank() appends it so a chart still reconciles to the
     // total; dropping it left a panel whose bars summed to ₹2.57 cr sitting
     // under a subtitle that read ₹5.30 cr.

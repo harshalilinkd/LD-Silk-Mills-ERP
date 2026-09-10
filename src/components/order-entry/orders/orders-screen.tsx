@@ -37,6 +37,7 @@ export function OrdersScreen({
   canTrack,
   /** `<h1>Orders</h1>` + its subtitle. Shown in both views. */
   title,
+  userKey,
 }: {
   /**
    * Already resolved by the page from the session (ADMIN, or the `orders.edit`
@@ -47,6 +48,8 @@ export function OrdersScreen({
   /** `operations.view` — gates the per-row Track action on the table. */
   canTrack: boolean;
   title: React.ReactNode;
+  /** The signed-in email — the per-user key for the table's column prefs. */
+  userKey?: string;
 }) {
   const { view, setView } = useTrackView("oe:orders:view:v2", "track");
 
@@ -72,7 +75,7 @@ export function OrdersScreen({
 
   if (track) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {title}
         </div>
@@ -87,7 +90,11 @@ export function OrdersScreen({
         {title}
         <div className="flex items-center gap-2">{control}</div>
       </div>
-      <OrdersDashboard canEdit={canEdit} canTrack={canTrack} />
+      <OrdersDashboard
+        canEdit={canEdit}
+        canTrack={canTrack}
+        userKey={userKey}
+      />
     </div>
   );
 }

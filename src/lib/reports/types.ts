@@ -34,7 +34,10 @@ export type ReportModule =
   | "checklist"
   | "cross";
 
-export const MODULE_META: Record<ReportModule, { label: string; systemCode: string | null }> = {
+export const MODULE_META: Record<
+  ReportModule,
+  { label: string; systemCode: string | null }
+> = {
   "order-entry": { label: "Orders", systemCode: "order-entry" },
   crm: { label: "CRM", systemCode: "crm" },
   "goods-return": { label: "Goods Return", systemCode: "goods-return-lr" },
@@ -52,7 +55,7 @@ export type ColumnType =
   | "int"
   /** A measured quantity — metres, pieces. Right aligned, two decimals. */
   | "number"
-  /** Rupees. Right aligned, `#,##0.00`, and totalled at the foot. */
+  /** Rupees. Right aligned, `#,##0` — whole, no paise — and totalled at the foot. */
   | "money"
   /** A calendar day. `YYYY-MM-DD` in CSV, a real date cell in Excel. */
   | "date"
@@ -245,7 +248,12 @@ export type Matrix = {
   title: string;
   /** Column headings — months, usually. */
   columns: string[];
-  rows: { label: string; values: (number | null)[]; total: number; totalDisplay: string }[];
+  rows: {
+    label: string;
+    values: (number | null)[];
+    total: number;
+    totalDisplay: string;
+  }[];
   /** How a single cell is written out, for the legend line. */
   format: "money" | "count";
   note?: string;

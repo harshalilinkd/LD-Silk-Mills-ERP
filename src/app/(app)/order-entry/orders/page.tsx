@@ -31,6 +31,13 @@ export default async function OrdersListPage() {
   );
 
   return (
-    <OrdersScreen canEdit={canEdit} canTrack={canTrack} title={title} />
+    <OrdersScreen
+      canEdit={canEdit}
+      canTrack={canTrack}
+      title={title}
+      // The signed-in email, for the per-user column choices on the table
+      // (SCREENS.md 4A.4). A storage key, never an access decision.
+      userKey={session?.user?.email ?? undefined}
+    />
   );
 }

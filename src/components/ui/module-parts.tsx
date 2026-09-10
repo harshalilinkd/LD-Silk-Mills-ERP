@@ -498,7 +498,7 @@ export function TableCard({
 export const th =
   "sticky top-0 z-10 border-r border-b border-border-strong bg-surface px-3 py-2 text-left text-[11px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0";
 export const td =
-  "border-r border-b border-border-strong px-3 py-2.5 align-middle text-[13px] text-text-2 last:border-r-0";
+  "border-t border-r border-b border-border-strong px-3 py-2 align-middle text-[13px] text-text-2 last:border-r-0";
 
 export function EmptyState({
   icon,

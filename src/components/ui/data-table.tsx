@@ -85,7 +85,7 @@ export function Th({ className, ...props }: React.ComponentProps<"th">) {
         // rest that did not. `border-strong` throughout: the same rule
         // everywhere, and a table that reads as a grid rather than as one
         // emphasised seam.
-        "border-r border-b border-border-strong px-3 py-2 text-[13px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0",
+        "border-t border-r border-b border-border-strong px-3 py-2 text-[13px] font-bold tracking-[0.04em] whitespace-nowrap text-text-1 uppercase last:border-r-0",
         className,
       )}
       {...props}
@@ -96,10 +96,10 @@ export function Th({ className, ...props }: React.ComponentProps<"th">) {
 export function Td({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
-      // Spec: px-3 py-2.5, right rule, last:border-r-0. `...props` is spread
+      // Spec: px-3 py-2, right rule, last:border-r-0. `...props` is spread
       // so callers can set `title` for a tooltip on truncated text (§3.5).
       className={cn(
-        "border-r border-border-strong px-3 py-2.5 align-middle last:border-r-0",
+        "border-r border-border-strong px-3 py-2 align-middle last:border-r-0",
         className,
       )}
       {...props}

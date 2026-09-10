@@ -119,12 +119,18 @@ const PROGRESS_STAGE_KEYS = new Set<string>([
   "received_lr",
 ]);
 
+// `on_hold` is an aside, not a step: it must not keep a line from being
+// complete, and it is not "progress" either. Mirrors ASIDE_STAGE_KEYS in
+// workflow-constants — if that list changes, this changes in the same commit.
+const ASIDE_STAGE_KEYS = new Set<string>(["on_hold"]);
+
 function lineStatusOf(
   stages: { stage_key: string; is_done: boolean }[],
 ): OperationsStatus {
-  if (stages.length === 0) return "PENDING";
-  if (stages.every((s) => s.is_done)) return "COMPLETED";
-  const started = stages.some(
+  const flow = stages.filter((s) => !ASIDE_STAGE_KEYS.has(s.stage_key));
+  if (flow.length === 0) return "PENDING";
+  if (flow.every((s) => s.is_done)) return "COMPLETED";
+  const started = flow.some(
     (s) => s.is_done && PROGRESS_STAGE_KEYS.has(s.stage_key),
   );
   return started ? "PARTIALLY COMPLETED" : "PENDING";
@@ -303,7 +309,7 @@ export function TrackingBoard({ orderId }: { orderId: string }) {
   const inFlight = React.useRef(0);
   const [columnPending, setColumnPending] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<Notice>(null);
-  // Mobile: which line's 7-stage workflow is open (defaults to the first).
+  // Mobile: which line's stage workflow is open (defaults to the first).
   const [mobileLineId, setMobileLineId] = React.useState<string | null>(null);
 
   // Confirm (a): un-checking a stage that still has LATER stages done.
@@ -565,7 +571,10 @@ export function TrackingBoard({ orderId }: { orderId: string }) {
     if (!checked) {
       const idx = t.stage_keys.indexOf(stageKey);
       const laterDone = line.stages.filter(
-        (s) => t.stage_keys.indexOf(s.stage_key) > idx && s.is_done,
+        (s) =>
+          !ASIDE_STAGE_KEYS.has(s.stage_key) &&
+          t.stage_keys.indexOf(s.stage_key) > idx &&
+          s.is_done,
       );
       if (laterDone.length > 0) {
         setStageWarn({
@@ -599,7 +608,10 @@ export function TrackingBoard({ orderId }: { orderId: string }) {
     const downstreamDone =
       stockStatus !== "in_stock" &&
       line.stages.some(
-        (s) => t.stage_keys.indexOf(s.stage_key) > stockIdx && s.is_done,
+        (s) =>
+          !ASIDE_STAGE_KEYS.has(s.stage_key) &&
+          t.stage_keys.indexOf(s.stage_key) > stockIdx &&
+          s.is_done,
       );
     if (downstreamDone) {
       setStockWarn({

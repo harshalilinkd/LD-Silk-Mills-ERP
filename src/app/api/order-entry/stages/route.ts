@@ -3,7 +3,7 @@ import { jsonData, requireRole } from "@/lib/order-entry/api";
 import { orderEntryDb as db } from "@/db/order-entry";
 import { workflowStages } from "@/db/order-entry/schema";
 
-// GET /api/order-entry/stages — the 7 workflow stages + their SLA offset
+// GET /api/order-entry/stages — the workflow stages + their SLA offset
 // (ADMIN, Settings → Time tracking).
 export async function GET() {
   const guard = await requireRole(["ADMIN"]);

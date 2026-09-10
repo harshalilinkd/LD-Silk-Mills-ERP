@@ -1,6 +1,6 @@
 "use client";
 
-// Settings → Time tracking. The 7 workflow stages and their SLA offset (days
+// Settings → Time tracking. The workflow stages and their SLA offset (days
 // from the order date). Editing an offset changes the planned date NEW orders
 // get; "Recompute planned dates" pushes the current config onto every
 // not-yet-done stage of existing orders, which is why it sits behind a confirm
