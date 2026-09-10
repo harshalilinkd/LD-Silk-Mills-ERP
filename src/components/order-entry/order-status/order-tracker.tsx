@@ -40,6 +40,7 @@ import {
   type OrderFilterState,
 } from "@/components/order-entry/shared/order-filters";
 import { cn } from "@/lib/utils";
+import { MD, useMediaQuery } from "@/lib/use-media-query";
 import { TrackerDetail } from "./tracker-detail";
 import { StageCell, STAGE_COLUMNS, STAGE_COL_WIDTH } from "./stage-cell";
 import {
@@ -134,6 +135,19 @@ export function OrderTracker({
   } | null>(null);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const dragOffset = React.useRef<{ dx: number; dy: number } | null>(null);
+
+  // ── ON A PHONE THIS IS A SHEET, NOT A FLOATING BOX ────────────────────
+  //
+  // The panel is a draggable box that covers part of a wide table, and every
+  // part of that sentence stops being true on a phone: there is no table
+  // beside it to uncover, there is nowhere to drag it TO, and 94vw pinned
+  // 24px from the right edge is just a cramped page with a shadow. It becomes
+  // a bottom sheet instead — full width, off the bottom, with a scrim.
+  //
+  // It has to be JavaScript rather than a `md:` class because the desktop
+  // position is an inline `left`/`top`, and an inline style beats any class
+  // that would try to undo it.
+  const isDesktop = useMediaQuery(MD);
   // Briefly highlights the row the panel jumped to, so the eye can find it.
   const [flashId, setFlashId] = React.useState<string | null>(null);
   // The table fills whatever is left of the window — measured, not calculated.
@@ -645,35 +659,60 @@ export function OrderTracker({
         )}
 
         {hasSelection ? (
-          <div
-            ref={panelRef}
-            onPointerMove={onDragMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            // Double-click the bar (or anywhere on the frame) snaps it back to
-            // the default corner.
-            onDoubleClick={() => setPanelPos(null)}
-            style={
-              panelPos
-                ? { left: panelPos.x, top: panelPos.y }
-                : { right: 24, top: 104 }
-            }
-            className="fixed z-30 flex max-h-[calc(100vh-8rem)] w-[min(94vw,520px)] flex-col overflow-hidden rounded-card border border-border-strong bg-surface shadow-2xl"
-          >
-            <TrackerDetail
-              line={selected}
-              group={selectedGroup}
-              order={selectedOrder}
-              index={index}
-              total={lines.length}
-              onPrev={() => step(-1)}
-              onNext={() => step(1)}
-              onSelectLine={setSelectedId}
-              onClose={() => setSelectedId(null)}
-              onDragStart={startDrag}
-              onGoToRow={goToRow}
-            />
-          </div>
+          <>
+            {/* The sheet covers the page on a phone, so tapping outside it has
+                to be a way out — otherwise the only exit is one small button. */}
+            {!isDesktop ? (
+              <button
+                type="button"
+                aria-label="Close details"
+                onClick={() => setSelectedId(null)}
+                className="fixed inset-0 z-30 bg-black/45 md:hidden"
+              />
+            ) : null}
+            <div
+              ref={panelRef}
+              onPointerMove={isDesktop ? onDragMove : undefined}
+              onPointerUp={isDesktop ? endDrag : undefined}
+              onPointerCancel={isDesktop ? endDrag : undefined}
+              // Double-click the bar (or anywhere on the frame) snaps it back
+              // to the default corner. Meaningless on a sheet that cannot move.
+              onDoubleClick={isDesktop ? () => setPanelPos(null) : undefined}
+              style={
+                isDesktop
+                  ? panelPos
+                    ? { left: panelPos.x, top: panelPos.y }
+                    : { right: 24, top: 104 }
+                  : undefined
+              }
+              className={cn(
+                "fixed z-40 flex flex-col overflow-hidden border-border-strong bg-surface",
+                isDesktop
+                  ? "max-h-[calc(100vh-8rem)] w-[min(94vw,520px)] rounded-card border shadow-2xl"
+                  : // `dvh`, not `vh`: on a phone the browser chrome slides in
+                    // and out, and `vh` measures the tallest state, so the
+                    // bottom of a `vh` sheet sits under the address bar.
+                    "inset-x-0 bottom-0 max-h-[88dvh] w-full rounded-t-card border-t shadow-2xl",
+              )}
+            >
+              <TrackerDetail
+                line={selected}
+                group={selectedGroup}
+                order={selectedOrder}
+                index={index}
+                total={lines.length}
+                onPrev={() => step(-1)}
+                onNext={() => step(1)}
+                onSelectLine={setSelectedId}
+                onClose={() => setSelectedId(null)}
+                // No drag handler on a sheet: there is nowhere to drag it to,
+                // and a header that swallows touches is a header you cannot
+                // scroll the panel from.
+                onDragStart={isDesktop ? startDrag : undefined}
+                onGoToRow={isDesktop ? goToRow : undefined}
+              />
+            </div>
+          </>
         ) : null}
       </div>
     </div>

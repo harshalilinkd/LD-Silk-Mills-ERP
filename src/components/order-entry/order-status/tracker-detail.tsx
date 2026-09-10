@@ -192,8 +192,10 @@ export function TrackerDetail({
 
   // Buttons sit inside the drag handle; stop them starting a drag.
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
+  // 36px on a phone — the smallest thing a thumb hits reliably — and the
+  // desktop's 28px from `sm` up, where it is a mouse target beside a table.
   const navBtn =
-    "inline-flex size-7 items-center justify-center rounded-field border border-border-strong bg-surface text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1 disabled:opacity-40";
+    "inline-flex size-9 items-center justify-center rounded-field border border-border-strong bg-surface text-text-2 transition-colors hover:bg-surface-2 hover:text-text-1 disabled:opacity-40 sm:size-7";
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -207,22 +209,29 @@ export function TrackerDetail({
           onDragStart && "cursor-grab select-none active:cursor-grabbing",
         )}
       >
-        <div className="flex items-start gap-2">
-          {onDragStart ? (
-            <IconGripHorizontal
-              aria-hidden
-              className="mt-1 size-4 shrink-0 text-text-3"
-            />
-          ) : null}
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[15px] leading-tight font-semibold text-text-1">
-              {line.party}
-            </h2>
-            <p className="num mt-0.5 truncate text-xs text-text-2">
-              Order {line.orderNo} · {line.fabric} · {line.design}
-            </p>
+        {/* ── TWO ROWS ON A PHONE, ONE ON A DESKTOP ────────────────────
+            A party name, a sub-line, four buttons and a counter cannot share
+            360px: the name truncated to nothing and the buttons squeezed to
+            the edge. Below `sm` the name takes the width it needs and the
+            controls sit under it, spread out; from `sm` up nothing moves. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
+          <div className="flex min-w-0 items-start gap-2">
+            {onDragStart ? (
+              <IconGripHorizontal
+                aria-hidden
+                className="mt-1 hidden size-4 shrink-0 text-text-3 sm:block"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[15px] leading-tight font-semibold text-text-1 sm:truncate">
+                {line.party}
+              </h2>
+              <p className="num mt-0.5 truncate text-xs text-text-2">
+                Order {line.orderNo} · {line.fabric} · {line.design}
+              </p>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1 sm:ml-auto">
             <button
               type="button"
               onClick={onPrev}
@@ -234,7 +243,7 @@ export function TrackerDetail({
             >
               <IconChevronLeft className="size-4" />
             </button>
-            <span className="num w-14 text-center text-[11px] text-text-3">
+            <span className="num w-16 text-center text-[11.5px] text-text-3 sm:w-14 sm:text-[11px]">
               {index + 1} / {total}
             </span>
             <button
@@ -265,7 +274,7 @@ export function TrackerDetail({
                 type="button"
                 onClick={onClose}
                 onPointerDown={stopDrag}
-                className={cn(navBtn, "ml-1")}
+                className={cn(navBtn, "ml-auto sm:ml-1")}
                 aria-label="Close details"
                 title="Close (Esc)"
               >
@@ -323,7 +332,7 @@ export function TrackerDetail({
             <span className="num">{line.orderNo}</span>
           </Fact>
           <Fact label="Sales person">{line.salesPerson || "—"}</Fact>
-          <Fact label="Quality">{line.fabric}</Fact>
+          <Fact label="Fabric">{line.fabric}</Fact>
           <Fact label="Design no">
             <span className="num">{line.design}</span>
           </Fact>
