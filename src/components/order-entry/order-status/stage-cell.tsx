@@ -123,7 +123,17 @@ export function StageDot({
       className={cn(
         // `.num` (not font-mono) per §0.3 — "3/8" and "12d" line up down the
         // column without reading as code.
-        "num inline-flex min-w-[26px] items-center justify-center rounded-md px-1 py-0.5 text-[11px] font-medium whitespace-nowrap",
+        // ── BIGGER AND HEAVIER, NOT DARKER ─────────────────────────────
+        // The owner asked for these to be darker. Measured, the colours were
+        // never the problem: 7.8:1 on the in-progress dot and 6.6:1 on the
+        // pending dash, both well past what anybody needs to read. What was
+        // wrong is that they are one-glyph cells at 11px sitting beside 14px
+        // figures — a bullet that small is a speck and an en-dash is a hair.
+        // Size and weight are what "make it darker" actually meant here.
+        // `min-h` as well as `min-w`: a pill holding a 6px dot is 10px tall
+        // and one holding "3/8" is 20px, so without it the column alternated
+        // between two chip sizes down the page.
+        "num inline-flex min-h-[22px] min-w-[30px] items-center justify-center rounded-md px-1.5 py-0.5 text-[12.5px] font-semibold whitespace-nowrap",
         STAGE_CHIP_TONE[tone],
       )}
     >
@@ -152,7 +162,7 @@ export function StageChip({ cell }: { cell: StageCellData }) {
     if (cell.state === "done")
       return (
         <StageDot tone="success" title={`In stock${tip}`}>
-          <IconCheck className="size-3" />
+          <IconCheck className="size-3.5" stroke={2.5} />
         </StageDot>
       );
     const outOf = cell.outOf ?? 0;
@@ -187,7 +197,7 @@ export function StageChip({ cell }: { cell: StageCellData }) {
   if (cell.state === "done")
     return (
       <StageDot tone="success" title={`Done${tip}`}>
-        <IconCheck className="size-3" />
+        <IconCheck className="size-3.5" stroke={2.5} />
       </StageDot>
     );
   if (cell.state === "overdue")
@@ -205,14 +215,20 @@ export function StageChip({ cell }: { cell: StageCellData }) {
       );
     return (
       <StageDot tone="warning" title="In progress">
-        •
+        {/* A drawn dot rather than the • glyph, which renders as a speck at
+            this size and sits off the optical centre of the pill. */}
+        <span className="size-1.5 rounded-full bg-current" aria-hidden />
       </StageDot>
     );
   }
+  // The same pill as every other stage cell, in the quietest tone there is.
+  // It was a bare 7px dash in a column of 30x22 chips — the most common cell
+  // on the screen and the only one that did not look like a cell at all.
+  // Quiet is a colour; it is not a reason to be a different shape.
   return (
-    <span className="text-text-3" title="Not started">
+    <StageDot tone="muted" title="Not started">
       –
-    </span>
+    </StageDot>
   );
 }
 

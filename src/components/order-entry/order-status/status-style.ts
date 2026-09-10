@@ -62,7 +62,10 @@ export const STAGE_CHIP_TONE: Record<StageChipTone, string> = {
   success: "bg-status-green-dim text-status-green",
   danger: "bg-status-red-dim text-status-red",
   warning: "bg-status-amber-dim text-status-amber",
-  muted: "bg-chip text-text-3",
+  // `text-2`, not `text-3`: this tone now carries the most common cell in
+  // the seven stage columns — "nothing yet" — and at 12.5px in a chip the
+  // lightest ink read as a smudge rather than a dash.
+  muted: "bg-chip text-text-2",
 };
 
 // ── STAGE_DOT (docs/SCREENS.md §4A.6) ──────────────────────────────────────

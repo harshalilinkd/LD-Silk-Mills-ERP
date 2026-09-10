@@ -628,7 +628,7 @@ export function OrderStatusBoard({
                     {isVisible("date") && <Th>Date</Th>}
                     {isVisible("party") && <Th>Party</Th>}
                     {isVisible("haste") && <Th>Haste</Th>}
-                    {isVisible("fabric") && <Th>Fabric</Th>}
+                    {isVisible("fabric") && <Th className="border-l border-border-strong">Fabric</Th>}
                     {isVisible("designs") && (
                       <Th className="text-right">Designs</Th>
                     )}
@@ -744,6 +744,7 @@ export function OrderStatusBoard({
                             <Td
                               className={cn(
                                 "max-w-[200px] truncate text-text-1",
+                                "border-l border-border-strong",
                                 struck,
                               )}
                             >
@@ -902,6 +903,7 @@ export function OrderStatusBoard({
                                     <Td
                                       className={cn(
                                         "max-w-[200px] truncate text-text-1",
+                                        "border-l border-border-strong",
                                         lstruck,
                                       )}
                                     >
