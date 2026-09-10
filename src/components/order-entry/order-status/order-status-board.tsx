@@ -97,11 +97,27 @@ const selectCls = cn(
 // a 1px box-shadow does not. **The shadow IS the border** for the two pinned
 // Order-no cells — hence `border-r-0` alongside it (our Td/Th carry a right
 // rule by default).
-// A pinned column cannot carry `border-r` — it scrolls under its
-// neighbours and the border goes with it — so its rule is a 1px shadow
-// that stays put. `--border-strong`, the same token every other column
-// rule uses, or this one seam reads as the only unruled column.
-const STICKY_RULE = "border-r-0 shadow-[1px_0_0_var(--border-strong)]";
+// ── A PINNED COLUMN'S RULE IS DRAWN, NOT BORDERED ───────────────────────
+//
+// Two things are true at once and they rule out the obvious answers.
+//
+// `border-r` does not work: this table is `border-collapse: collapse`, where
+// borders belong to the TABLE's grid rather than to the cell, so the line
+// between this column and the next is painted at the cell boundary and slides
+// away when the table is scrolled sideways — leaving the pinned column with
+// nothing on its right edge.
+//
+// A box-shadow does not work either, and that is what was here: Chrome does
+// not paint `box-shadow` on a cell of a collapsed-border table at all. The
+// computed style said `rgba(15,23,23,0.18) 1px 0 0` and a 4x screenshot of
+// that exact boundary showed white. It was never a colour problem; the line
+// was never being drawn.
+//
+// So it is a pseudo-element pinned to the cell's own right edge. It moves
+// with the cell because it belongs to the cell, and it paints because it is
+// an ordinary box rather than a table border.
+const STICKY_RULE =
+  "border-r-0 after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-strong after:content-['']";
 
 async function fetchOrderStatus(qs: string): Promise<OrderStatusList> {
   const res = await fetch(`/api/order-entry/order-status?${qs}`);
@@ -174,6 +190,7 @@ export function OrderStatusBoard({
   );
 
   const spanOf = (...ids: string[]) => ids.filter((id) => isVisible(id)).length;
+
 
   const parties = useLookup("PARTY");
   const fabrics = useLookup("FABRIC");
@@ -262,6 +279,73 @@ export function OrderStatusBoard({
 
   // Flat line list for the drawer's prev/next — across the whole page, not
   // just the open group (§4A.8).
+  // ── ONE SCROLLBAR, NOT TWO ────────────────────────────────────────────
+  //
+  // The table body was capped at `70vh` and given its own scroll, while the
+  // page kept its own — so reaching the last row of the table left the page
+  // scrollbar sitting in the middle, which is exactly what the owner
+  // reported. Measured, the page had 150px of its own scroll and the table
+  // 356px of its own: two bars, neither of which finished when the other did.
+  //
+  // A number cannot be written by hand here. The header, the five cards, the
+  // search bar (which wraps) and the filter panel (which opens) all change
+  // how much room is left, so the height is MEASURED and the table is given
+  // exactly the space that remains. The page then has nothing left to scroll
+  // and there is one bar, on the table, which is the one you are using.
+  //
+  // Measured against <main>, not the window: in this shell <main> is the
+  // scroll container and the window never scrolls at all.
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const [bodyMax, setBodyMax] = React.useState<number | null>(null);
+
+  React.useLayoutEffect(() => {
+    const card = cardRef.current;
+    const scroller = card?.closest("main");
+    if (!card || !scroller) return;
+    const fit = () => {
+      const sRect = scroller.getBoundingClientRect();
+      const cRect = card.getBoundingClientRect();
+      // Where the card starts, in the scroller's own content coordinates.
+      const top = cRect.top - sRect.top + scroller.scrollTop;
+      // What sits BELOW the card and must stay on screen — the pagination
+      // strip and the gap above it. Measured rather than reserved as a
+      // number, because pagination only renders when there is more than one
+      // page: a constant would leave a dead band on every single-page result
+      // and overflow by exactly its own height on every other one.
+      const root = card.parentElement;
+      const below = root ? root.getBoundingClientRect().bottom - cRect.bottom : 0;
+      const padBottom =
+        parseFloat(getComputedStyle(scroller).paddingBottom) || 0;
+      // The cap goes on the scrolling BODY, but what has to fit is the CARD:
+      // its border, and the horizontal scrollbar this table always has. That
+      // difference is about 12px and it is exactly what was left over — so it
+      // is measured off the DOM rather than assumed to be zero.
+      const body = card.querySelector<HTMLElement>(".overflow-auto");
+      const chrome = body
+        ? Math.max(0, Math.round(cRect.height - body.clientHeight))
+        : 0;
+      setBodyMax(
+        Math.max(240, scroller.clientHeight - top - below - padBottom - chrome),
+      );
+    };
+    fit();
+    // The toolbar changes height when the search wraps or the filters open,
+    // which moves the card; the window changes it on resize.
+    const ro = new ResizeObserver(fit);
+    ro.observe(scroller);
+    if (card.parentElement) ro.observe(card.parentElement);
+    window.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+    // Re-measured when the rows change, because the CARD DOES NOT EXIST while
+    // the first page is loading — an effect that ran once ran before there was
+    // anything to measure, bailed out, and never came back. The table then had
+    // no cap at all and the page scrolled instead, which is the same two-bar
+    // problem wearing the other hat.
+  }, [pageGroups.length, q.isPending]);
+
   const flatLines = React.useMemo(
     () => pageGroups.flatMap((g) => g.lines),
     [pageGroups],
@@ -606,8 +690,15 @@ export function OrderStatusBoard({
           </div>
 
           {/* Desktop: the full grouped table (§4A.5) */}
-          <Card size="sm" className="hidden min-w-0 gap-0 overflow-hidden p-0 lg:block">
-            <HScroll bodyClassName="max-h-[70vh] overflow-auto">
+          <Card
+            ref={cardRef}
+            size="sm"
+            className="hidden min-w-0 gap-0 overflow-hidden p-0 lg:block"
+          >
+            <HScroll
+              bodyClassName="overflow-auto"
+              bodyStyle={bodyMax ? { maxHeight: bodyMax } : undefined}
+            >
               {/* NO column takes `w-full` here, unlike most tables in the
                   module (§0.4's slack rule): Party and Fabric are both capped
                   and truncated so the seven stage columns — the point of this
