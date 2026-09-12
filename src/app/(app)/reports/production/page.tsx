@@ -7,7 +7,7 @@ import { EmptyState, PageHead, td, th } from "@/components/ui/module-parts";
 import { formatDate } from "@/lib/dates";
 import { canRunModule, resolveReportViewer } from "@/lib/reports/authz";
 import { productionDashboard } from "@/lib/reports/dashboards/order-entry";
-import { count, inr, pct, qty } from "@/lib/reports/format";
+import { count, pct } from "@/lib/reports/format";
 
 import {
   CountColumns,
@@ -19,6 +19,7 @@ import { loadOptions, readParams } from "../dashboard-common";
 import { DashboardFilters } from "../dashboard-filters";
 import { Card, Caveats, Insights, KpiStrip } from "../dashboard-parts";
 import { ReportsTabs } from "../reports-tabs";
+import { OldestOpenLines } from "./oldest-open-lines";
 
 export const metadata: Metadata = {
   title: "Production dashboard — LD Silk Mills ERP",
@@ -205,82 +206,23 @@ export default async function ProductionDashboardPage({
           </div>
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-            <Card
-              title="Oldest open lines"
-              sub={`${count(d.pending.length)} of ${count(d.pendingTotal)}`}
-              note="The fifteen that have been open longest. For the whole list, download Production status and filter Still open to Yes."
-            >
-              <div className="-mx-1 overflow-x-auto px-1">
-                <table className="w-full min-w-[950px] table-fixed border-collapse">
-                  <colgroup>
-                    <col className="w-[80px]" />
-                    <col className="w-[190px]" />
-                    <col className="w-[140px]" />
-                    <col className="w-[90px]" />
-                    <col className="w-[90px]" />
-                    <col className="w-[110px]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[100px]" />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th className={th}>Order</th>
-                      <th className={th}>Party</th>
-                      <th className={th}>Fabric</th>
-                      <th className={th}>Design</th>
-                      <th className={`${th} text-right`}>Metres</th>
-                      <th className={`${th} text-right`}>Value</th>
-                      <th className={th}>Waiting on</th>
-                      <th className={`${th} text-right`}>Days open</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.pending.map((r) => (
-                      <tr
-                        key={`${r.order_no}|${r.quality}|${r.design}|${r.days_open}|${r.value}`}
-                      >
-                        <td className={`${td} num whitespace-nowrap`}>
-                          {r.order_no}
-                        </td>
-                        <td className={`${td} truncate`} title={r.party}>
-                          {r.party}
-                        </td>
-                        <td className={`${td} truncate`} title={r.quality}>
-                          {r.quality}
-                        </td>
-                        <td className={`${td} truncate`}>{r.design}</td>
-                        <td className={`${td} num text-right`}>
-                          {qty(r.metres)}
-                        </td>
-                        <td className={`${td} num text-right`}>
-                          {inr(r.value)}
-                        </td>
-                        <td className={`${td} truncate`}>{r.waiting_on}</td>
-                        <td
-                          className={`${td} num text-right font-semibold text-text-1`}
-                        >
-                          {count(r.days_open)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+            <OldestOpenLines
+              rows={d.pending}
+              total={d.pendingTotal}
+              params={{
+                from: q.from,
+                to: q.to,
+                party: q.party,
+                agent: q.agent,
+              }}
+            />
 
             <Card
               title="Stage by stage"
               sub={`${count(d.total)} live lines`}
               note="Days late is measured from when the stage was TICKED, not when the work happened, and it is averaged over the lines that have been ticked at all."
             >
-              <table className="w-full table-fixed border-collapse">
-                <colgroup>
-                  <col className="w-[8%]" />
-                  <col className="w-[32%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[20%]" />
-                </colgroup>
+              <table className="w-full border-collapse">
                 <thead>
                   <tr>
                     <th className={th}>#</th>

@@ -2,8 +2,11 @@ import "server-only";
 
 import { sql as pg } from "@/db";
 import {
+  addGrouped,
   concentration,
   concentrationInsight,
+  groupKey,
+  groupNames,
   matrixFrom,
   monthDelta,
   rank,
@@ -11,7 +14,7 @@ import {
   trend,
   trendInsight,
 } from "../analysis";
-import { count, inr, inrShort, pct, qty } from "../format";
+import { count, inr, inrShort, monthName, pct, qty } from "../format";
 import { LAST_FLOW_STAGE_KEY } from "../../order-entry/workflow-constants";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
@@ -143,29 +146,161 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
   const byMonth = new Map<string, number>();
-  const byQuality = new Map<string, number>();
-  const byDesign = new Map<string, number>();
-  const byParty = new Map<string, number>();
+  // ── NAMES ARE GROUPED CASE-INSENSITIVELY ─────────────────────────────
+  //
+  // "LONDON" and "London" are one cloth, and on the live data 28 of 585
+  // fabric names are a second spelling of another. Grouping on the raw
+  // string split LONDON's ₹2.01 crore across two entries, so it ranked as
+  // two medium fabrics instead of the biggest one — the error hides
+  // exactly the things these charts exist to surface. See `groupKey`.
+  const qualityG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const qtyQualityG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const partyG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const designG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const cancelledByParty = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const cancelledByAgent = new Map<string, { value: number; spellings: Map<string, number> }>();
   // Every party in the file, cancelled lines included — the count the order
-  // register reports.
-  const allParties = new Set(raw.map((r) => (r.party_name as string | null)?.trim() || "Not recorded")).size;
-  const qtyByQuality = new Map<string, number>();
+  // register reports. Folded the same way, or it disagrees with byParty.
+  const allParties = new Set(
+    raw.map((r) => groupKey((r.party_name as string | null)?.trim() || "Not recorded")),
+  ).size;
   for (const r of live) {
     add(byMonth, (r.order_date ?? "").slice(0, 7), n(r.line_total));
-    add(byQuality, r.quality?.trim() || "Not recorded", n(r.line_total));
-    add(qtyByQuality, r.quality?.trim() || "Not recorded", n(r.qty_mtr));
+    const fab = r.quality?.trim() || "Not recorded";
+    addGrouped(qualityG, fab, n(r.line_total));
+    addGrouped(qtyQualityG, fab, n(r.qty_mtr));
     // Keyed by FABRIC AND DESIGN. A design number is only unique inside its
     // own fabric, so keying on the number alone added LIO LINEN's "1" to
     // CORDRAY's "1" and reported a ₹40.2 L design that is really 213 lines
     // across 89 fabrics.
-    add(
-      byDesign,
-      `${r.quality?.trim() || "Not recorded"} · ${r.design_no?.trim() || "Not recorded"}`,
-      n(r.line_total),
-    );
-    add(byParty, r.party_name?.trim() || "Not recorded", n(r.line_total));
+    addGrouped(designG, `${fab} · ${r.design_no?.trim() || "Not recorded"}`, n(r.line_total));
+    addGrouped(partyG, r.party_name?.trim() || "Not recorded", n(r.line_total));
   }
+  // Who the cancellations belong to — see the panel that uses these.
+  for (const r of cancelled) {
+    addGrouped(cancelledByParty, r.party_name?.trim() || "Not recorded", n(r.line_total));
+    addGrouped(cancelledByAgent, r.agent?.trim() || "Not recorded", n(r.line_total));
+  }
+  const byQuality = groupNames(qualityG);
+  const qtyByQuality = groupNames(qtyQualityG);
+  const byParty = groupNames(partyG);
+  const byDesign = groupNames(designG);
   byMonth.delete("");
+
+  /** The spelling the rest of the report shows for a fabric, so the month
+   * grid and the rankings cannot label the same cloth two ways. */
+  const labelForKey = new Map<string, string>();
+  for (const label of byQuality.keys()) labelForKey.set(groupKey(label), label);
+  const qualityLabel = (raw: string) => labelForKey.get(groupKey(raw)) ?? raw;
+
+  // ── RATE OUTLIERS: a line priced nowhere near its fabric's usual ──────
+  //
+  // One ULTRA PLAIN line went out at ₹1 a metre where the other sixteen
+  // averaged ₹93, and four Innova lines at ₹1,700 against a usual ₹165 —
+  // a slipped decimal in both directions. Small money, but they drag the
+  // rate spread and the "cheapest to dearest" figure somewhere no real
+  // line sits, and nothing in this report used to mention them.
+  //
+  // Compared against the fabric's own MEDIAN, not its mean: the mean is
+  // dragged by the very outlier being looked for. Only fabrics with five
+  // or more lines are judged — below that there is no "usual" to be far
+  // from.
+  const ratesByFabric = new Map<string, number[]>();
+  for (const r of live) {
+    const rate = n(r.rate);
+    if (rate <= 0) continue;
+    const k = groupKey(r.quality?.trim() || "Not recorded");
+    const list = ratesByFabric.get(k);
+    if (list) list.push(rate); else ratesByFabric.set(k, [rate]);
+  }
+  const medianRate = new Map<string, number>();
+  for (const [k, list] of ratesByFabric) {
+    if (list.length < 5) continue;
+    const s = [...list].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    medianRate.set(k, s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2);
+  }
+  const outliers = live
+    .map((r) => {
+      const rate = n(r.rate);
+      const k = groupKey(r.quality?.trim() || "Not recorded");
+      const mid = medianRate.get(k);
+      if (!mid || rate <= 0) return null;
+      if (rate >= mid * 0.2 && rate <= mid * 5) return null;
+      return { orderNo: r.order_no, fabric: qualityLabel(r.quality?.trim() || "Not recorded"), rate, mid };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // ── THE PARETO CURVE ─────────────────────────────────────────────────
+  //
+  // Fixed buckets rather than one bar per fabric: 557 bars is not a chart,
+  // and the question is "how few fabrics carry the book", which these five
+  // answer directly. Each bar is the share of value the top N fabrics hold.
+  const sortedFabricValues = [...byQuality.values()].sort((a, b) => b - a);
+  const paretoTotal = sortedFabricValues.reduce((s, v) => s + v, 0);
+  const shareOfTop = (nTop: number) =>
+    paretoTotal > 0
+      ? (sortedFabricValues.slice(0, nTop).reduce((s, v) => s + v, 0) / paretoTotal) * 100
+      : 0;
+  const PARETO_STEPS = [5, 10, 25, 50, 100];
+  const paretoRows = PARETO_STEPS.filter((nTop) => nTop <= sortedFabricValues.length).map((nTop) => ({
+    label: `Top ${nTop}`,
+    value: Math.round(shareOfTop(nTop) * 10) / 10,
+    display: pct(shareOfTop(nTop), 0),
+    share: shareOfTop(nTop),
+  }));
+  // How many fabrics it actually takes to reach 80% — the sentence the
+  // curve is drawn to support.
+  let running = 0;
+  let fabricsTo80 = 0;
+  for (const v of sortedFabricValues) {
+    if (running >= paretoTotal * 0.8) break;
+    running += v;
+    fabricsTo80++;
+  }
+  const paretoNote =
+    sortedFabricValues.length > 0
+      ? `${count(fabricsTo80)} of ${count(sortedFabricValues.length)} fabrics make up 80% of the value. Each bar is the share held by that many biggest fabrics.`
+      : "No fabric value in this period.";
+
+  // ── "REACHED" IS A RECORDING GAP BEFORE IT IS A BACKLOG ──────────────
+  //
+  // Nearly every order before July reads "Not started" and nearly every
+  // one after it shows real progress. That is when the mill began ticking
+  // stages, not six months of stalled work — but a reader who does not
+  // know that sees an enormous backlog, and this column is on the sheet.
+  //
+  // Detected rather than hard-coded: the month the ticking starts is read
+  // from the data, so the sentence stays true when the old months are
+  // eventually filled in and disappears entirely once they are.
+  const byMonthNotStarted = new Map<string, { total: number; notStarted: number }>();
+  for (const r of live) {
+    const m = (r.order_date ?? "").slice(0, 7);
+    if (!m) continue;
+    const g = byMonthNotStarted.get(m) ?? { total: 0, notStarted: 0 };
+    g.total++;
+    if (r.stage === "Not started") g.notStarted++;
+    byMonthNotStarted.set(m, g);
+  }
+  const monthsAsc = [...byMonthNotStarted.keys()].sort();
+  const darkMonths = monthsAsc.filter((m) => {
+    const g = byMonthNotStarted.get(m)!;
+    return g.total >= 10 && g.notStarted / g.total >= 0.9;
+  });
+  const litMonths = monthsAsc.filter((m) => {
+    const g = byMonthNotStarted.get(m)!;
+    return g.total >= 10 && g.notStarted / g.total < 0.5;
+  });
+  // Only worth saying when the dark months are a solid run BEFORE the lit
+  // ones — that is a start date, whereas dark months scattered among lit
+  // ones would be ordinary unfinished work.
+  const trackingNote =
+    darkMonths.length && litMonths.length && darkMonths[darkMonths.length - 1] < litMonths[0]
+      ? `“Reached” is blank on almost every order before ${monthName(litMonths[0])} — ${count(darkMonths.length)} months ` +
+        `where 90% or more show “Not started”, against ${pct((1 - (byMonthNotStarted.get(litMonths[0])!.notStarted / byMonthNotStarted.get(litMonths[0])!.total)) * 100, 0)} ` +
+        `showing progress from ${monthName(litMonths[0])} on. That is when stage ticking began in the mill, NOT a backlog of ` +
+        `stalled orders. Read the stage columns for ${monthName(litMonths[0])} onwards; before that they say only that nobody was ticking yet.`
+      : null;
 
   const t = trend(byMonth, inrShort);
   const rateSpread = spread(live.map((r) => n(r.rate)).filter((x) => x > 0));
@@ -199,6 +334,37 @@ async function run(params: ReportParams): Promise<ReportResult> {
         : ""),
   );
 
+  // ── A PRICE THAT CANNOT BE RIGHT ─────────────────────────────────────
+  //
+  // Named on the face of the report rather than left in the spread. These
+  // are almost always a slipped decimal at entry, and the person who can
+  // fix one is the person reading this.
+  if (outliers.length) {
+    const worst = [...outliers].sort(
+      (a, b) => Math.abs(Math.log(b.rate / b.mid)) - Math.abs(Math.log(a.rate / a.mid)),
+    );
+    const shown = worst.slice(0, 3)
+      .map((o) => `${o.fabric} on order ${o.orderNo} at ${inr(o.rate)} against a usual ${inr(o.mid)}`)
+      .join("; ");
+    insights.push(
+      `${count(outliers.length)} ${outliers.length === 1 ? "line is" : "lines are"} priced nowhere near the rest of ` +
+        `${outliers.length === 1 ? "its" : "their"} own fabric — ${shown}` +
+        `${worst.length > 3 ? ", and others" : ""}. Worth checking for a slipped decimal; they pull the rate range above.`,
+    );
+  }
+
+  // Only worth a sentence when it is actually happening. The count is of
+  // fabrics whose name is written more than one way, which is a data-entry
+  // fact the reader can act on, not a defect in this file.
+  const multiSpelled = [...qualityG.values()].filter((g) => g.spellings.size > 1).length;
+  if (multiSpelled > 0) {
+    insights.push(
+      `${count(multiSpelled)} fabric ${multiSpelled === 1 ? "name is" : "names are"} typed more than one way in the ` +
+        `source (“LONDON” and “London”). They are added together here, under the spelling that carries the most value — ` +
+        `the Data sheet still shows exactly what was typed.`,
+    );
+  }
+
   return {
     rows,
     totalRows: raw.length,
@@ -229,7 +395,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
       },
       matrix: matrixFrom(
         live.map((r) => ({
-          label: r.quality?.trim() || "Not recorded",
+          // Grouped by the folded name, labelled by the heaviest spelling,
+          // so the grid agrees with the rankings beside it. Ungrouped, the
+          // grid showed LONDON and London as two separate rows.
+          label: qualityLabel(r.quality?.trim() || "Not recorded"),
           month: (r.order_date ?? "").slice(0, 7),
           value: n(r.line_total),
         })),
@@ -258,17 +427,40 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ),
         },
         {
-          title: "Is it a few fabrics or many",
-          valueLabel: "Value",
-          kind: "share",
-          rows: rank([...byQuality].map(([label, v]) => ({ label, value: v })), inrShort, 5),
-          note: "How much of the money comes from the top few fabrics.",
+          // ── A PARETO, NOT A FOUR-SLICE DOUGHNUT ──────────────────────
+          //
+          // This was "top 4 fabrics vs everyone else". With 557 fabrics
+          // that lumped 553 of them into one grey blob, which says only
+          // "the rest exist". The question underneath is how CONCENTRATED
+          // the book is, and the honest shape for that is the running
+          // total: 119 fabrics make 80% of the value here, and a reader
+          // can see the curve flatten. Fixed categories, so it draws the
+          // same way in every period.
+          title: "How concentrated the fabric book is",
+          valueLabel: "Share of value",
+          fixedCategories: true,
+          rows: paretoRows,
+          note: paretoNote,
         },
         {
-          title: "Which designs earn most",
-          valueLabel: "Value",
-          rows: rank([...byDesign].map(([label, v]) => ({ label, value: v })), inrShort),
-          note: "Fabric then design. A design number only means something inside its own fabric, so they are never added together across fabrics.",
+          // ── WHO THE CANCELLATIONS BELONG TO ──────────────────────────
+          //
+          // Replaces "which designs earn most", where all ten rows were
+          // the same fabric (LIO LINEN dominates, and a design number only
+          // means something inside its own fabric) — ten bars saying one
+          // thing the fabric chart above already said.
+          //
+          // Cancellations had one figure on this report — a KPI saying
+          // they are 0.4% of everything — and no way to see whether that
+          // is spread thin or is one customer. The pairs are still on the
+          // Data sheet and in the pivot for anyone who wants them.
+          title: "Whose orders get cancelled",
+          valueLabel: "Cancelled value",
+          rows: rank(
+            [...groupNames(cancelledByParty)].map(([label, v]) => ({ label, value: v })),
+            inrShort,
+          ),
+          note: "Cancelled line value by customer. A name here is not a complaint — it is where to look first if the cancellation rate moves.",
         },
         { title: "Which fabric moves most metres", valueLabel: "Metres", rows: rank([...qtyByQuality].map(([label, v]) => ({ label, value: v })), (x) => qty(Math.round(x))) },
       ],
@@ -279,6 +471,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
         ...(raw.length > MAX_EXPORT_ROWS
           ? [`Only the first ${count(MAX_EXPORT_ROWS)} of ${count(raw.length)} lines are in the Data sheet. The figures above cover all of them.`]
           : []),
+        ...(trackingNote ? [trackingNote] : []),
+        "Fabric names that differ only in capitalisation are added together on the charts above — “LONDON” and “London” are one cloth. The Data sheet and the pivots show what was actually typed, so the two can look different and both be right.",
         "On the “Pivot - Fabric rate” sheet, “Avg rate (unweighted)” is Excel's plain average of the line rates — it counts a 6-metre line the same as a 6,000-metre one. The rate this report quotes everywhere else is WEIGHTED by metres, and you get it from the same sheet by dividing Sum of value by Sum of metres, at any level including the subtotals.",
       ],
       // Real Excel PivotTables + Slicers, on their own sheets — every

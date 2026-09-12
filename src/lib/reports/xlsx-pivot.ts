@@ -440,7 +440,26 @@ function buildPivotParts(
   // `injectPivotTable`. Signalled rather than thrown: it is a data
   // condition, not a mistake in how the report declared its pivot.
   if (rowPlan.distinct.length === 0) return null;
+  // Two separate things, and conflating them is why every one-field pivot
+  // used to say "Row Labels":
+  //
+  //   nested  — more than one row field, so the ITEMS need the r=/t=default
+  //             layering and the values start one column further right.
+  //   tabular — the LAYOUT. Always on now.
+  //
+  // ── WHY TABULAR IS ALWAYS ON ─────────────────────────────────────────
+  //
+  // Excel's compact layout collapses every row field into one generic
+  // "Row Labels" column with a single dropdown. Tabular gives each field
+  // its own column headed by its own NAME with its own filter — verified
+  // in Excel: compact renders `Row Labels | Sum of metres | Sum of value`,
+  // tabular renders `Fabric | Party | Sum of metres | Sum of value`.
+  // The owner asked for a filter on every header, and this is the part of
+  // that which Excel can actually do: a DATA field (Sum of …) never gets
+  // its own dropdown in any layout — measures are filtered through the
+  // field dropdown's Value Filters instead.
   const nested = rowPlans.length > 1;
+  const tabular = true;
   const colPlan = spec.colField ? findPlan(spec.colField, "colField") : null;
   if (colPlan && colPlan.spec.kind !== "text") throw new Error(`pivot: colField "${spec.colField}" must be a text field`);
   // Nesting rows AND a column field at once is a shape neither the ground
@@ -479,7 +498,7 @@ function buildPivotParts(
         rowPlans.includes(p),
         p === colPlan,
         dataPlans.some((d) => d.plan === p),
-        nested,
+        tabular,
       ),
     )
     .join("");
@@ -586,9 +605,9 @@ function buildPivotParts(
   // `outlineData` pair a single-level table uses. Excel writes one or the
   // other, never a mix, and `fillDownLabelsDefault` is what makes the
   // repeated outer labels the default for new fields.
-  const layoutAttrs = nested ? `compact="0" compactData="0"` : `outline="1" outlineData="1"`;
+  const layoutAttrs = tabular ? `compact="0" compactData="0"` : `outline="1" outlineData="1"`;
   const tableExt =
-    `<x14:pivotTableDefinition${nested ? ` fillDownLabelsDefault="1"` : ""} hideValuesRow="1"/>`;
+    `<x14:pivotTableDefinition${tabular ? ` fillDownLabelsDefault="1"` : ""} hideValuesRow="1"/>`;
 
   const pivotTableXml =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n` +

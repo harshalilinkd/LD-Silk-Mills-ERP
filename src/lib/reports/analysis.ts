@@ -3,6 +3,73 @@ import type { Matrix, Panel, RankRow, SeriesPoint } from "./types";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
+ *  Grouping a name that was typed more than one way
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── THE SAME FABRIC, COUNTED TWICE ───────────────────────────────────────
+ *
+ * `LONDON` and `London` are one cloth. The order form takes free text, so
+ * both are in the table — and grouping on the raw string splits ₹2.01 crore
+ * of LONDON into two smaller fabrics that then rank as two lesser ones. On
+ * the live data this affects **28 of 585 fabric names and 27 of 156 agent
+ * names**: "GAURAV"/"Gaurav", "Self"/"SELF", "Akash Textiles Agency" and its
+ * shouted twin. Every ranking, share, concentration figure and month grid
+ * built on the raw name is wrong by that much, and wrong in the direction
+ * that hides the biggest things.
+ *
+ * `groupNames` folds case and whitespace to decide what is the same, and
+ * keeps the spelling that carries the MOST VALUE as the label — so the name
+ * a reader sees is the one the business mostly writes, not whichever row
+ * happened to come first.
+ *
+ * It is deliberately the same fold the pivot engine uses (`itemKey` in
+ * `xlsx-pivot.ts`) and the same idea the importer uses (`normaliseName` in
+ * `order-entry/import/coerce.ts`): the workbook's charts, its pivots and its
+ * imports must not disagree about what counts as one name.
+ *
+ * It does NOT merge misspellings — "LONDAN" stays its own fabric. Only case
+ * and spacing. An edit-distance match would quietly merge two real cloths,
+ * and that cannot be undone by looking at the result.
+ */
+export function groupKey(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Adds `value` to the bucket `name` belongs to, folding names that differ
+ * only by case or spacing. Call `groupNames` at the end to get the display
+ * spelling for each bucket.
+ */
+export function addGrouped(
+  m: Map<string, { value: number; spellings: Map<string, number> }>,
+  name: string,
+  value: number,
+): void {
+  const k = groupKey(name);
+  let g = m.get(k);
+  if (!g) { g = { value: 0, spellings: new Map() }; m.set(k, g); }
+  g.value += value;
+  g.spellings.set(name, (g.spellings.get(name) ?? 0) + value);
+}
+
+/** Collapses the buckets to `label -> value`, labelled by the heaviest spelling. */
+export function groupNames(
+  m: Map<string, { value: number; spellings: Map<string, number> }>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const g of m.values()) {
+    let best = "";
+    let bestVal = -Infinity;
+    for (const [spelling, v] of g.spellings) {
+      if (v > bestVal) { bestVal = v; best = spelling; }
+    }
+    out.set(best, (out.get(best) ?? 0) + g.value);
+  }
+  return out;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
  *  The thinking that turns a table into an answer
  * ═══════════════════════════════════════════════════════════════════════════
  *

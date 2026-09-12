@@ -4,6 +4,7 @@ import { sql as pg } from "@/db";
 import { todayIso } from "@/lib/dates";
 import {
   AGE_BUCKETS,
+  addGrouped,
   ageing,
   concentration,
   matrixFrom,
@@ -11,6 +12,7 @@ import {
   concentrationInsight,
   contributorInsight,
   contributors,
+  groupNames,
   rank,
   runRate,
   spread,
@@ -420,32 +422,40 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const lineCount = raw.reduce((s, r) => s + n(r.line_count), 0);
 
   const byMonth = new Map<string, number>();
-  const byParty = new Map<string, number>();
-  const byAgent = new Map<string, number>();
-  const bySales = new Map<string, number>();
   const byStage = new Map<string, number>();
-  const partyOrders = new Map<string, number>();
+  // ── NAMES ARE GROUPED CASE-INSENSITIVELY ─────────────────────────────
+  //
+  // 27 of this book's 156 agent names are a second spelling of another —
+  // "GAURAV"/"Gaurav", "Self"/"SELF", "Akash Textiles Agency" and its
+  // shouted twin. Ranked on the raw string, one agent appears twice with
+  // half their book each and neither lands where they belong, which makes
+  // "who brings the most business" quietly wrong. Same for customers.
+  // See `groupKey` in analysis.ts.
+  const partyG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const agentG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  const partyOrdersG = new Map<string, { value: number; spellings: Map<string, number> }>();
+  // Value and metres per month, so the average rate per metre can be
+  // tracked over time — see the "rate per metre" insight.
+  const monthQty = new Map<string, number>();
 
   for (const r of raw) {
     const month = (r.order_date ?? "").slice(0, 7);
     const v = n(r.value);
-    if (month) byMonth.set(month, (byMonth.get(month) ?? 0) + v);
-    const party = r.party_name?.trim() || "Not recorded";
-    byParty.set(party, (byParty.get(party) ?? 0) + v);
-    partyOrders.set(party, (partyOrders.get(party) ?? 0) + 1);
+    if (month) {
+      byMonth.set(month, (byMonth.get(month) ?? 0) + v);
+      monthQty.set(month, (monthQty.get(month) ?? 0) + n(r.qty_mtr));
+    }
+    addGrouped(partyG, r.party_name?.trim() || "Not recorded", v);
+    addGrouped(partyOrdersG, r.party_name?.trim() || "Not recorded", 1);
     // "Not recorded", matching agent performance. The same six orders were
     // bucketed as "No agent" here and "Not recorded" there, in two files
     // that go out together.
-    byAgent.set(
-      r.agent?.trim() || "Not recorded",
-      (byAgent.get(r.agent?.trim() || "Not recorded") ?? 0) + v,
-    );
-    bySales.set(
-      r.sales_person?.trim() || "Not recorded",
-      (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v,
-    );
+    addGrouped(agentG, r.agent?.trim() || "Not recorded", v);
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
+  const byParty = groupNames(partyG);
+  const byAgent = groupNames(agentG);
+  const partyOrders = groupNames(partyOrdersG);
 
   // ── AN ORDER WITH NOTHING LIVE IS NEITHER OPEN NOR COMPLETE ───────────
   //
@@ -472,6 +482,39 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const partlyDone = open.filter(
     (r) => n(r.finished_lines) > 0 && n(r.finished_lines) < n(r.live_lines),
   );
+
+  // ── "REACHED" IS A RECORDING GAP BEFORE IT IS A BACKLOG ──────────────
+  //
+  // Nearly every order before July reads "Not started" and nearly every
+  // one after shows progress — that is when the mill began ticking
+  // stages, not six months of stalled work. A reader who does not know
+  // sees an enormous backlog on the single most prominent column here.
+  // Detected from the data, so it stays true if the old months are ever
+  // filled in and disappears once they are.
+  const stageByMonth = new Map<string, { total: number; notStarted: number }>();
+  for (const r of raw) {
+    const m = (r.order_date ?? "").slice(0, 7);
+    if (!m || n(r.live_lines) === 0) continue;
+    const g = stageByMonth.get(m) ?? { total: 0, notStarted: 0 };
+    g.total++;
+    if (n(r.reached_no) === 0) g.notStarted++;
+    stageByMonth.set(m, g);
+  }
+  const stageMonths = [...stageByMonth.keys()].sort();
+  const darkMonths = stageMonths.filter((m) => {
+    const g = stageByMonth.get(m)!;
+    return g.total >= 10 && g.notStarted / g.total >= 0.9;
+  });
+  const litMonths = stageMonths.filter((m) => {
+    const g = stageByMonth.get(m)!;
+    return g.total >= 10 && g.notStarted / g.total < 0.5;
+  });
+  const trackingNote =
+    darkMonths.length && litMonths.length && darkMonths[darkMonths.length - 1] < litMonths[0]
+      ? `“Reached”, “Complete”, “Days open” and the ageing panel are only meaningful from ${monthName(litMonths[0])} onwards. ` +
+        `Before that, ${count(darkMonths.length)} months show 90% or more of orders as “Not started” — that is when stage ticking ` +
+        `began in the mill, NOT a backlog. Those older orders are almost certainly delivered; nobody recorded the stages.`
+      : null;
 
   const repeatedLines = raw.reduce((s, r) => s + n(r.repeated_lines), 0);
   const repeatedOrders = raw.filter((r) => n(r.repeated_lines) > 0).length;
@@ -569,6 +612,28 @@ async function run(params: ReportParams): Promise<ReportResult> {
         `${pct((openOver30Value / (openValue || 1)) * 100, 0)} of everything still to deliver.`,
     );
   }
+  // ── IS THE RATE MOVING? ──────────────────────────────────────────────
+  //
+  // Value and metres were both on this report and the rate between them
+  // was only ever shown as one all-period figure, so a book drifting down
+  // in price looked exactly like a steady one. Weighted per month (value
+  // over metres), never a mean of the order rates — the same rule the
+  // Avg rate column follows.
+  const rateMonths = [...byMonth.keys()].sort().filter((m) => (monthQty.get(m) ?? 0) > 0);
+  if (rateMonths.length >= 2) {
+    const rateOf = (m: string) => (byMonth.get(m) ?? 0) / (monthQty.get(m) ?? 1);
+    const first = rateMonths[0];
+    const last = rateMonths[rateMonths.length - 1];
+    const move = ((rateOf(last) - rateOf(first)) / rateOf(first)) * 100;
+    insights.push(
+      `The rate per metre went from ${inr(rateOf(first))} in ${monthName(first)} to ${inr(rateOf(last))} in ${monthName(last)}` +
+        (Math.abs(move) < 1
+          ? " — effectively flat."
+          : ` — ${move > 0 ? "up" : "down"} ${pct(Math.abs(move), 0)} across the period.`) +
+        " Weighted by metres each month, so one large order cannot swing it.",
+    );
+  }
+
   if (medianLead !== null) {
     insights.push(
       `The ${count(finished.length)} finished orders took ${medianLead} days from order to Received LR at the middle` +
@@ -619,6 +684,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   const caveats: string[] = [
     "Order value excludes cancelled lines, so it is what should actually be delivered. Cancelled value is reported separately.",
+    ...(trackingNote ? [trackingNote] : []),
+    "Customer, agent and sales-person names that differ only in capitalisation are added together on the charts above — 27 of this book's agent names are a second spelling of another. The Data sheet shows exactly what was typed.",
     "“Orders met their date” counts whole ORDERS that were acknowledged by their due date. The Orders dashboard's “On-time %” counts every stage TICK instead, so the two read differently on the same period and both are correct — a young order has many early ticks and has not yet had time to be late.",
     "Due dates are generated from the order date plus the stage offsets in Time tracking; they are an internal target, not a date promised to the customer. If those offsets have not been set to how the mill actually runs, this figure says as much about the targets as about the work.",
     "Stage is the furthest point EVERY live line of the order has passed. One line still at stock checking holds the whole order there.",

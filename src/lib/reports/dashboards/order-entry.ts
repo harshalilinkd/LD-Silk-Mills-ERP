@@ -251,6 +251,33 @@ export type ProductionDashboard = {
   pendingTotal: number;
 };
 
+/**
+ * Turns the report's open rows into the "oldest open lines" shape, oldest
+ * first — the ONE place that sorts them, so the dashboard's top fifteen and
+ * the "view all" endpoint's pages can never disagree on order.
+ */
+export function sortedPendingRows(openRows: ReportRow[]): PendingRow[] {
+  return openRows
+    .map((r) => ({
+      order_no: s(r.order_no),
+      party: s(r.party_name),
+      quality: s(r.quality),
+      design: s(r.design_no),
+      metres: n(r.qty_mtr),
+      value: n(r.line_total),
+      waiting_on: s(r.waiting_on),
+      days_open: n(r.days_open),
+      days_since_move: r.days_since_move == null ? null : n(r.days_since_move),
+    }))
+    .sort(
+      (a, b) =>
+        b.days_open - a.days_open ||
+        a.order_no.localeCompare(b.order_no) ||
+        a.quality.localeCompare(b.quality) ||
+        a.design.localeCompare(b.design),
+    );
+}
+
 const AGE_ORDER = [
   "0–7 days",
   "8–15 days",
@@ -301,27 +328,9 @@ export async function productionDashboard(
 
   // The oldest open lines — the action list, the same shape the owner's
   // reference "Pending Quantity" table has. Ordered by age with a name
-  // tiebreak so the same period always prints the same fifteen.
-  const pending: PendingRow[] = openRows
-    .map((r) => ({
-      order_no: s(r.order_no),
-      party: s(r.party_name),
-      quality: s(r.quality),
-      design: s(r.design_no),
-      metres: n(r.qty_mtr),
-      value: n(r.line_total),
-      waiting_on: s(r.waiting_on),
-      days_open: n(r.days_open),
-      days_since_move: r.days_since_move == null ? null : n(r.days_since_move),
-    }))
-    .sort(
-      (a, b) =>
-        b.days_open - a.days_open ||
-        a.order_no.localeCompare(b.order_no) ||
-        a.quality.localeCompare(b.quality) ||
-        a.design.localeCompare(b.design),
-    )
-    .slice(0, 15);
+  // tiebreak so the same period always prints the same fifteen, and shared
+  // with the "view all" endpoint so the two never sort differently.
+  const pending = sortedPendingRows(openRows).slice(0, 15);
 
   return {
     analysis: prod.analysis,
