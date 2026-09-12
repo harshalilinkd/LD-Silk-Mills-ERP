@@ -9,6 +9,7 @@ import {
   requireCapability,
 } from "@/lib/order-entry/api";
 import { orderEntryDb as db } from "@/db/order-entry";
+import { auditOrderEntry, snapshotOrder } from "@/lib/order-entry/audit";
 import { firstZodError, orderPayloadSchema } from "@/lib/order-entry/validation";
 import {
   buildInitialStageRows,
@@ -360,6 +361,22 @@ export async function DELETE(_req: Request, { params }: Params) {
       409,
     );
   }
+
+  // ── THE SNAPSHOT AND THE AUDIT ROW COME FIRST ─────────────────────────
+  //
+  // This is the one action in the module with no undo, and until Sep 2026 it
+  // wrote nothing at all: three orders were removed and there was no record of
+  // who did it, when, or what was in them. See `lib/order-entry/audit.ts`.
+  //
+  // Written BEFORE the delete so a failure here means the order is still there
+  // to look at, rather than gone with nothing to say so. The snapshot carries
+  // every design line, so a row removed by mistake can be put back from it.
+  const snapshot = await snapshotOrder(id);
+  await auditOrderEntry({
+    action: "order-entry.order_deleted",
+    email: guard.user.email ?? null,
+    metadata: { orderId: id, order: snapshot },
+  });
 
   await db.delete(customerOrders).where(eq(customerOrders.id, id));
   return jsonData({ id });

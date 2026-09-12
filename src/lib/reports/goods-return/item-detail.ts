@@ -204,6 +204,25 @@ async function run(params: ReportParams): Promise<ReportResult> {
         noValueCaveat(noValueReturns, returns),
         "The fabric name is a snapshot taken when the return was entered. Renaming it in the master list afterwards does not rewrite it, which is correct — the return said what it said. The current name is carried beside it.",
       ],
+      // A real Excel PivotTable + Slicers — metres and pieces per fabric,
+      // filterable by who sent it back and why. `return_value` is
+      // deliberately NOT a data field: it is the WHOLE return's value
+      // repeated on every item, so summing it double-counts (the caveat
+      // above says so, and a pivot must not quietly contradict it).
+      pivots: {
+        tables: [
+          {
+            rowFields: ["quality"],
+            dataFields: [
+              { field: "quantity", label: "Sum of metres" },
+              { field: "pieces", label: "Sum of pieces" },
+            ],
+            slicerFields: ["party", "return_reason", "received", "broker"],
+            sheetName: "Pivot",
+            pivotTableName: "ItemPivot",
+          },
+        ],
+      },
     },
   };
 }

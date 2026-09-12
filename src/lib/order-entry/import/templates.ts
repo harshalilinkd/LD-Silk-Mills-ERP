@@ -24,7 +24,10 @@
 // them, because the one thing worse than no sample is a sample that gets
 // imported as a real order.
 
-import { STAGE_LABELS, type StageKey } from "@/lib/order-entry/workflow-constants";
+import {
+  STAGE_LABELS,
+  type StageKey,
+} from "@/lib/order-entry/workflow-constants";
 
 type Cell = string | number | null;
 
@@ -68,29 +71,183 @@ const ORDER_LEVEL_UPTO = 11; // indexes 0..10 are order-level, 11+ are the line
 const ORDER_SAMPLES: Cell[][] = [
   // One order, four designs, two fabrics. Everything order-level appears on the
   // first row only; the fabric appears on the first row of each fabric block.
-  ["12-06-2026", "SAMPLE-1", "EXAMPLE TEXTILES", "Surendra", "Royal Fabrics", "", "MATESHWARI TRANSPORT", "CH-101", "LOT-9", "LD", "", "LORDS-1", "01", 60, 150, "OK", "", 9000],
-  ["", "", "", "", "", "", "", "", "", "", "", "", "02", 60, 150, "OK", "", 9000],
-  ["", "", "", "", "", "", "", "", "", "", "", "LORDS-2", "411124A", 100.5, 82.5, "OK", "", 8291.25],
-  ["", "", "", "", "", "", "", "", "", "", "", "", "411124B", 60, 82.5, "Cancelled", "party cancelled", 4950],
+  [
+    "12-06-2026",
+    "SAMPLE-1",
+    "EXAMPLE TEXTILES",
+    "Surendra",
+    "Royal Fabrics",
+    "",
+    "MATESHWARI TRANSPORT",
+    "CH-101",
+    "LOT-9",
+    "LD",
+    "",
+    "LORDS-1",
+    "01",
+    60,
+    150,
+    "OK",
+    "",
+    9000,
+  ],
+  [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "02",
+    60,
+    150,
+    "OK",
+    "",
+    9000,
+  ],
+  [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "LORDS-2",
+    "411124A",
+    100.5,
+    82.5,
+    "OK",
+    "",
+    8291.25,
+  ],
+  [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "411124B",
+    60,
+    82.5,
+    "Cancelled",
+    "party cancelled",
+    4950,
+  ],
   // A second order, in the other department, written out in full on every row —
   // which the importer accepts just as happily.
-  ["13-06-2026", "SAMPLE-2", "ANOTHER EXAMPLE CO", "", "", "", "", "", "", "LINKD", "", "Star Print", "15", 50, 165, "OK", "", 8250],
-  ["13-06-2026", "SAMPLE-2", "ANOTHER EXAMPLE CO", "", "", "", "", "", "", "LINKD", "", "Wax Print", "9", 60, 185, "OK", "", 11100],
+  [
+    "13-06-2026",
+    "SAMPLE-2",
+    "ANOTHER EXAMPLE CO",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "LINKD",
+    "",
+    "Star Print",
+    "15",
+    50,
+    165,
+    "OK",
+    "",
+    8250,
+  ],
+  [
+    "13-06-2026",
+    "SAMPLE-2",
+    "ANOTHER EXAMPLE CO",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "LINKD",
+    "",
+    "Wax Print",
+    "9",
+    60,
+    185,
+    "OK",
+    "",
+    11100,
+  ],
 ];
 
 const ORDER_NOTES: [string, string][] = [
-  ["Delete the two SAMPLE rows before you import.", "They are there to show the shape. If you leave them in, two orders called SAMPLE-1 and SAMPLE-2 are created."],
-  ["Only ORDER DATE, ORDER NO. and PARTY NAME are compulsory.", "Plus FABRIC, DESIGN NO and QTY (MTR) on every design line. Everything else can be left empty."],
-  ["One row per DESIGN, not per order.", "An order with four designs is four rows."],
-  ["Leave the order columns blank under the first row.", "ORDER DATE through ORDER REMARKS only need filling on the first row of each order — a blank means the row above. Write them on every row if you prefer; both work."],
-  ["FABRIC works the same way inside an order.", "Write it once and leave it blank for the designs under it. A new fabric starts a new block."],
-  ["CANCELLED: write OK for a live line, Cancelled for a dead one.", "Blank also means live. Anything the importer does not recognise is refused rather than guessed, so do not invent new words here."],
-  ["DEPT.: LD or LINKD.", "Leave it empty and the order is stored as LD, which would quietly merge the two departments. Fill it in."],
-  ["Dates are DAY first: 12-06-2026 is 12 June.", "05/06/2026 is read as 5 June and the import warns about it, because nothing in the cell says which was meant."],
-  ["DESIGN NO is TEXT, not a number.", "That column is formatted as text so 01 stays 01 instead of becoming 1. Do not reformat it."],
-  ["AMOUNT is CHECKED, never imported.", "The system computes qty x rate itself. If your figure disagrees, the import reports it — which is the point of the column."],
-  ["An order number already in the system is SKIPPED.", "Nothing you have entered since May can be overwritten, and running the same file twice is harmless."],
-  ["New party, fabric, agent or transport names are offered at the end.", "You tick which ones to add to the master lists, so a typed-twice name does not become two customers."],
+  [
+    "Delete the two SAMPLE rows before you import.",
+    "They are there to show the shape. If you leave them in, two orders called SAMPLE-1 and SAMPLE-2 are created.",
+  ],
+  [
+    "Only ORDER DATE, ORDER NO. and PARTY NAME are compulsory.",
+    "Plus FABRIC and QTY (MTR) on every design line. Everything else can be left empty.",
+  ],
+  [
+    "One row per DESIGN, not per order.",
+    "An order with four designs is four rows.",
+  ],
+  [
+    "Leave the order columns blank under the first row.",
+    "ORDER DATE through ORDER REMARKS only need filling on the first row of each order — a blank means the row above. Write them on every row if you prefer; both work.",
+  ],
+  [
+    "FABRIC works the same way inside an order.",
+    "Write it once and leave it blank for the designs under it. A new fabric starts a new block.",
+  ],
+  [
+    "CANCELLED: write OK for a live line, Cancelled for a dead one.",
+    "Blank also means live. Anything the importer does not recognise is refused rather than guessed, so do not invent new words here.",
+  ],
+  [
+    "DEPT.: LD or LINKD.",
+    "Leave it empty and the order is stored as LD, which would quietly merge the two departments. Fill it in.",
+  ],
+  [
+    "Dates are DAY first: 12-06-2026 is 12 June.",
+    "05/06/2026 is read as 5 June and the import warns about it, because nothing in the cell says which was meant.",
+  ],
+  [
+    "DESIGN NO is TEXT, not a number.",
+    "That column is formatted as text so 01 stays 01 instead of becoming 1. Do not reformat it.",
+  ],
+  [
+    "DESIGN NO: blank or - is fine.",
+    'A plain or solid fabric has no design number. Leave it empty or write -, and the line imports as "-" rather than being refused.',
+  ],
+  [
+    "AMOUNT is CHECKED, never imported.",
+    "The system computes qty x rate itself. If your figure disagrees, the import reports it — which is the point of the column.",
+  ],
+  [
+    "An order number already in the system is SKIPPED.",
+    "Nothing you have entered since May can be overwritten, and running the same file twice is harmless.",
+  ],
+  [
+    "New party, fabric, agent or transport names are offered at the end.",
+    "You tick which ones to add to the master lists, so a typed-twice name does not become two customers.",
+  ],
 ];
 
 export async function buildOrdersTemplate(): Promise<Blob> {
@@ -100,7 +257,11 @@ export async function buildOrdersTemplate(): Promise<Blob> {
   ws.addRow([...ORDER_HEADERS]);
   const head = ws.getRow(1);
   head.font = { bold: true, color: { argb: INK }, size: 10 };
-  head.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEAD_FILL } };
+  head.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: HEAD_FILL },
+  };
   head.alignment = { vertical: "middle" };
   head.height = 22;
 
@@ -166,17 +327,50 @@ const STATUS_STAGES: StageKey[] = [
 const STATUS_SUB = ["Planned", "Actual", "Status", "Time Delay"] as const;
 
 const STATUS_NOTES: [string, string][] = [
-  ["Import the ORDERS first.", "This sheet does not create anything. It finds a design line that is already in the system and ticks its stages. A row whose order is not there is reported, not added."],
-  ["Delete the SAMPLE rows before you import.", "They are there to show the shape."],
-  ["A row is found by ORDER NO. + FABRIC + DESIGN NO.", "Those three must match the order exactly. QTY (MTR) is only cross-checked and a difference is reported, not refused."],
-  ["ORDER DATE has to match the order in the system.", "The old sheet and the new system use the same numbering, so the same number can be two different orders. A row whose date disagrees is refused rather than written onto the wrong one. A differently-spelt PARTY NAME on the right date is only a warning."],
-  ["Status: write TRUE or Done for a finished stage, FALSE or blank for one that is not.", "OK also means done HERE. (On the orders sheet OK means the opposite - not cancelled - which is why the two sheets are read by different rules.)"],
-  ["Stock checking uses Yes / No.", "Yes means in stock, which is what lets the stages after it be ticked."],
-  ["Actual is the date it actually happened.", "A date on its own, or a date and a time: 03-02-2025 or 03-02-2025 15:22. Day first."],
-  ["Planned and Time Delay are NOT imported.", "The system keeps its own planned dates from the order date and the stage offsets, and works the delay out from those. The columns are here so your sheet still looks like your sheet."],
-  ["If a later stage is ticked and an earlier one is not, the earlier ones are ticked too.", "Otherwise the line could never be worked on: the board will not let anything past stock checking be ticked until stock checking is in stock. Every stage filled in this way is listed in the report."],
-  ["ON HOLD is not a step in the sequence.", "It is recorded, and it never counts towards an order being complete, and it is never filled in behind a later stage."],
-  ["A stage that is blank here but already ticked in the system is LEFT ALONE.", "This import never unticks anything, so it is safe to run twice and safe to run on a working day."],
+  [
+    "Import the ORDERS first.",
+    "This sheet does not create anything. It finds a design line that is already in the system and ticks its stages. A row whose order is not there is reported, not added.",
+  ],
+  [
+    "Delete the SAMPLE rows before you import.",
+    "They are there to show the shape.",
+  ],
+  [
+    "A row is found by ORDER NO. + FABRIC + DESIGN NO.",
+    "Those three must match the order exactly. QTY (MTR) is only cross-checked and a difference is reported, not refused.",
+  ],
+  [
+    "ORDER DATE has to match the order in the system.",
+    "The old sheet and the new system use the same numbering, so the same number can be two different orders. A row whose date disagrees is refused rather than written onto the wrong one. A differently-spelt PARTY NAME on the right date is only a warning.",
+  ],
+  [
+    "Status: write TRUE or Done for a finished stage, FALSE or blank for one that is not.",
+    "OK also means done HERE. (On the orders sheet OK means the opposite - not cancelled - which is why the two sheets are read by different rules.)",
+  ],
+  [
+    "Stock checking uses Yes / No.",
+    "Yes means in stock, which is what lets the stages after it be ticked.",
+  ],
+  [
+    "Actual is the date it actually happened.",
+    "A date on its own, or a date and a time: 03-02-2025 or 03-02-2025 15:22. Day first.",
+  ],
+  [
+    "Planned and Time Delay are NOT imported.",
+    "The system keeps its own planned dates from the order date and the stage offsets, and works the delay out from those. The columns are here so your sheet still looks like your sheet.",
+  ],
+  [
+    "If a later stage is ticked and an earlier one is not, the earlier ones are ticked too.",
+    "Otherwise the line could never be worked on: the board will not let anything past stock checking be ticked until stock checking is in stock. Every stage filled in this way is listed in the report.",
+  ],
+  [
+    "ON HOLD is not a step in the sequence.",
+    "It is recorded, and it never counts towards an order being complete, and it is never filled in behind a later stage.",
+  ],
+  [
+    "A stage that is blank here but already ticked in the system is LEFT ALONE.",
+    "This import never unticks anything, so it is safe to run twice and safe to run on a working day.",
+  ],
 ];
 
 export async function buildStatusTemplate(): Promise<Blob> {
@@ -220,7 +414,14 @@ export async function buildStatusTemplate(): Promise<Blob> {
     designNo: string,
     per: Partial<Record<StageKey, [string, string]>>,
   ): Cell[] => {
-    const row: Cell[] = ["SAMPLE-1", "12-06-2026", "EXAMPLE TEXTILES", "LORDS-1", designNo, 60];
+    const row: Cell[] = [
+      "SAMPLE-1",
+      "12-06-2026",
+      "EXAMPLE TEXTILES",
+      "LORDS-1",
+      designNo,
+      60,
+    ];
     for (const key of STATUS_STAGES) {
       const v = per[key];
       row.push("", v ? v[0] : "", v ? v[1] : "FALSE", "");
@@ -247,8 +448,11 @@ export async function buildStatusTemplate(): Promise<Blob> {
   }
 
   ws.getColumn(STATUS_IDENTITY.indexOf("DESIGN NO") + 1).numFmt = "@";
-  STATUS_IDENTITY.forEach((s, i) => (ws.getColumn(i + 1).width = Math.max(12, s.length + 4)));
-  for (let c = STATUS_IDENTITY.length + 1; c <= heads.length; c++) ws.getColumn(c).width = 13;
+  STATUS_IDENTITY.forEach(
+    (s, i) => (ws.getColumn(i + 1).width = Math.max(12, s.length + 4)),
+  );
+  for (let c = STATUS_IDENTITY.length + 1; c <= heads.length; c++)
+    ws.getColumn(c).width = 13;
   ws.views = [{ state: "frozen", xSplit: STATUS_IDENTITY.length, ySplit: 2 }];
 
   addNotes(wb, "How to fill this in", STATUS_NOTES, [
@@ -283,7 +487,11 @@ function addNotes(
 
   const head = ws.addRow(["Rule", "Why"]);
   head.font = { bold: true, size: 10, color: { argb: INK } };
-  head.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEAD_FILL } };
+  head.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: HEAD_FILL },
+  };
 
   for (const [rule, why] of notes) {
     const r = ws.addRow([rule, why]);

@@ -225,6 +225,27 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "Everything here is of the PERIOD this file covers. Run it for one month and “share” means share of that month.",
         BACKDATED_CAVEAT,
       ],
+      // A real Excel PivotTable + Slicers — what each party sent back and
+      // what moving it cost, filterable by their usual reason, fabric and
+      // broker. Share, avg return and days-since are left out: every one of
+      // them is an average or a percentage, and a pivot sums what it is
+      // given (the same rule `ReportColumn.total` already enforces).
+      pivots: {
+        tables: [
+          {
+            rowFields: ["party"],
+            dataFields: [
+              { field: "value", label: "Sum of value returned" },
+              { field: "qty", label: "Sum of metres" },
+              { field: "returns", label: "Sum of returns" },
+              { field: "cost", label: "Sum of cost to move" },
+            ],
+            slicerFields: ["top_reason", "top_quality", "a_broker"],
+            sheetName: "Pivot",
+            pivotTableName: "ReturnPartyPivot",
+          },
+        ],
+      },
     },
   };
 }

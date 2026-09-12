@@ -373,6 +373,20 @@ async function run(params: ReportParams): Promise<ReportResult> {
           ? [`Only the first ${count(MAX_EXPORT_ROWS)} of ${count(total)} lines are in the Data sheet. The figures above cover all of them.`]
           : []),
       ],
+      // A real Excel PivotTable + Slicer — value and metres per fabric,
+      // filterable by party, agent, and what it is waiting on or has
+      // reached, to spot where the mill's book is actually stuck.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["quality"],
+            dataFields: [{ field: "line_total" }, { field: "qty_mtr", label: "Sum of metres" }],
+            slicerFields: ["party_name", "agent", "waiting_on", "reached"],
+            sheetName: "Pivot",
+            pivotTableName: "ProductionPivot",
+          },
+        ],
+      },
     },
   };
 }

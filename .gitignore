@@ -46,3 +46,9 @@ next-env.d.ts
 # dev server log, written by npm run dev > .dev.log
 .dev.log
 sample-reports/
+
+# Source workbooks handed over for import. Business data — the importer
+# reads them from disk, nothing in the app needs them in the repo, and the
+# two CSVs that were committed once are the reason this line exists.
+/LinkD dataEntryInterface*.xlsx
+/LD prodction*.csv

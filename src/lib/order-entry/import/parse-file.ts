@@ -96,10 +96,24 @@ async function parseText(name: string, text: string): Promise<SheetData[]> {
  *
  * ExcelJS also reads dates as UTC midnight, so formatting in local time east
  * of Greenwich gives the day BEFORE. The UTC parts are taken directly.
+ *
+ * ── DAY ZERO OF THE EXCEL CALENDAR IS A BLANK CELL, NOT A DATE ───────────
+ *
+ * A column formatted as a date (Excel's own default for a blank column
+ * somebody drags formatting into) reads an EMPTY cell back as serial 0 —
+ * 1899-12-30 in Excel's calendar — because "no date" is not a value Excel's
+ * date type can hold. On a real 2026 import, the entire "CANCELLED" column
+ * came back as this: 14,367 rows, every one of them, and none genuinely
+ * blank in the sheet — reformatted as text it turned into 928 orders
+ * refused with `Cancelled: "1899-12-30" is not a yes or a no`, because
+ * nobody types 30 December 1899 into an order form. Nobody ever means this
+ * date; it is read as blank everywhere in the file, not only in a flag
+ * column, since a genuinely blank date cell hits the same trap.
  */
 function cellText(v: unknown): string {
   if (v == null) return "";
   if (v instanceof Date) {
+    if (v.getTime() === Date.UTC(1899, 11, 30)) return "";
     const p = (n: number) => String(n).padStart(2, "0");
     return `${v.getUTCFullYear()}-${p(v.getUTCMonth() + 1)}-${p(v.getUTCDate())}`;
   }

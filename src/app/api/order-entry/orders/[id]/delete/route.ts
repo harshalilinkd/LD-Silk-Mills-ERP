@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { jsonData, jsonError, requireCapability } from "@/lib/order-entry/api";
+import { auditOrderEntry, countLiveLines, snapshotOrder } from "@/lib/order-entry/audit";
 import { orderEntryDb as db } from "@/db/order-entry";
 import { deleteLineSchema, firstZodError } from "@/lib/order-entry/validation";
 import { isOrderDeleted } from "@/lib/order-entry/workflow";
@@ -33,6 +34,28 @@ export async function PATCH(req: Request, { params }: Params) {
       .limit(1);
     if (!line) return jsonError("Design not found on this order", 404);
   }
+
+  // ── BINNING IS RECORDED TOO, NOT JUST THE PERMANENT REMOVAL ──────────
+  //
+  // Permanently removing an order is only possible once its lines are in the
+  // Trash, so this PATCH is step one of the two-step removal that lost orders
+  // 1262/1264/1265. Recording only step two would name whoever pressed the
+  // last button and miss whoever decided.
+  //
+  // A restore (`deleted: false`) is recorded as well: it is the same switch and
+  // the interesting question is usually "who moved this, and when".
+  const beforeLive = await countLiveLines(id);
+  await auditOrderEntry({
+    action: deleted ? "order-entry.order_binned" : "order-entry.order_restored",
+    email: guard.user.email ?? null,
+    metadata: {
+      orderId: id,
+      scope: line_id ? "one design" : "the whole order",
+      lineId: line_id ?? null,
+      liveLinesBefore: beforeLive,
+      order: await snapshotOrder(id),
+    },
+  });
 
   const now = new Date();
   try {

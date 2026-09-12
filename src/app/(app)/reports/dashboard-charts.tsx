@@ -68,6 +68,45 @@ export const SERIES = [
 
 export const colourAt = (i: number) => SERIES[i % SERIES.length];
 
+/**
+ * A ranking is one HUE, shaded dark-to-light by rank — the rule the exported
+ * workbook already follows (see `RANK_RAMP` in `lib/reports/dashboard.ts`).
+ * Eight rotating colours on "who is biggest" made the answer to the chart's
+ * own question (which bar wins) compete with which colour a bar happened to
+ * land on. `"Others"`/`"Everyone else"` — the catch-all `rank()` appends — is
+ * always grey, whatever its rank, because it is not a name and colouring it
+ * as a contender misreads a bucket as a competitor.
+ */
+const REST_LABELS = new Set(["Others", "Everyone else"]);
+
+function rankShade(base: string, i: number, n: number): string {
+  if (n <= 1) return base;
+  const pct = Math.round(100 - (i / (n - 1)) * 60); // 100% down to 40%
+  return `color-mix(in oklab, ${base} ${pct}%, transparent)`;
+}
+
+/** Worst-to-best severity, green through red — for a bucket chart whose
+ * categories are already ordered by how bad they are (an ageing band), never
+ * for a plain ranking where nothing is actually improving or worsening. */
+function severityShade(i: number, n: number): string {
+  if (n <= 1) return "var(--status-amber)";
+  const p = i / (n - 1);
+  return p <= 0.5
+    ? `color-mix(in oklab, var(--status-amber) ${Math.round((p / 0.5) * 100)}%, var(--status-green))`
+    : `color-mix(in oklab, var(--status-red) ${Math.round(((p - 0.5) / 0.5) * 100)}%, var(--status-amber))`;
+}
+
+function sliceColour(
+  label: string,
+  i: number,
+  n: number,
+  tone: "rank" | "severity",
+  base: string,
+): string {
+  if (REST_LABELS.has(label)) return "var(--text-3)";
+  return tone === "severity" ? severityShade(i, n) : rankShade(base, i, n);
+}
+
 /** Respects the OS "reduce motion" setting for the entrance animations. */
 function useReducedMotion(): boolean {
   const [reduce, setReduce] = React.useState(false);
@@ -367,11 +406,15 @@ export function RankedBars({
   data,
   money = true,
   colour,
+  tone = "rank",
   height,
 }: {
   data: Slice[];
   money?: boolean;
   colour?: string;
+  /** "severity" only for a chart whose rows are already worst-to-best (an
+   * ageing band) — everything else is a plain ranking. */
+  tone?: "rank" | "severity";
   height?: number;
 }) {
   const reduce = useReducedMotion();
@@ -445,7 +488,16 @@ export function RankedBars({
             isAnimationActive={!reduce}
           >
             {chartData.map((d, i) => (
-              <Cell key={d.label} fill={colour ?? colourAt(i)} />
+              <Cell
+                key={d.label}
+                fill={sliceColour(
+                  d.label,
+                  i,
+                  chartData.length,
+                  tone,
+                  colour ?? "var(--chart-1)",
+                )}
+              />
             ))}
             <LabelList
               dataKey="value"
@@ -467,10 +519,16 @@ export function RankedBars({
 export function CountColumns({
   data,
   money = false,
+  colour,
+  tone = "rank",
   height = 280,
 }: {
   data: Slice[];
   money?: boolean;
+  colour?: string;
+  /** "severity" only for a chart whose columns are already worst-to-best (an
+   * ageing band) — everything else is a plain ranking. */
+  tone?: "rank" | "severity";
   height?: number;
 }) {
   const reduce = useReducedMotion();
@@ -530,7 +588,16 @@ export function CountColumns({
             isAnimationActive={!reduce}
           >
             {data.map((d, i) => (
-              <Cell key={d.label} fill={colourAt(i)} />
+              <Cell
+                key={d.label}
+                fill={sliceColour(
+                  d.label,
+                  i,
+                  data.length,
+                  tone,
+                  colour ?? "var(--chart-1)",
+                )}
+              />
             ))}
             <LabelList
               dataKey="value"

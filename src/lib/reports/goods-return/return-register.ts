@@ -308,6 +308,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
         ...(wrongDate ? [`${plural(wrongDate, "return")} ${wrongDate === 1 ? "is" : "are"} dated before ${EARLIEST_SANE}, which is a typing slip rather than a real date. ${wrongDate === 1 ? "It is" : "They are"} flagged, not corrected — this ERP does not edit the Goods Return records, and Days waiting is left blank on ${wrongDate === 1 ? "it" : "them"}.`] : []),
         "Who entered or received a return is not in this data. Those columns exist in the old system's own user table and are empty on every row; anything done through this ERP is in the audit log instead.",
       ],
+      // A real Excel PivotTable + Slicers — value, metres and the cost of
+      // moving it per party, filterable by reason, status, broker and age.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["party"],
+            dataFields: [
+              { field: "value", label: "Sum of value" },
+              { field: "qty", label: "Sum of metres" },
+              { field: "total_cost", label: "Sum of cost to move" },
+              { field: "items", label: "Sum of items" },
+            ],
+            slicerFields: ["return_reason", "status_label", "broker", "transport", "age"],
+            sheetName: "Pivot",
+            pivotTableName: "ReturnRegisterPivot",
+          },
+        ],
+      },
     },
   };
 }

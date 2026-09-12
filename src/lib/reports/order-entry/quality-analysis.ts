@@ -171,6 +171,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "The grain is fabric × design. A quality's own totals are the sum of its designs, and the dashboard rolls it up both ways.",
         "A design number means something different inside each quality, so the same number under two fabrics is two different things and is never combined.",
       ],
+      // A real Excel PivotTable + Slicer — value and metres per fabric,
+      // filterable by design number or biggest customer.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["quality"],
+            dataFields: [{ field: "value" }, { field: "qty_mtr", label: "Sum of metres" }],
+            slicerFields: ["design_no", "top_customer"],
+            sheetName: "Pivot",
+            pivotTableName: "QualityPivot",
+          },
+        ],
+      },
     },
   };
 }

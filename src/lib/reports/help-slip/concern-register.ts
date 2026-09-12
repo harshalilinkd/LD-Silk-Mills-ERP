@@ -321,6 +321,26 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "“Hours to first reply” is measured from when the concern was raised to the first response recorded against it — not to the first time anybody opened it.",
         "A withdrawn concern is kept and flagged, never deleted.",
       ],
+      // A real Excel PivotTable + Slicers — how many concerns each
+      // department is carrying, filterable by category, priority, status
+      // and who is handling them. COUNTED, not summed: every number on this
+      // report is either an average (hours to reply, days open) or a tally
+      // that belongs to one concern, so "how many" is the honest measure.
+      // The words themselves stay off this file — see the caveat above.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["department"],
+            dataFields: [
+              { field: "concern_number", aggregate: "count", label: "Concerns" },
+              { field: "replies", label: "Sum of replies" },
+            ],
+            slicerFields: ["category", "priority", "status", "assigned_to", "wait_reason"],
+            sheetName: "Pivot",
+            pivotTableName: "ConcernPivot",
+          },
+        ],
+      },
     },
   };
 }

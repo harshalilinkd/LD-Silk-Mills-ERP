@@ -13,6 +13,7 @@ import type {
   ReportRow,
 } from "./types";
 import { injectCharts } from "./xlsx-charts";
+import { injectPivotTable, type PivotFieldSpec } from "./xlsx-pivot";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -453,6 +454,162 @@ async function buildReceipts(
   ws.getRow(r + 1).height = 44;
 }
 
+// ─── the pivot table + slicers, if this report asked for one ──────────────
+
+function colLetter(n: number): string {
+  let s = "";
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/**
+ * Builds the hidden "Pivot data" sheet every pivot table in this report
+ * sources from, and injects each table in turn.
+ *
+ * ── WHY A SEPARATE SHEET, NOT THE VISIBLE DATA SHEET ─────────────────────
+ *
+ * A pivot cache's `worksheetSource` must point at REAL cells — with
+ * `refreshOnLoad="1"` set, Excel re-reads that range the moment the file is
+ * opened, so anything the cache "knows" that is not actually sitting in
+ * those cells gets silently wiped on the first refresh. Two things a pivot
+ * commonly needs are NOT on the Data sheet: a derived field (Year, Month, a
+ * Completed/In Process/Cancelled status) the report computed but has no
+ * reason to show as its own column, and — when several pivots want
+ * different fields — a column ORDER matching each pivot's own field list
+ * rather than the Data sheet's. Following the same house pattern as the
+ * hidden "Chart data" sheet the Dashboard already uses for exactly this
+ * reason: real cells, real numbers, just not on the sheet a person reads.
+ */
+type PivotDataPlan = {
+  referenced: string[];
+  fieldSpecs: PivotFieldSpec[];
+  pivotRows: (string | number | null)[][];
+  labelOf: (key: string) => string;
+};
+
+function planPivotData(
+  columns: ReportColumn[],
+  rows: ReportRow[],
+  pivots: NonNullable<ReportAnalysis["pivots"]>,
+): PivotDataPlan {
+  const extraFields = pivots.extraFields ?? [];
+  for (const ef of extraFields) {
+    if (ef.values.length !== rows.length) {
+      throw new Error(`pivot: extraField "${ef.name}" has ${ef.values.length} values for ${rows.length} rows`);
+    }
+  }
+
+  // Every field ANY table references, real column or extra field, in the
+  // order first referenced — that order becomes the hidden sheet's columns.
+  const referenced: string[] = [];
+  const seen = new Set<string>();
+  const note = (key: string) => {
+    if (!seen.has(key)) { seen.add(key); referenced.push(key); }
+  };
+  for (const t of pivots.tables) {
+    for (const r of t.rowFields) note(r);
+    if (t.colField) note(t.colField);
+    for (const d of t.dataFields) note(d.field);
+    for (const s of t.slicerFields) note(s);
+  }
+
+  const colByKey = new Map(columns.map((c) => [c.key, c]));
+  const extraByName = new Map(extraFields.map((e) => [e.name, e]));
+
+  const fieldSpecs: PivotFieldSpec[] = referenced.map((key) => {
+    const c = colByKey.get(key);
+    if (c) return { name: c.label, kind: isNumeric(c.type) ? "number" : "text" };
+    if (extraByName.has(key)) return { name: key, kind: "text" };
+    throw new Error(`pivot: field "${key}" is neither a report column nor a declared extraField`);
+  });
+  const labelOf = (key: string): string => {
+    const c = colByKey.get(key);
+    return c ? c.label : key;
+  };
+
+  const pivotRows = rows.map((row, i) =>
+    referenced.map((key) => {
+      const c = colByKey.get(key);
+      if (c) {
+        const v = row[c.key];
+        if (v === null || v === undefined) return null;
+        if (isNumeric(c.type)) return Number(v);
+        if (c.type === "boolean") return v ? "Yes" : "No";
+        if (c.type === "date") return String(v).slice(0, 10);
+        return String(v);
+      }
+      return extraByName.get(key)!.values[i];
+    }),
+  );
+
+  return { referenced, fieldSpecs, pivotRows, labelOf };
+}
+
+const PIVOT_DATA_SHEET = "Pivot data";
+
+/**
+ * Builds the hidden "Pivot data" sheet every pivot table in this report
+ * sources from. Must run BEFORE `wb.xlsx.writeBuffer()` — this adds real
+ * cells to the live ExcelJS workbook, not to an already-serialized zip.
+ *
+ * ── WHY A SEPARATE SHEET, NOT THE VISIBLE DATA SHEET ─────────────────────
+ *
+ * A pivot cache's `worksheetSource` must point at REAL cells — with
+ * `refreshOnLoad="1"` set, Excel re-reads that range the moment the file is
+ * opened, so anything the cache "knows" that is not actually sitting in
+ * those cells gets silently wiped on the first refresh. Two things a pivot
+ * commonly needs are NOT on the Data sheet: a derived field (Year, Month, a
+ * Completed/In Process/Cancelled status) the report computed but has no
+ * reason to show as its own column, and — when several pivots want
+ * different fields — a column ORDER matching each pivot's own field list
+ * rather than the Data sheet's. Following the same house pattern as the
+ * hidden "Chart data" sheet the Dashboard already uses for exactly this
+ * reason: real cells, real numbers, just not on the sheet a person reads.
+ */
+function buildPivotDataSheet(wb: ExcelJS.Workbook, plan: PivotDataPlan): void {
+  const ws = wb.addWorksheet(PIVOT_DATA_SHEET, { state: "hidden" });
+  ws.addRow(plan.fieldSpecs.map((f) => f.name));
+  for (const r of plan.pivotRows) ws.addRow(r);
+}
+
+/** Injects every pivot table this report declared, chaining the buffer
+ * through one `injectPivotTable` call per table — see `xlsx-pivot.ts`'s
+ * file header for why this function is safe to call more than once. */
+async function injectPivotsInto(
+  buffer: Buffer,
+  rows: ReportRow[],
+  pivots: NonNullable<ReportAnalysis["pivots"]>,
+  plan: PivotDataPlan,
+): Promise<Buffer> {
+  let out = buffer;
+  for (const t of pivots.tables) {
+    out = await injectPivotTable(out, {
+      sourceSheet: PIVOT_DATA_SHEET,
+      sourceRef: `A1:${colLetter(plan.referenced.length)}${rows.length + 1}`,
+      fields: plan.fieldSpecs,
+      rows: plan.pivotRows,
+      rowFields: t.rowFields.map(plan.labelOf),
+      colField: t.colField ? plan.labelOf(t.colField) : undefined,
+      dataFields: t.dataFields.map((d) => {
+        const verb = d.aggregate === "count" ? "Count" : d.aggregate === "average" ? "Average" : "Sum";
+        return {
+          field: plan.labelOf(d.field),
+          aggregate: d.aggregate,
+          label: d.label ?? `${verb} of ${plan.labelOf(d.field).toLowerCase()}`,
+        };
+      }),
+      slicerFields: t.slicerFields.map(plan.labelOf),
+      pivotSheetName: t.sheetName,
+      pivotTableName: t.pivotTableName,
+    });
+  }
+  return out;
+}
+
 // ─── the notes sheet ──────────────────────────────────────────────────────
 
 function buildNotes(
@@ -665,13 +822,20 @@ export async function toWorkbook(
       totalRows: meta.totalRows,
     }, filterLabels);
 
+    // The hidden data sheet a pivot table sources from must exist BEFORE the
+    // workbook is serialized — everything after this point works on the
+    // finished zip, the same as the charts below.
+    const pivotPlan = a.pivots ? planPivotData(columns, rows, a.pivots) : null;
+    if (pivotPlan) buildPivotDataSheet(wb, pivotPlan);
+
     // The charts are written into the FINISHED zip. ExcelJS has no chart API,
     // so the four OOXML parts a native chart needs are added afterwards - see
     // `xlsx-charts.ts`. Nothing else in the workbook is touched, which is the
     // point: a post-processing step that rewrote cells is exactly how a total
     // ends up disagreeing between the Data sheet and the Dashboard.
     const out = await wb.xlsx.writeBuffer();
-    return injectCharts(out, "Dashboard", charts);
+    const withCharts = await injectCharts(out, "Dashboard", charts);
+    return pivotPlan ? injectPivotsInto(withCharts, rows, a.pivots!, pivotPlan) : withCharts;
   };
 
   // ── THE FINISHED FILE IS MEASURED, NOT ESTIMATED ──────────────────────

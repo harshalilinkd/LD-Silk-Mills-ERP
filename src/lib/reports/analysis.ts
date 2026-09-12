@@ -464,6 +464,7 @@ export function matrixFrom(
     })),
     format: opts.format,
     note: opts.note,
+    totalLabels: totals.size,
   };
 }
 

@@ -204,6 +204,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
             ]
           : []),
       ],
+      // A real Excel PivotTable + Slicer — value and metres per agent/sales
+      // person, filterable by their biggest customer. See `xlsx-pivot.ts`.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["who"],
+            dataFields: [{ field: "value" }, { field: "qty_mtr", label: "Sum of metres" }],
+            slicerFields: ["top_customer"],
+            sheetName: "Pivot",
+            pivotTableName: "AgentPivot",
+          },
+        ],
+      },
     },
   };
 }

@@ -469,7 +469,20 @@ export function buildDashboard(
     });
   }
 
-  a.panels.slice(0, 5).forEach((panel) => {
+  // ── SIX, NOT FIVE — AND THE SIXTH WAS BEING BUILT AND THROWN AWAY ──────
+  //
+  // This was `slice(0, 5)`. Production status declares six panels, so
+  // "Which fabric is holding things up" was computed on every run and never
+  // drawn, with nothing anywhere to say so — a silent cut is the worst kind,
+  // because the page looks finished. An audit across all twelve reports
+  // found exactly one panel in that position, so raising the cap recovers
+  // it and changes nothing else.
+  //
+  // Six also LAYS OUT better than five: charts are placed two across, so
+  // five leaves a half-empty final row and six fills three rows evenly.
+  // Past six the page stops being one screen, which is the rule the KPI
+  // band already follows.
+  a.panels.slice(0, 6).forEach((panel) => {
     // A panel with nothing in it, or one whose every bar is zero — an ageing
     // panel emits its five buckets whatever happens and a funnel its seven
     // stages, so an empty period drew a chart of five zero bars. Not wrong,
@@ -993,6 +1006,30 @@ function drawDetail(
     for (let c = at; c < at + span; c++) fill(ws.getCell(row, c), argb);
   };
 
+  // ── THE FIRST TEN ROWS ARE NOT A SAMPLE — THEY ARE ONE ORDER ─────────
+  //
+  // The data sheet is sorted by whatever the report's own query asked for
+  // (Line Detail: most recent order first, then fabric, then design), so a
+  // head-slice of ten showed order 1304's ten design lines and nothing else
+  // — ten rows that answer nothing a single row didn't already answer. A
+  // management table is supposed to show the biggest transactions, not
+  // the most recent order's line count. Where the report has a genuinely
+  // additive money/quantity column (`total: "sum"`), the ten shown are the
+  // ten LARGEST by that column instead — different orders, different
+  // parties, the rows a manager would actually ask to see.
+  // Same "what does this column's total mean" resolution the Data sheet's
+  // own footer uses (`xlsx.ts`): explicit `total`, else `sum` for anything
+  // numeric. Reusing it means a column ranked here is a column that is
+  // ALSO added up at the foot of the Data sheet — never a percentage or an
+  // average pretending to be a value.
+  const effectiveTotal = (c: ReportColumn) => c.total ?? (isNumeric(c.type) ? "sum" : "none");
+  const valueCol = columns.find((c) => effectiveTotal(c) === "sum" && c.type === "money")
+    ?? columns.find((c) => effectiveTotal(c) === "sum");
+  const sortedByValue = !!valueCol;
+  const shown = sortedByValue
+    ? [...rows].sort((a, b) => Number(b[valueCol!.key] ?? 0) - Number(a[valueCol!.key] ?? 0)).slice(0, MAX_ROWS)
+    : rows.slice(0, MAX_ROWS);
+
   caption(ws, r, 2, GRID + 1, "The detail behind these figures");
   r++;
 
@@ -1007,7 +1044,7 @@ function drawDetail(
   });
   r++;
 
-  rows.slice(0, MAX_ROWS).forEach((row, k) => {
+  shown.forEach((row, k) => {
     ws.getRow(r).height = 15;
     picked.forEach(({ c, at, span }) => {
       if (span > 1) ws.mergeCells(r, at, r, at + span - 1);
@@ -1052,7 +1089,9 @@ function drawDetail(
       : "";
   note.value =
     rows.length > MAX_ROWS
-      ? `The first ${MAX_ROWS} of ${plural(rows.length, "row")}${cols}. Every row and every column is on the Data sheet.`
+      ? sortedByValue
+        ? `The ${MAX_ROWS} biggest of ${plural(rows.length, "row")}${cols}, by ${valueCol!.label.toLowerCase()}. Every row and every column is on the Data sheet.`
+        : `The first ${MAX_ROWS} of ${plural(rows.length, "row")}${cols}. Every row and every column is on the Data sheet.`
       : rows.length === 1
         ? `The only row on record${cols}. Every column of it is on the Data sheet, and what each one means is on Notes.`
         : `All ${plural(rows.length, "row")}${cols}. Every column is on the Data sheet, and what each one means is on Notes.`;
@@ -1094,8 +1133,13 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
   th.alignment = { horizontal: "right" };
   r++;
 
+  // The grid's own row cap. `matrixFrom`'s `limit` already decided how many
+  // labels are worth carrying — this only guards against a chart's `limit`
+  // being raised so high the sheet stops being a page. 40 keeps a report like
+  // Line Detail's fabric grid (raised from 8) intact without the guard firing.
+  const MAX_MATRIX_ROWS = 40;
   const firstDataRow = r;
-  for (const row of m.rows.slice(0, 10)) {
+  for (const row of m.rows.slice(0, MAX_MATRIX_ROWS)) {
     ws.getRow(r).height = 15;
     ws.mergeCells(r, 2, r, 2 + labelCols - 1);
     const lab = ws.getCell(r, 2);
@@ -1136,6 +1180,7 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
     });
   }
 
+  const shownRows = Math.min(m.rows.length, MAX_MATRIX_ROWS);
   ws.mergeCells(r, 2, r, GRID + 1);
   const note = ws.getCell(r, 2);
   note.value =
@@ -1143,6 +1188,9 @@ function drawMatrix(ws: ExcelJS.Worksheet, top: number, m: Matrix): number {
     (m.format === "money" ? "Figures in thousands of rupees. " : "") +
     (offset > 0
       ? `Showing the last ${cols.length} of ${m.columns.length} months; the Total is of those ${m.columns.length}. `
+      : "") +
+    (m.totalLabels && m.totalLabels > shownRows
+      ? `Top ${shownRows} of ${m.totalLabels}, by value; the rest are on the Data sheet. `
       : "") +
     "Darker means more. A dash means nothing that month.";
   note.font = { name: BODY, size: 8, italic: true, color: { argb: C.ink3 } };

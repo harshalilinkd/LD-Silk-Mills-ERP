@@ -447,6 +447,26 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "The payee and category printed here are SNAPSHOTS, written when the entry was made. Renaming a payee or a category afterwards does not rewrite them, which is correct — an April voucher said what it said. The current category name is carried beside the snapshot.",
         "The balance shown is of THIS PERIOD, not the balance in the box. The box's running balance is on the Ledger screen and never moves when a filter changes.",
       ],
+      // A real Excel PivotTable + Slicers — money in and money out per
+      // category, side by side, filterable by type, group, payee and proof.
+      // `amount` is deliberately NOT a data field: it carries both
+      // directions in one column, so summing it nets a payment against a
+      // receipt and the answer means nothing (it is `total: "none"` on the
+      // Data sheet for exactly that reason).
+      pivots: {
+        tables: [
+          {
+            rowFields: ["category"],
+            dataFields: [
+              { field: "money_out", label: "Sum of money out" },
+              { field: "money_in", label: "Sum of money in" },
+            ],
+            slicerFields: ["kind", "category_group", "to_name", "proof_type"],
+            sheetName: "Pivot",
+            pivotTableName: "CashPivot",
+          },
+        ],
+      },
     },
   };
 }

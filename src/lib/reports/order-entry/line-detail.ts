@@ -12,6 +12,7 @@ import {
   trendInsight,
 } from "../analysis";
 import { count, inr, inrShort, pct, qty } from "../format";
+import { LAST_FLOW_STAGE_KEY } from "../../order-entry/workflow-constants";
 import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 import {
@@ -49,6 +50,7 @@ const SQL = `
     li.line_total,
     li.is_cancelled,
     coalesce(ws.label, 'Not started') as stage,
+    ws.stage_key as reached_key,
     -- The same quality AND design appearing more than once inside one order.
     -- Almost always a slip during entry, and every report was reproducing it
     -- silently: the order's totals are right, but a reader comparing the sheet
@@ -84,9 +86,26 @@ type Raw = {
   order_no: string; order_date: string; party_name: string | null; agent: string | null;
   sales_person: string | null; transport: string | null; quality: string | null;
   design_no: string | null; qty_mtr: string; rate: string; line_total: string;
-  is_cancelled: boolean; stage: string; repeated: boolean; remarks: string | null;
+  is_cancelled: boolean; stage: string; reached_key: string | null; repeated: boolean; remarks: string | null;
   lot_no: string | null; challan_no: string | null;
 };
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Completed / In process / Cancelled, for the pivot's status slicer — not a
+ * new judgement, the house rule already used everywhere else a line's
+ * progress is judged (`computeLineStatus` in `workflow-constants.ts`),
+ * simplified to what this report's SQL actually carries: the furthest stage
+ * REACHED, not every stage's own done flag, so "on hold" cannot be told
+ * apart from "reached its last stage normally" here the way the live board
+ * can. Cancellation is checked first because it is a separate flag, not a
+ * position in the workflow.
+ */
+function pivotStatus(r: Pick<Raw, "is_cancelled" | "reached_key">): "Cancelled" | "Completed" | "In process" {
+  if (r.is_cancelled) return "Cancelled";
+  return r.reached_key === LAST_FLOW_STAGE_KEY ? "Completed" : "In process";
+}
 
 async function run(params: ReportParams): Promise<ReportResult> {
   const raw = (await pg.unsafe(SQL, [
@@ -95,7 +114,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
     params.design ?? null,
   ])) as unknown as Raw[];
 
-  const rows: ReportRow[] = raw.slice(0, MAX_EXPORT_ROWS).map((r) => ({
+  const sliced = raw.slice(0, MAX_EXPORT_ROWS);
+  const rows: ReportRow[] = sliced.map((r) => ({
     order_no: r.order_no,
     order_date: r.order_date?.slice(0, 10) ?? null,
     party_name: r.party_name,
@@ -213,7 +233,16 @@ async function run(params: ReportParams): Promise<ReportResult> {
           month: (r.order_date ?? "").slice(0, 7),
           value: n(r.line_total),
         })),
-        { title: "Which fabric sold, and when", format: "money", display: inrShort },
+        {
+          title: "Which fabric sold, and when",
+          format: "money",
+          display: inrShort,
+          // Was capped at the house default of 8 — a fifth of the fabrics
+          // this report tracks (some periods carry 200+). Raised so the
+          // grid on the Dashboard page itself carries most of the book,
+          // not just a taste of it; the Data sheet still has every fabric.
+          limit: 40,
+        },
       ),
       panels: [
         {
@@ -250,7 +279,82 @@ async function run(params: ReportParams): Promise<ReportResult> {
         ...(raw.length > MAX_EXPORT_ROWS
           ? [`Only the first ${count(MAX_EXPORT_ROWS)} of ${count(raw.length)} lines are in the Data sheet. The figures above cover all of them.`]
           : []),
+        "On the “Pivot - Fabric rate” sheet, “Avg rate (unweighted)” is Excel's plain average of the line rates — it counts a 6-metre line the same as a 6,000-metre one. The rate this report quotes everywhere else is WEIGHTED by metres, and you get it from the same sheet by dividing Sum of value by Sum of metres, at any level including the subtotals.",
       ],
+      // Real Excel PivotTables + Slicers, on their own sheets — every
+      // fabric and every party, filterable by status/agent/sales
+      // person/year/month, not just the Dashboard's top-40 heat grid.
+      // See `xlsx-pivot.ts` for how these are built safely.
+      pivots: {
+        extraFields: [
+          { name: "Status", values: sliced.map((r) => pivotStatus(r)) },
+          { name: "Year", values: sliced.map((r) => (r.order_date ? r.order_date.slice(0, 4) : null)) },
+          {
+            name: "Month",
+            values: sliced.map((r) => {
+              if (!r.order_date) return null;
+              const m = Number(r.order_date.slice(5, 7));
+              return Number.isInteger(m) && m >= 1 && m <= 12
+                ? `${MONTH_NAMES[m - 1]} ${r.order_date.slice(0, 4)}`
+                : null;
+            }),
+          },
+        ],
+        tables: [
+          {
+            // Party, then the fabrics under it — nested down the ROWS, not
+            // fabrics down and parties across. The across version was built
+            // first and was wrong to read: 223 columns wide, so any two
+            // parties a manager wanted to compare were several screens
+            // apart and most cells were blank. Nested rows give one line per
+            // party-and-fabric with a subtotal per party, which is the shape
+            // somebody actually reads down.
+            rowFields: ["party_name", "quality"],
+            dataFields: [{ field: "line_total", label: "Sum of line value" }],
+            slicerFields: ["Status", "Year", "Month"],
+            sheetName: "Pivot - Fabric",
+            pivotTableName: "PartyAndFabric",
+          },
+          {
+            // Who bought it: one row per party, metres and value side by
+            // side, sliceable by agent and sales person as well as status
+            // and period — the commercial rollup, not the production one.
+            rowFields: ["party_name"],
+            dataFields: [
+              { field: "qty_mtr", label: "Sum of metres" },
+              { field: "line_total", label: "Sum of value" },
+            ],
+            slicerFields: ["agent", "sales_person", "Status", "Year", "Month"],
+            sheetName: "Pivot - Party",
+            pivotTableName: "PartyRollup",
+          },
+          {
+            // Fabric, quantity and rate — the cloth view.
+            //
+            // ── WHY THREE COLUMNS FOR "QTY AND RATE" ──────────────────────
+            //
+            // The rate that matters is WEIGHTED: total value over total
+            // metres, so a 6,000-metre line counts more than a 6-metre one
+            // (the same rule `ReportColumn.avgWeightBy` sets on the Rate
+            // column itself). Excel can only express that as a calculated
+            // field, and this Excel refuses to create one — so rather than
+            // ship a single "Rate" column that is quietly the wrong
+            // average, both ingredients are here: metres and value, whose
+            // ratio IS the weighted rate at every level including the
+            // subtotals. The third column is Excel's plain mean of the line
+            // rates, named so nobody mistakes it for the weighted one.
+            rowFields: ["quality"],
+            dataFields: [
+              { field: "qty_mtr", label: "Sum of metres" },
+              { field: "line_total", label: "Sum of value" },
+              { field: "rate", aggregate: "average", label: "Avg rate (unweighted)" },
+            ],
+            slicerFields: ["Status", "Year", "Month", "party_name"],
+            sheetName: "Pivot - Fabric rate",
+            pivotTableName: "FabricRate",
+          },
+        ],
+      },
     },
   };
 }

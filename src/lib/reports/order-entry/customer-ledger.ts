@@ -165,6 +165,19 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "Share, orders and value are of the PERIOD this file covers, not of all time. The Notes sheet says which period that is.",
         "“Days since last” is counted to today, even when the period ends earlier — it answers “have they gone quiet”, which is a question about now.",
       ],
+      // A real Excel PivotTable + Slicer — every customer's metres and
+      // value, filterable by agent or sales person. See `xlsx-pivot.ts`.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["party_name"],
+            dataFields: [{ field: "value" }, { field: "qty_mtr", label: "Sum of metres" }],
+            slicerFields: ["an_agent", "a_sales_person"],
+            sheetName: "Pivot",
+            pivotTableName: "CustomerPivot",
+          },
+        ],
+      },
     },
   };
 }

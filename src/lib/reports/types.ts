@@ -257,6 +257,8 @@ export type Matrix = {
   /** How a single cell is written out, for the legend line. */
   format: "money" | "count";
   note?: string;
+  /** How many distinct labels existed before the grid cut to its row limit. */
+  totalLabels?: number;
 };
 
 /**
@@ -293,6 +295,54 @@ export type ReportAnalysis = {
   caveats: string[];
   /** The one sentence somebody would repeat. Printed largest, at the top. */
   headline?: string;
+  /**
+   * One or more real Excel PivotTables + Slicers — the "see every value and
+   * filter it yourself" answer to the Dashboard's fixed-size heat grid. Each
+   * table's `rowField`/`colField`/`dataFields`/`slicerFields` are column
+   * keys, not labels — `xlsx.ts` already has the typed `ReportColumn`/
+   * `ReportRow` pairs in scope, so it does the field/type mapping once,
+   * generically, rather than every report duplicating it.
+   *
+   * `extraFields` are columns that do not exist on the report at all — a
+   * derived "Year", "Month" or "Status" a pivot needs to slice by that the
+   * Data sheet has no reason to carry. The report computes one value per
+   * row itself (same order as `rows`) rather than handing over a callback,
+   * so this stays a plain data structure like the rest of `ReportAnalysis`.
+   * These live on a hidden "Pivot data" companion sheet alongside whichever
+   * real columns the pivots reference — never on the visible Data sheet.
+   *
+   * See `xlsx-pivot.ts` for what is and is not proven safe (a text
+   * row/column/slicer field; one or more numeric data fields; no native
+   * Excel date-grouping — a computed text field instead).
+   */
+  pivots?: {
+    extraFields?: { name: string; values: (string | null)[] }[];
+    tables: {
+      /**
+       * The row axis, outermost first — column keys or `extraFields` names,
+       * all text. Two of them nest, giving Excel's tabular layout with a
+       * subtotal per outer group and the outer label repeated down its
+       * rows. Cannot be combined with `colField`.
+       */
+      rowFields: string[];
+      /** Column key (or an `extraFields` name) for the column axis — text. */
+      colField?: string;
+      /**
+       * One or more column keys to aggregate, side by side. `sum` (the
+       * default) needs a genuinely additive numeric column — never a
+       * percentage, an average or a distinct count, the same rule
+       * `ReportColumn.total` already spells out. `count` counts non-empty
+       * values and accepts a text column, which is the only honest measure
+       * on a report that has nothing additive on it at all.
+       */
+      dataFields: { field: string; aggregate?: "sum" | "count" | "average"; label?: string }[];
+      /** Column keys (or `extraFields` names) to add a slicer for — text. */
+      slicerFields: string[];
+      /** Name of the sheet this pivot table is drawn on — must be unique. */
+      sheetName: string;
+      pivotTableName?: string;
+    }[];
+  };
 };
 
 /**

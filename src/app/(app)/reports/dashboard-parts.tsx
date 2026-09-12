@@ -34,7 +34,9 @@ export function Card({
         {sub && <span className="num text-[12px] text-text-3">{sub}</span>}
       </header>
       <div className="min-w-0 flex-1">{children}</div>
-      {note && <p className="mt-3 text-[11.5px] leading-snug text-text-3">{note}</p>}
+      {note && (
+        <p className="mt-3 text-[11.5px] leading-snug text-text-3">{note}</p>
+      )}
     </section>
   );
 }
@@ -52,9 +54,22 @@ const TONE: Record<string, string> = {
  * and the figure itself never carries a sign, because the arrow already says
  * the direction and "fell −68.3%" is a double negative.
  */
-export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
+export function KpiStrip({
+  kpis,
+  className,
+}: {
+  kpis: Kpi[];
+  /** Overrides the default column count — e.g. for a narrow sidebar beside a
+   * chart, where six-across would squeeze every figure onto its own line. */
+  className?: string;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6",
+        className,
+      )}
+    >
       {kpis.map((k) => {
         const up = (k.deltaPct ?? 0) > 0;
         const good = k.lowerIsBetter ? !up : up;
@@ -77,7 +92,10 @@ export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
             <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-[11.5px] leading-snug text-text-3">
               {k.deltaPct != null && (
                 <span
-                  className={cn("num font-semibold", good ? "text-status-green" : "text-status-red")}
+                  className={cn(
+                    "num font-semibold",
+                    good ? "text-status-green" : "text-status-red",
+                  )}
                 >
                   {up ? "▲" : "▼"} {Math.abs(k.deltaPct).toFixed(1)}%
                 </span>
@@ -96,8 +114,14 @@ export function Insights({ items }: { items: string[] }) {
   return (
     <ul className="flex flex-col gap-2">
       {items.map((t) => (
-        <li key={t} className="flex gap-2.5 text-[13px] leading-relaxed text-text-2">
-          <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-primary" />
+        <li
+          key={t}
+          className="flex gap-2.5 text-[13px] leading-relaxed text-text-2"
+        >
+          <span
+            aria-hidden="true"
+            className="mt-[7px] size-1.5 shrink-0 rounded-full bg-primary"
+          />
           <span>{t}</span>
         </li>
       ))}
@@ -151,7 +175,9 @@ export function HeatGrid({ matrix }: { matrix: Matrix }) {
                 {c}
               </th>
             ))}
-            <th className="px-1 pb-1 text-right text-[11px] font-semibold text-text-3">Total</th>
+            <th className="px-1 pb-1 text-right text-[11px] font-semibold text-text-3">
+              Total
+            </th>
           </tr>
         </thead>
         <tbody>

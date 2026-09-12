@@ -6,7 +6,14 @@
 // freshly-read data before anything is written. If it ever imports the db,
 // the preview stops working and the reason will not be obvious.
 
-import { coerceDate, coerceFlag, coerceNumber, coerceText, nearestName, normaliseName } from "./coerce";
+import {
+  coerceDate,
+  coerceFlag,
+  coerceNumber,
+  coerceText,
+  nearestName,
+  normaliseName,
+} from "./coerce";
 import { FIELD_BY_ID, IMPORT_FIELDS } from "./fields";
 import type {
   ColumnMap,
@@ -14,6 +21,7 @@ import type {
   Issue,
   PlannedLine,
   PlannedOrder,
+  RowVerdict,
   UnknownName,
 } from "./types";
 
@@ -29,8 +37,32 @@ export type MasterLists = {
 export type BuildInput = {
   rows: string[][];
   map: ColumnMap;
-  /** Order numbers already in `customer_orders`, normalised by `orderKey`. */
-  existingOrderNos: Set<string>;
+  /**
+   * Order numbers already in `customer_orders`, normalised by `orderKey`, each
+   * carrying the PARTY NAME and ORDER DATE that number belongs to.
+   *
+   * ── A SHARED NUMBER IS NOT ALWAYS THE SAME ORDER ─────────────────────────
+   *
+   * The old sheet's order numbers were found to repeat across different
+   * financial years, and this file has the same thing happen WITHIN one year:
+   * order 833 in the file is L. D. Cotton Mills, 27 Jan 2026; order 833
+   * already in the system is Om Shanti Enterprises, 29 Jul 2026 — two
+   * customers who happened to get the same printed number. Skipping the
+   * second one as "already imported" would have thrown it away silently,
+   * which is the one thing this import must never do.
+   *
+   * ── AND THE DATE, NOT JUST THE PARTY, DECIDES "SAME ORDER" ───────────────
+   *
+   * Party name alone is not reliable enough on its own: order 148 in the file
+   * is "BILASRAJ KASHINATH LLP", 25 May 2026; the system already has order
+   * 148 for "BILASRAI KASHINATH" — a spelling variant, not a different
+   * customer — also 25 May 2026. Requiring an exact party match would have
+   * renumbered this into a duplicate of an order already on file. So a
+   * matching number is the SAME order when either the party matches or the
+   * date matches; only when BOTH disagree — as with 833 — is it treated as a
+   * distinct order and renumbered so both can exist. See `distinctNumber`.
+   */
+  existingOrderNos: Map<string, { partyName: string; orderDate: string }>;
   masters: MasterLists;
   /** Source line of `rows[0]` as the person sees it in Sheets (header = 1). */
   firstLine?: number;
@@ -149,6 +181,30 @@ export function buildPlan(input: BuildInput): ImportPlan {
   const orders: PlannedOrder[] = [];
   const unknownSeen = new Map<string, UnknownName>();
 
+  // Every order number this plan has committed to, by `orderKey` — seeded
+  // with what is already live, then grown as each group is decided. Needed
+  // because a THIRD order can turn up sharing the same printed number as
+  // the first two, and each has to land on its own free number rather than
+  // colliding with either.
+  const takenKeys = new Set(existingOrderNos.keys());
+
+  /**
+   * The next free number for an order whose printed number is already taken
+   * by a DIFFERENT party. `833` becomes `833 (2)`, and a third collision
+   * becomes `833 (3)` — parentheses rather than the dash `-A`/`-B` style
+   * already used for split design numbers, so the two kinds of suffix are
+   * never mistaken for each other on the same sheet.
+   */
+  function distinctNumber(base: string): string {
+    let n = 2;
+    let candidate = `${base} (${n})`;
+    while (takenKeys.has(orderKey(candidate))) {
+      n += 1;
+      candidate = `${base} (${n})`;
+    }
+    return candidate;
+  }
+
   const noteUnknown = (
     category: UnknownName["category"],
     value: string | null,
@@ -209,10 +265,14 @@ export function buildPlan(input: BuildInput): ImportPlan {
           level: "warn",
           line: first!.line,
           field: fieldId,
-          message: `${field.label} is not the same on every row of this order (${[...distinct.keys()]
+          message: `${field.label} is not the same on every row of this order (${[
+            ...distinct.keys(),
+          ]
             .slice(0, 3)
             .map((s) => `"${s}"`)
-            .join(", ")}${distinct.size > 3 ? ", …" : ""}). Using the first one.`,
+            .join(
+              ", ",
+            )}${distinct.size > 3 ? ", …" : ""}). Using the first one.`,
         });
       }
 
@@ -234,11 +294,21 @@ export function buildPlan(input: BuildInput): ImportPlan {
       }
       const res = coerceText(found.raw, f.max);
       if (!res.ok) {
-        issues.push({ level: "error", line: found.line, field: fieldId, message: `${f.label}: ${res.reason}` });
+        issues.push({
+          level: "error",
+          line: found.line,
+          field: fieldId,
+          message: `${f.label}: ${res.reason}`,
+        });
         return null;
       }
       if (res.note)
-        issues.push({ level: "note", line: found.line, field: fieldId, message: `${f.label}: ${res.note}` });
+        issues.push({
+          level: "note",
+          line: found.line,
+          field: fieldId,
+          message: `${f.label}: ${res.note}`,
+        });
       return res.value;
     };
 
@@ -255,16 +325,27 @@ export function buildPlan(input: BuildInput): ImportPlan {
           level: "error",
           line: g.lines[0],
           field: "order_date",
-          message: "Order date is required and is empty on every row of this order.",
+          message:
+            "Order date is required and is empty on every row of this order.",
         });
       } else {
         const res = coerceDate(found.raw);
         if (!res.ok) {
-          issues.push({ level: "error", line: found.line, field: "order_date", message: `Order date: ${res.reason}` });
+          issues.push({
+            level: "error",
+            line: found.line,
+            field: "order_date",
+            message: `Order date: ${res.reason}`,
+          });
         } else {
           orderDate = res.value;
           if (res.note)
-            issues.push({ level: "warn", line: found.line, field: "order_date", message: res.note });
+            issues.push({
+              level: "warn",
+              line: found.line,
+              field: "order_date",
+              message: res.note,
+            });
         }
       }
     }
@@ -335,11 +416,21 @@ export function buildPlan(input: BuildInput): ImportPlan {
       const push = (fieldId: string, res: ReturnType<typeof readLine>) => {
         const f = FIELD_BY_ID.get(fieldId)!;
         if (!res.ok) {
-          issues.push({ level: "error", line, field: fieldId, message: `${f.label}: ${res.reason}` });
+          issues.push({
+            level: "error",
+            line,
+            field: fieldId,
+            message: `${f.label}: ${res.reason}`,
+          });
           return null;
         }
         if (res.note)
-          issues.push({ level: "note", line, field: fieldId, message: `${f.label}: ${res.note}` });
+          issues.push({
+            level: "note",
+            line,
+            field: fieldId,
+            message: `${f.label}: ${res.note}`,
+          });
         return res.value;
       };
 
@@ -357,34 +448,69 @@ export function buildPlan(input: BuildInput): ImportPlan {
           message: `Fabric: blank, taken as "${carriedQuality}" from the row above.`,
         });
       }
-      const designNo = push("design_no", readLine("design_no")) as string | null;
+      // ── NO DESIGN NUMBER IS A REAL LINE, NOT A BAD ONE ────────────────────
+      //
+      // `coerceText` already reads a blank cell or a bare "-" as null — the
+      // same convention SALES PERSON, AGENT and TRANSPORT use. Those three
+      // stay null; a design line cannot, because `order_line_items.design_no`
+      // is `NOT NULL` and the "colour" a plain or solid fabric has is
+      // genuinely nothing. Stored as the literal dash: an honest fact on the
+      // tracker ("no design number was given") rather than a refusal that
+      // blocks the whole order over one line the sheet was right to leave
+      // blank.
+      const designNo =
+        (push("design_no", readLine("design_no")) as string | null) ?? "-";
       const qty = push("qty_mtr", readLine("qty_mtr")) as number | null;
       const rate = push("rate", readLine("rate")) as number | null;
-      const cancelled = push("is_cancelled", readLine("is_cancelled")) as boolean | null;
-      const lineRemarks = push("line_remarks", readLine("line_remarks")) as string | null;
-      const checkTotal = push("check_total", readLine("check_total")) as number | null;
+      const cancelled = push("is_cancelled", readLine("is_cancelled")) as
+        boolean | null;
+      const lineRemarks = push("line_remarks", readLine("line_remarks")) as
+        string | null;
+      const checkTotal = push("check_total", readLine("check_total")) as
+        number | null;
 
       let bad = false;
       if (!quality) {
-        issues.push({ level: "error", line, field: "quality", message: "Fabric is required on a design line." });
-        bad = true;
-      }
-      if (!designNo) {
-        issues.push({ level: "error", line, field: "design_no", message: "Design no is required on a design line." });
+        issues.push({
+          level: "error",
+          line,
+          field: "quality",
+          message: "Fabric is required on a design line.",
+        });
         bad = true;
       }
       if (qty == null) {
-        issues.push({ level: "error", line, field: "qty_mtr", message: "Qty is required on a design line." });
+        issues.push({
+          level: "error",
+          line,
+          field: "qty_mtr",
+          message: "Qty is required on a design line.",
+        });
         bad = true;
       } else if (qty <= 0) {
-        issues.push({ level: "error", line, field: "qty_mtr", message: `Qty is ${qty}. A design line has to have a quantity.` });
+        issues.push({
+          level: "error",
+          line,
+          field: "qty_mtr",
+          message: `Qty is ${qty}. A design line has to have a quantity.`,
+        });
         bad = true;
       } else if (qty > 99_999_999) {
-        issues.push({ level: "error", line, field: "qty_mtr", message: `Qty ${qty} is larger than the column holds.` });
+        issues.push({
+          level: "error",
+          line,
+          field: "qty_mtr",
+          message: `Qty ${qty} is larger than the column holds.`,
+        });
         bad = true;
       }
       if (rate != null && rate < 0) {
-        issues.push({ level: "error", line, field: "rate", message: `Rate is ${rate}.` });
+        issues.push({
+          level: "error",
+          line,
+          field: "rate",
+          message: `Rate is ${rate}.`,
+        });
         bad = true;
       }
 
@@ -407,7 +533,7 @@ export function buildPlan(input: BuildInput): ImportPlan {
 
       // The same fabric and design twice in one order is a duplicate in the
       // SOURCE. Importing both silently doubles the quantity of that design.
-      const dk = `${normaliseName(quality!)}__${normaliseName(designNo!)}`;
+      const dk = `${normaliseName(quality!)}__${normaliseName(designNo)}`;
       const before = seenDesign.get(dk);
       if (before != null) {
         issues.push({
@@ -423,7 +549,7 @@ export function buildPlan(input: BuildInput): ImportPlan {
       items.push({
         line,
         quality: quality!,
-        designNo: designNo!,
+        designNo,
         qtyMtr: qty!,
         rate,
         isCancelled: cancelled ?? false,
@@ -435,29 +561,65 @@ export function buildPlan(input: BuildInput): ImportPlan {
       issues.push({
         level: "error",
         line: g.lines[0],
-        message: "This order has no design line with a fabric, design no and quantity.",
+        message:
+          "This order has no design line with a fabric, design no and quantity.",
       });
     }
 
     // ── the verdict ───────────────────────────────────────────────────────
     const hasError = issues.some((i) => i.level === "error");
-    const already = existingOrderNos.has(key);
+    const existing = existingOrderNos.get(key);
+    // Same order when EITHER the party or the date matches — see the note on
+    // `existingOrderNos` above. Party is compared the same way every other
+    // name in this file is compared, so "L D Cotton Mills" and "l.d. cotton
+    // mills" are one party, not a false collision; date is compared exactly,
+    // since two unrelated orders landing on the same calendar day as well as
+    // the same printed number would be a remarkable coincidence.
+    const sameOrder =
+      existing != null &&
+      (normaliseName(partyName ?? "") === normaliseName(existing.partyName) ||
+        (orderDate != null && orderDate === existing.orderDate));
 
-    if (already) {
+    let finalOrderNo = orderNo;
+    let verdict: RowVerdict;
+
+    if (sameOrder) {
+      // A duplicate is a SKIP even when it also has errors: it is not being
+      // written, so its errors are not something anybody has to go and fix.
       issues.push({
         level: "note",
         line: g.lines[0],
         field: "order_no",
         message: `Order ${orderNo} is already in the new system. It will be left exactly as it is — nothing here is written over it.`,
       });
+      verdict = "skip";
+    } else {
+      if (existing != null) {
+        // Same printed number, but neither the party nor the date agrees:
+        // not the same order, so it is not skipped and not written over
+        // anything — it gets its own number instead, and the report says so
+        // plainly.
+        finalOrderNo = distinctNumber(orderNo);
+        issues.push({
+          level: "warn",
+          line: g.lines[0],
+          field: "order_no",
+          message:
+            `Order ${orderNo} already exists in the system under a different party ("${existing.partyName}", ${existing.orderDate}) — ` +
+            `this is a different order ("${partyName ?? "no party"}", ${orderDate ?? "date unknown"}), so it is imported as ${finalOrderNo} instead of being skipped or overwriting the other one.`,
+        });
+      }
+      verdict = hasError ? "error" : "add";
     }
+    // Reserved against the NEXT collision in this same file, whatever the
+    // verdict — a third order sharing this number must never land on the
+    // same renumbered slot as this one.
+    takenKeys.add(orderKey(finalOrderNo));
 
     orders.push({
-      // A duplicate is a SKIP even when it also has errors: it is not being
-      // written, so its errors are not something anybody has to go and fix.
-      verdict: already ? "skip" : hasError ? "error" : "add",
+      verdict,
       lines: g.lines,
-      orderNo,
+      orderNo: finalOrderNo,
       orderDate,
       partyName: partyName ?? "",
       salesPerson,
@@ -481,10 +643,15 @@ export function buildPlan(input: BuildInput): ImportPlan {
     add: orders.filter((o) => o.verdict === "add").length,
     skip: orders.filter((o) => o.verdict === "skip").length,
     error: orders.filter((o) => o.verdict === "error").length,
-    lines: orders.filter((o) => o.verdict === "add").reduce((n, o) => n + o.items.length, 0),
+    lines: orders
+      .filter((o) => o.verdict === "add")
+      .reduce((n, o) => n + o.items.length, 0),
     errors:
       fileIssues.filter((i) => i.level === "error").length +
-      orders.reduce((n, o) => n + o.issues.filter((i) => i.level === "error").length, 0),
+      orders.reduce(
+        (n, o) => n + o.issues.filter((i) => i.level === "error").length,
+        0,
+      ),
     warnings: orders.reduce(
       (n, o) => n + o.issues.filter((i) => i.level === "warn").length,
       0,

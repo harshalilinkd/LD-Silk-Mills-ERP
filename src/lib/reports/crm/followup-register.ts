@@ -262,6 +262,24 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "Order value excludes cancelled lines, the same rule every Orders report follows, so it is what should actually be delivered.",
         "Follow-up rows are created automatically from deliveries. Nobody creates one by hand, so an order missing from this list means the delivery has not been recorded, not that the call was skipped.",
       ],
+      // A real Excel PivotTable + Slicers — how much value is sitting behind
+      // each customer's calls, filterable by how overdue it is, whether
+      // anybody has rung, and who holds the account. The ratings and
+      // days-overdue columns are averages, so they are not summed here.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["party_name"],
+            dataFields: [
+              { field: "order_value", label: "Sum of order value" },
+              { field: "order_lines", label: "Sum of lines" },
+            ],
+            slicerFields: ["status", "age", "contacted", "agent", "sales_person", "reorder_intent"],
+            sheetName: "Pivot",
+            pivotTableName: "FollowupPivot",
+          },
+        ],
+      },
     },
   };
 }

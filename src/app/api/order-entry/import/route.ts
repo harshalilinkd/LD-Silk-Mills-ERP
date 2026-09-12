@@ -307,7 +307,7 @@ async function loadMasters(): Promise<MasterLists> {
 }
 
 /**
- * Which of these order numbers are already taken.
+ * Which of these order numbers are already taken, and by WHOM.
  *
  * Compared through `orderKey`, so `1058`, `#1058` and `1058.0` in the sheet all
  * find the stored `1058`. The candidate list is built from BOTH the raw sheet
@@ -315,11 +315,19 @@ async function loadMasters(): Promise<MasterLists> {
  * normalisation lives in one function that way, rather than being written once
  * in TypeScript and again, differently, in SQL.
  *
+ * The party name and date ride along because a shared number is not always
+ * the same order — see the note on `BuildInput.existingOrderNos` in
+ * `build.ts`. Only one live order can hold a given number (it is UNIQUE in
+ * the table), so a plain `Map` is enough; there is never a second one to
+ * record against it.
+ *
  * It asks about the numbers in THIS batch rather than reading the whole table:
  * 351 orders today, but this has to keep working at fifty thousand.
  */
-async function loadExistingOrderNos(fromSheet: string[]): Promise<Set<string>> {
-  if (fromSheet.length === 0) return new Set();
+async function loadExistingOrderNos(
+  fromSheet: string[],
+): Promise<Map<string, { partyName: string; orderDate: string }>> {
+  if (fromSheet.length === 0) return new Map();
 
   const candidates = new Set<string>();
   for (const v of fromSheet) {
@@ -329,11 +337,13 @@ async function loadExistingOrderNos(fromSheet: string[]): Promise<Set<string>> {
   }
 
   const rows = await db
-    .select({ orderNo: customerOrders.orderNo })
+    .select({ orderNo: customerOrders.orderNo, partyName: customerOrders.partyName, orderDate: customerOrders.orderDate })
     .from(customerOrders)
     .where(inArray(customerOrders.orderNo, [...candidates]));
 
-  return new Set(rows.map((r) => orderKey(r.orderNo)));
+  return new Map(
+    rows.map((r) => [orderKey(r.orderNo), { partyName: r.partyName, orderDate: String(r.orderDate) }]),
+  );
 }
 
 /**

@@ -266,6 +266,26 @@ async function run(params: ReportParams): Promise<ReportResult> {
         "A duty landing on a holiday is DROPPED for that cycle, not moved to the next day, so it never appears here as missed.",
         "A figure that cannot be computed shows a dash, never 0%. On-time is a dash when nothing has been completed yet.",
       ],
+      // A real Excel PivotTable + Slicers — how many duty occurrences sit
+      // against each person, filterable by department, how often the duty
+      // comes round, and whether it was done on time.
+      //
+      // COUNTED, never summed. This report has no additive number on it at
+      // all: days late and days overdue are averages, and adding them up
+      // would produce a confident figure that means nothing. "How many
+      // duties" is the only honest measure here, which is the whole reason
+      // the pivot engine learned to count.
+      pivots: {
+        tables: [
+          {
+            rowFields: ["doer"],
+            dataFields: [{ field: "task_name", aggregate: "count", label: "Duties" }],
+            slicerFields: ["department", "frequency", "status", "state", "on_time"],
+            sheetName: "Pivot",
+            pivotTableName: "DutyPivot",
+          },
+        ],
+      },
     },
   };
 }

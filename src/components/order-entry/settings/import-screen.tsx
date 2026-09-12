@@ -121,7 +121,7 @@ export function ImportScreen({
     return buildPlan({
       rows: sheet.rows,
       map,
-      existingOrderNos: new Set(),
+      existingOrderNos: new Map(),
       masters,
     });
   }, [sheet, map, masters]);

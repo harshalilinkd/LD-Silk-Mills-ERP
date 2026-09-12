@@ -18,7 +18,12 @@ import {
   trendInsight,
 } from "../analysis";
 import { count, inr, inrShort, monthName, pct, qty } from "../format";
-import type { ReportDefinition, ReportParams, ReportResult, ReportRow } from "../types";
+import type {
+  ReportDefinition,
+  ReportParams,
+  ReportResult,
+  ReportRow,
+} from "../types";
 import { MAX_EXPORT_ROWS } from "../types";
 
 /**
@@ -91,7 +96,12 @@ const REGISTER_SQL = `
       -- line is not a finished one whatever its stages say.
       coalesce(max(w.sort_order) filter (where p.is_done), 0) as reached,
       coalesce(bool_or(p.is_done) filter (where p.stage_key = 'on_hold'), false) as held,
-      max(p.actual_at) filter (where p.is_done and p.stage_key <> 'on_hold') as last_tick
+      max(p.actual_at) filter (where p.is_done and p.stage_key <> 'on_hold') as last_tick,
+      -- When this line actually finished, and when it was due to. The last
+      -- flow stage is the one that means "gone and acknowledged", so it is
+      -- the only honest end of the clock.
+      max(p.actual_at)  filter (where p.is_done and p.stage_key = 'received_lr') as finished_at,
+      max(p.planned_at) filter (where p.stage_key = 'received_lr')               as due_at
     from ld_order_entry.order_line_items li
     left join ld_order_entry.line_stage_progress p on p.order_line_item_id = li.id
     left join ld_order_entry.workflow_stages w on w.stage_key = p.stage_key
@@ -114,7 +124,12 @@ const REGISTER_SQL = `
       count(*) filter (where reached = (select max(sort_order) from ld_order_entry.workflow_stages)
                          and not held)
                      as finished_lines,
-      count(*) filter (where held) as held_lines
+      count(*) filter (where held) as held_lines,
+      -- The order finishes when its LAST line does, so max() on both sides.
+      -- due_at is present on every stage row (it is generated from the
+      -- order date), so the comparison is never one-sided.
+      max(finished_at) as finished_at,
+      max(due_at)      as due_at
     from per_line group by order_id
   )
   select
@@ -145,6 +160,8 @@ const REGISTER_SQL = `
     coalesce(pr.finished_lines, 0)     as finished_lines,
     coalesce(pr.held_lines, 0)         as held_lines,
     pr.last_tick,
+    pr.finished_at,
+    pr.due_at,
     ((now() at time zone 'Asia/Kolkata')::date - o.order_date)      as days_open,
     (o.crr_customer_id is not null)    as in_crr,
     o.remarks,
@@ -160,6 +177,16 @@ const REGISTER_SQL = `
     and ($3::text is null or o.party_name   = $3::text)
     and ($4::text is null or o.agent        = $4::text)
     and ($5::text is null or o.sales_person = $5::text)
+    -- An order whose every line was deleted is what the Orders screen and
+    -- the Trash page both call a DELETED order (isOrderDeleted, in
+    -- lib/order-entry/workflow-constants.ts), not a live one with nothing
+    -- in it. l.order_id is only non-null here for an order the lines CTE
+    -- found at least one un-deleted line for, so this is the same rule,
+    -- expressed as a join condition rather than recomputed. Before this, an
+    -- order in that state (LD-02: one line, deleted) was counted here and
+    -- on the Sales dashboard while both other screens correctly called it
+    -- gone — the two-screens-disagree failure this file exists to prevent.
+    and l.order_id is not null
   -- Ends in the row's own id. Without a unique tiebreak Postgres is free to
   -- return equal rows in a different order every run, and the same report
   -- run twice would produce two differently-ordered files.
@@ -193,6 +220,8 @@ type Raw = {
   finished_lines: number;
   held_lines: number;
   last_tick: string | null;
+  finished_at: string | null;
+  due_at: string | null;
   days_open: number;
   in_crr: boolean;
   remarks: string | null;
@@ -200,9 +229,60 @@ type Raw = {
   created_at: string;
 };
 
-const n = (v: string | number | null | undefined) => (v == null ? 0 : Number(v));
+const n = (v: string | number | null | undefined) =>
+  v == null ? 0 : Number(v);
 
-const bucketOf = (d: number) => AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "Over 60 days";
+const bucketOf = (d: number) =>
+  AGE_BUCKETS.find((b) => d <= b.max)?.label ?? "Over 60 days";
+
+/** Whole days between an order date and an instant — a same-day finish is 0. */
+function daysBetween(dateIso: string, atIso: string): number {
+  const a = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`).getTime();
+  const b = new Date(atIso).getTime();
+  return Math.floor((b - a) / 86_400_000);
+}
+
+/**
+ * How big the order is, as a band.
+ *
+ * The cut points are this book's own quartiles (₹68.5k / ₹1.68L / ₹3.5L over
+ * 350 orders) rounded to figures somebody would say out loud — so each band
+ * holds a real share of the book. An even split of the RANGE would not: the
+ * top end is a single ₹26.5 L order, and four of the five bands would be
+ * empty.
+ */
+const SIZE_BANDS: { max: number; label: string }[] = [
+  { max: 50_000, label: "Under 50 k" },
+  { max: 100_000, label: "50 k - 1 L" },
+  { max: 250_000, label: "1 - 2.5 L" },
+  { max: 500_000, label: "2.5 - 5 L" },
+  { max: Infinity, label: "Over 5 L" },
+];
+const sizeBandOf = (v: number) => SIZE_BANDS.find((b) => v <= b.max)!.label;
+
+/** Lead-time buckets, for "how long did the finished ones actually take". */
+const LEAD_BANDS: { max: number; label: string }[] = [
+  { max: 7, label: "Within a week" },
+  { max: 15, label: "8-15 days" },
+  { max: 30, label: "16-30 days" },
+  { max: 60, label: "31-60 days" },
+  { max: Infinity, label: "Over 60 days" },
+];
+const leadBandOf = (d: number) => LEAD_BANDS.find((b) => d <= b.max)!.label;
+
+/**
+ * The middle value. Used for order size and lead time, both skewed enough
+ * that the mean misleads — one ₹26.5 L order and one 103-day order drag
+ * their averages well above what a typical order looks like.
+ */
+function median(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Not started, then the seven stages in order — so a funnel reads downwards. */
 const STAGE_ORDER = [
@@ -216,13 +296,18 @@ const STAGE_ORDER = [
   "Received LR",
 ];
 
-async function distinctValues(column: string): Promise<{ value: string; label: string }[]> {
+async function distinctValues(
+  column: string,
+): Promise<{ value: string; label: string }[]> {
   // The column name is a literal from this file, never from a request.
   const rows = await pg.unsafe(
     `select distinct ${column} as v from ld_order_entry.customer_orders
       where ${column} is not null and ${column} <> '' order by 1`,
   );
-  return (rows as unknown as { v: string }[]).map((r) => ({ value: r.v, label: r.v }));
+  return (rows as unknown as { v: string }[]).map((r) => ({
+    value: r.v,
+    label: r.v,
+  }));
 }
 
 async function run(params: ReportParams): Promise<ReportResult> {
@@ -272,7 +357,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
     // `reached_no` is the LOWEST stage any live line reached, so >= the last
     // stage means every line got there. `held_lines` takes a held order back
     // out of complete, which is the owner's rule (Sep 2026).
-    is_complete: n(r.live_lines) > 0 && n(r.reached_no) >= 7 && n(r.held_lines) === 0,
+    is_complete:
+      n(r.live_lines) > 0 && n(r.reached_no) >= 7 && n(r.held_lines) === 0,
     held_lines: n(r.held_lines),
     // Blank, not zero: an order nothing is waiting on has no age to report,
     // and a 0 would sit in the footer average pulling it down.
@@ -281,11 +367,30 @@ async function run(params: ReportParams): Promise<ReportResult> {
     live_lines: n(r.live_lines),
     finished_lines: n(r.finished_lines),
     lines_through:
-      n(r.live_lines) > 0 ? (n(r.finished_lines) / n(r.live_lines)) * 100 : null,
+      n(r.live_lines) > 0
+        ? (n(r.finished_lines) / n(r.live_lines)) * 100
+        : null,
     days_since_move: r.last_tick
-      ? Math.round(((runAt - new Date(r.last_tick).getTime()) / 86_400_000) * 10) / 10
+      ? Math.round(
+          ((runAt - new Date(r.last_tick).getTime()) / 86_400_000) * 10,
+        ) / 10
       : null,
     last_tick: r.last_tick,
+    // ── DELIVERY, NOT JUST PROGRESS ──────────────────────────────────────
+    //
+    // Blank until the order has actually finished. A half-done order has no
+    // lead time yet, and writing today's gap instead would drag the average
+    // towards "fast" using orders that have not arrived — the opposite of
+    // the truth. Blank is also what keeps them out of the footer average.
+    finished_on: r.finished_at ? r.finished_at.slice(0, 10) : null,
+    due_on: r.due_at ? r.due_at.slice(0, 10) : null,
+    lead_days:
+      r.finished_at && r.order_date ? daysBetween(r.order_date, r.finished_at) : null,
+    on_time:
+      r.finished_at && r.due_at
+        ? new Date(r.finished_at).getTime() <= new Date(r.due_at).getTime()
+        : null,
+    size_band: sizeBandOf(n(r.value)),
     line_count: n(r.line_count),
     cancelled_lines: n(r.cancelled_lines),
     qualities: n(r.qualities),
@@ -296,7 +401,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
     value: n(r.value),
     // Rounded here, not left to the cell format: the CSV has no format to
     // hide behind, and 190.58064516129033 in a rate column looks like a bug.
-    avg_rate: r.avg_rate === null ? null : Math.round(n(r.avg_rate) * 100) / 100,
+    avg_rate:
+      r.avg_rate === null ? null : Math.round(n(r.avg_rate) * 100) / 100,
     cancelled_value: n(r.cancelled_value),
     lot_no: r.lot_no,
     challan_no: r.challan_no,
@@ -330,8 +436,14 @@ async function run(params: ReportParams): Promise<ReportResult> {
     // "Not recorded", matching agent performance. The same six orders were
     // bucketed as "No agent" here and "Not recorded" there, in two files
     // that go out together.
-    byAgent.set(r.agent?.trim() || "Not recorded", (byAgent.get(r.agent?.trim() || "Not recorded") ?? 0) + v);
-    bySales.set(r.sales_person?.trim() || "Not recorded", (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v);
+    byAgent.set(
+      r.agent?.trim() || "Not recorded",
+      (byAgent.get(r.agent?.trim() || "Not recorded") ?? 0) + v,
+    );
+    bySales.set(
+      r.sales_person?.trim() || "Not recorded",
+      (bySales.get(r.sales_person?.trim() || "Not recorded") ?? 0) + v,
+    );
     byStage.set(r.stage, (byStage.get(r.stage) ?? 0) + 1);
   }
 
@@ -364,7 +476,50 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const repeatedLines = raw.reduce((s, r) => s + n(r.repeated_lines), 0);
   const repeatedOrders = raw.filter((r) => n(r.repeated_lines) > 0).length;
 
-  const conc = concentration([...byParty].map(([label, value]) => ({ label, value })));
+  // ── DELIVERY ───────────────────────────────────────────────────────────
+  //
+  // The register could say who bought what and how far it had got, and
+  // nothing at all about whether the mill delivers. These three are that
+  // gap: how much old money is sitting in the book, how long a finished
+  // order actually took, and how often the target was met.
+  //
+  // `agedValue` is the one worth leading with. "Open over a month" was
+  // already counted, but as a COUNT — and 42 old orders is a fact nobody
+  // acts on, while the rupees inside them is a fact somebody does.
+  const openOver30Value = openOver30.reduce((s, r) => s + n(r.value), 0);
+  const finished = raw.filter((r) => r.finished_at && r.order_date);
+  const leadDays = finished.map((r) => daysBetween(r.order_date, r.finished_at!));
+  const medianLead = median(leadDays);
+  const comparable = raw.filter((r) => r.finished_at && r.due_at);
+  const onTimeCount = comparable.filter(
+    (r) => new Date(r.finished_at!).getTime() <= new Date(r.due_at!).getTime(),
+  ).length;
+  const onTimePct = comparable.length ? (onTimeCount / comparable.length) * 100 : null;
+  // The MIDDLE order, not the mean — one ₹26.5 L order pulls the mean well
+  // above anything typical, and "average order" is read as "a normal one".
+  const medianOrderValue = median(raw.map((r) => n(r.value)));
+
+  // New against returning, by first order date across THIS file's rows.
+  // A customer whose first order in the period is this one is new TO THE
+  // PERIOD, which is the only thing this file can honestly say — an older
+  // customer who last bought before the window looks new here, so the
+  // insight says "in this period" rather than claiming they are new.
+  const firstSeen = new Map<string, string>();
+  for (const r of raw) {
+    const p = r.party_name?.trim() || "Not recorded";
+    const d = r.order_date ?? "";
+    if (!d) continue;
+    const cur = firstSeen.get(p);
+    if (!cur || d < cur) firstSeen.set(p, d);
+  }
+  const repeatParties = [...byParty.keys()].filter(
+    (p) => (partyOrders.get(p) ?? 0) > 1,
+  ).length;
+  const repeatPct = byParty.size ? (repeatParties / byParty.size) * 100 : null;
+
+  const conc = concentration(
+    [...byParty].map(([label, value]) => ({ label, value })),
+  );
   const t = trend(byMonth, inrShort);
   const rateSpread = spread(raw.map((r) => n(r.avg_rate)).filter((x) => x > 0));
 
@@ -390,7 +545,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
   const today = todayIso();
   const endsToday = !params.to || params.to >= today;
   const day = Number(today.slice(8, 10));
-  const daysThisMonth = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate();
+  const daysThisMonth = new Date(
+    Number(today.slice(0, 4)),
+    Number(today.slice(5, 7)),
+    0,
+  ).getDate();
   const projected =
     endsToday && thisMonth === today.slice(0, 7)
       ? runRate(byMonth.get(thisMonth) ?? 0, day, daysThisMonth)
@@ -401,6 +560,23 @@ async function run(params: ReportParams): Promise<ReportResult> {
   if (ci) insights.push(ci);
   const ti = trendInsight(t, "order value");
   if (ti) insights.push(ti);
+  // Delivery leads the sentences when there is anything to say about it —
+  // it is the part of this report that was missing, and the part a manager
+  // can act on this week.
+  if (openOver30.length) {
+    insights.push(
+      `${inrShort(openOver30Value)} is sitting in ${count(openOver30.length)} orders more than a month old — ` +
+        `${pct((openOver30Value / (openValue || 1)) * 100, 0)} of everything still to deliver.`,
+    );
+  }
+  if (medianLead !== null) {
+    insights.push(
+      `The ${count(finished.length)} finished orders took ${medianLead} days from order to Received LR at the middle` +
+        (onTimePct !== null
+          ? `, and ${pct(onTimePct, 0)} of them met their planned date.`
+          : "."),
+    );
+  }
   const mi = contributorInsight(movers, inrShort, "customers");
   if (mi && lastMonth) insights.push(mi);
   if (cancelledValue > 0) {
@@ -409,7 +585,11 @@ async function run(params: ReportParams): Promise<ReportResult> {
         `${pct((cancelledValue / (totalValue + cancelledValue)) * 100, 2)} of everything written.`,
     );
   }
-  if (rateSpread.median !== null && rateSpread.max !== null && rateSpread.min !== null) {
+  if (
+    rateSpread.median !== null &&
+    rateSpread.max !== null &&
+    rateSpread.min !== null
+  ) {
     insights.push(
       `The middle order sells at ${inr(rateSpread.median)} a metre; the range runs ${inr(rateSpread.min)} to ${inr(rateSpread.max)}.`,
     );
@@ -439,6 +619,8 @@ async function run(params: ReportParams): Promise<ReportResult> {
 
   const caveats: string[] = [
     "Order value excludes cancelled lines, so it is what should actually be delivered. Cancelled value is reported separately.",
+    "“Orders met their date” counts whole ORDERS that were acknowledged by their due date. The Orders dashboard's “On-time %” counts every stage TICK instead, so the two read differently on the same period and both are correct — a young order has many early ticks and has not yet had time to be late.",
+    "Due dates are generated from the order date plus the stage offsets in Time tracking; they are an internal target, not a date promised to the customer. If those offsets have not been set to how the mill actually runs, this figure says as much about the targets as about the work.",
     "Stage is the furthest point EVERY live line of the order has passed. One line still at stock checking holds the whole order there.",
   ];
   if (totalRows > MAX_EXPORT_ROWS) {
@@ -456,6 +638,15 @@ async function run(params: ReportParams): Promise<ReportResult> {
         : conc.topShare !== null && conc.topLabel
           ? `${inrShort(totalValue)} of orders from ${count(byParty.size)} customers — and ${conc.topLabel} alone is ${pct(conc.topShare)} of it.`
           : `${inrShort(totalValue)} of orders across ${count(raw.length)} orders.`,
+      // ── THE FIRST SIX ARE THE TILES; THE REST GO ON THE "ALSO" LINE ────
+      //
+      // The dashboard renders six and collapses everything after into one
+      // sentence, so this order is a decision about what a manager sees
+      // first. It was: value, orders, metres, rate, cancelled, customers —
+      // four of which are size, none of which is a question anybody has to
+      // answer today. Delivery now takes three of the six, because 62% of
+      // the open book being over a month old is the thing on this report
+      // most worth acting on and nothing here used to say it.
       kpis: [
         {
           label: "Order value",
@@ -464,8 +655,72 @@ async function run(params: ReportParams): Promise<ReportResult> {
           sub: "cancelled lines left out",
           deltaPct: monthDelta(byMonth),
         },
-        { label: "Orders", value: count(raw.length), tone: "good", sub: `${count(lineCount - cancelledLines)} lines` },
+        {
+          label: "Still to deliver",
+          value: inrShort(openValue),
+          tone: "warn",
+          sub: totalValue > 0
+            ? `${pct((openValue / totalValue) * 100, 0)} of the order book`
+            : undefined,
+        },
+        {
+          label: "Older than a month",
+          value: inrShort(openOver30Value),
+          tone: openOver30Value > 0 ? "bad" : "good",
+          lowerIsBetter: true,
+          sub: openValue > 0
+            ? `${pct((openOver30Value / openValue) * 100, 0)} of what is still open`
+            : `${count(openOver30.length)} orders`,
+        },
+        {
+          // ── NOT THE SAME FIGURE AS THE ORDERS DASHBOARD, ON PURPOSE ────
+          //
+          // The dashboard's "On-time %" counts every STAGE TICK and asks
+          // whether that tick beat its own planned time; this counts whole
+          // ORDERS and asks whether the goods were acknowledged by the
+          // order's due date. Over the same 30 days the first reads 56%
+          // and the second 18%, and both are right — a young order has
+          // plenty of early ticks and has not yet had time to be late.
+          // Verified once against SQL: per-tick is 13% all-time and 56%
+          // over the dashboard's last 30 days; per-order is 18% all-time.
+          //
+          // Two figures called "On-time %" in one ERP is the
+          // two-screens-disagree failure this module keeps writing rules
+          // about, so this one is NAMED for what it measures and its sub
+          // line states the denominator.
+          label: "Orders met their date",
+          value: onTimePct === null ? "—" : pct(onTimePct, 0),
+          tone: onTimePct === null ? "neutral" : onTimePct < 50 ? "bad" : onTimePct < 80 ? "warn" : "good",
+          sub: comparable.length
+            ? `${count(onTimeCount)} of ${count(comparable.length)} finished orders`
+            : "nothing finished yet",
+        },
+        {
+          label: "Days to finish",
+          value: medianLead === null ? "—" : count(medianLead),
+          tone: "neutral",
+          lowerIsBetter: true,
+          sub: medianLead === null ? "nothing finished yet" : "the middle order",
+        },
+        {
+          label: "Orders",
+          value: count(raw.length),
+          tone: "good",
+          sub: `${count(lineCount - cancelledLines)} lines`,
+        },
         { label: "Metres", value: qty(Math.round(totalQty)), tone: "neutral" },
+        {
+          label: "Middle order",
+          value: medianOrderValue === null ? "—" : inrShort(medianOrderValue),
+          tone: "neutral",
+          sub: "half are bigger, half smaller",
+        },
+        {
+          label: "Repeat customers",
+          value: repeatPct === null ? "—" : pct(repeatPct, 0),
+          tone: "neutral",
+          sub: `${count(repeatParties)} of ${count(byParty.size)} ordered more than once`,
+        },
         {
           label: "Average rate",
           value: totalQty > 0 ? inr(totalValue / totalQty) : "—",
@@ -475,9 +730,10 @@ async function run(params: ReportParams): Promise<ReportResult> {
         {
           label: "Cancelled",
           lowerIsBetter: true,
-          value: totalValue + cancelledValue > 0
-            ? pct((cancelledValue / (totalValue + cancelledValue)) * 100, 2)
-            : "—",
+          value:
+            totalValue + cancelledValue > 0
+              ? pct((cancelledValue / (totalValue + cancelledValue)) * 100, 2)
+              : "—",
           tone: cancelledValue > 0 ? "bad" : "good",
           sub: inrShort(cancelledValue),
         },
@@ -489,27 +745,28 @@ async function run(params: ReportParams): Promise<ReportResult> {
           // many customers there were.
           value: count(byParty.size),
           tone: "neutral",
-          sub: conc.top5Share !== null ? `top 5 = ${pct(conc.top5Share, 0)}` : undefined,
+          sub:
+            conc.top5Share !== null
+              ? `top 5 = ${pct(conc.top5Share, 0)}`
+              : undefined,
         },
         {
           label: "Agents",
           // The blank-agent bucket is a placeholder, not a name. Counting it
           // overstated the agent count by one on every run that had an order
           // with no agent on it.
-          value: count([...byAgent.keys()].filter((k) => k !== "Not recorded").length),
+          value: count(
+            [...byAgent.keys()].filter((k) => k !== "Not recorded").length,
+          ),
           tone: "neutral",
         },
         {
           label: "Still open",
           value: count(open.length),
           tone: open.length ? "warn" : "good",
-          sub: raw.length ? `${pct((complete.length / raw.length) * 100, 0)} complete` : undefined,
-        },
-        {
-          label: "Still to deliver",
-          value: inrShort(openValue),
-          tone: "warn",
-          sub: totalValue > 0 ? `${pct((openValue / totalValue) * 100, 0)} of the order book` : undefined,
+          sub: raw.length
+            ? `${pct((complete.length / raw.length) * 100, 0)} complete`
+            : undefined,
         },
         {
           label: "Open over a month",
@@ -522,12 +779,16 @@ async function run(params: ReportParams): Promise<ReportResult> {
           value: count(repeatedLines),
           tone: repeatedLines > 0 ? "warn" : "good",
           lowerIsBetter: true,
-          sub: repeatedOrders > 0 ? `across ${count(repeatedOrders)} orders` : "none to check",
+          sub:
+            repeatedOrders > 0
+              ? `across ${count(repeatedOrders)} orders`
+              : "none to check",
         },
         {
           label: "Largest customer",
           value: conc.topShare !== null ? pct(conc.topShare) : "—",
-          tone: conc.topShare !== null && conc.topShare > 20 ? "warn" : "neutral",
+          tone:
+            conc.topShare !== null && conc.topShare > 20 ? "warn" : "neutral",
           sub: conc.topLabel ?? undefined,
         },
       ],
@@ -568,19 +829,75 @@ async function run(params: ReportParams): Promise<ReportResult> {
           title: "How much of it is a few names",
           valueLabel: "Value",
           kind: "share",
-          rows: rank([...byParty].map(([label, value]) => ({ label, value })), inrShort, 5),
+          rows: rank(
+            [...byParty].map(([label, value]) => ({ label, value })),
+            inrShort,
+            5,
+          ),
           note: "A wide first block means the business leans on a few customers.",
         },
         {
           title: "Which agents brought it in",
           valueLabel: "Value",
-          rows: rank([...byAgent].map(([label, value]) => ({ label, value })), inrShort),
+          rows: rank(
+            [...byAgent].map(([label, value]) => ({ label, value })),
+            inrShort,
+          ),
         },
         {
-          ...ageing(open.map((r) => n(r.days_open))),
-          title: "How long the open orders have waited",
+          title: "How long the finished orders took",
           valueLabel: "Orders",
-          note: "Counted from the order date, which is what the customer is experiencing.",
+          tone: "severity",
+          fixedCategories: true,
+          rows: LEAD_BANDS.map((b) => {
+            const v = leadDays.filter((d) => leadBandOf(d) === b.label).length;
+            return {
+              label: b.label,
+              value: v,
+              display: count(v),
+              share: leadDays.length ? (v / leadDays.length) * 100 : 0,
+            };
+          }),
+          note: "Order date to Received LR, for the orders that have finished. Open orders are not in this chart — they have no lead time yet.",
+        },
+        {
+          // ── THE MONEY WAITING, NOT THE NUMBER OF ORDERS WAITING ────────
+          //
+          // This counted orders. "42 orders over 60 days" is a fact nobody
+          // acts on; the rupees inside them is a fact somebody does — and
+          // the two do not rank the same way, because the oldest bucket is
+          // not usually the biggest one. The ageing HELPER still decides
+          // the buckets and the severity ramp, so the bands match the Age
+          // column on the Data sheet exactly; only what is summed changed.
+          ...(() => {
+            const base = ageing(open.map((r) => n(r.days_open)));
+            const byBucket = new Map<string, number>();
+            for (const r of open) {
+              const b = bucketOf(n(r.days_open));
+              byBucket.set(b, (byBucket.get(b) ?? 0) + n(r.value));
+            }
+            const openCount = new Map<string, number>();
+            for (const r of open) {
+              const b = bucketOf(n(r.days_open));
+              openCount.set(b, (openCount.get(b) ?? 0) + 1);
+            }
+            return {
+              ...base,
+              rows: base.rows.map((row) => {
+                const v = byBucket.get(row.label) ?? 0;
+                return {
+                  ...row,
+                  value: v,
+                  display: inrShort(v),
+                  share: openValue > 0 ? (v / openValue) * 100 : 0,
+                  meta: `${count(openCount.get(row.label) ?? 0)} orders`,
+                };
+              }),
+            };
+          })(),
+          title: "What the open money is waiting on",
+          valueLabel: "Value",
+          note: "Value still to deliver, by how long the order has been open. Counted from the order date, which is what the customer is experiencing.",
         },
         {
           title: "How far the orders have got",
@@ -593,13 +910,109 @@ async function run(params: ReportParams): Promise<ReportResult> {
             label,
             value: byStage.get(label) ?? 0,
             display: count(byStage.get(label) ?? 0),
-            share: raw.length ? ((byStage.get(label) ?? 0) / raw.length) * 100 : 0,
+            share: raw.length
+              ? ((byStage.get(label) ?? 0) / raw.length) * 100
+              : 0,
           })).filter((x) => x.value > 0),
           note: "Where each order is resting. An order counts as past a stage only once every line of it is.",
         },
       ],
       insights,
       caveats,
+      // ── FIVE PIVOTS, ONE PER QUESTION ────────────────────────────────
+      //
+      // Every field used here was checked against the live data first, and
+      // five of this report's own columns were REJECTED as slicers because
+      // they are empty in practice: `haste` (337 of 350 blank), `lot_no`
+      // and `challan_no` (350 of 350), `department` (one value) and
+      // `created_by` (two). A slicer that lists nothing teaches people the
+      // filters do not work. `transport` is kept despite 85 blanks — a
+      // quarter missing still leaves three quarters answerable.
+      pivots: {
+        extraFields: [
+          {
+            name: "Month",
+            values: capped.map((r) => {
+              const d = r.order_date?.slice(0, 10);
+              if (!d) return null;
+              const m = Number(d.slice(5, 7));
+              return Number.isInteger(m) && m >= 1 && m <= 12
+                ? `${MONTH_NAMES[m - 1]} ${d.slice(0, 4)}`
+                : null;
+            }),
+          },
+          {
+            name: "Year",
+            values: capped.map((r) => r.order_date?.slice(0, 4) ?? null),
+          },
+        ],
+        tables: [
+          {
+            // THE BOTTLENECK GRID. Where the old money actually is: stage
+            // down, age across, value inside. The two ageing panels say
+            // how much is late and the funnel says where orders rest;
+            // neither crosses the two, which is the question — "that
+            // 31-60 day money, which stage is holding it?"
+            rowFields: ["stage"],
+            colField: "age_bucket",
+            dataFields: [{ field: "value", label: "Sum of value" }],
+            slicerFields: ["agent", "sales_person", "is_complete", "size_band"],
+            sheetName: "Pivot - Bottleneck",
+            pivotTableName: "StageByAge",
+          },
+          {
+            // Each agent's book, opened up customer by customer.
+            rowFields: ["agent", "party_name"],
+            dataFields: [
+              { field: "value", label: "Sum of value" },
+              { field: "qty_mtr", label: "Sum of metres" },
+            ],
+            slicerFields: ["sales_person", "stage", "Month", "size_band"],
+            sheetName: "Pivot - Agent",
+            pivotTableName: "AgentBook",
+          },
+          {
+            // Who ordered, and when — the sliceable version of the month
+            // grid on the dashboard, which is capped and cannot be filtered.
+            rowFields: ["party_name"],
+            colField: "Month",
+            dataFields: [{ field: "value", label: "Sum of value" }],
+            slicerFields: ["agent", "sales_person", "stage", "size_band"],
+            sheetName: "Pivot - Customer month",
+            pivotTableName: "CustomerByMonth",
+          },
+          {
+            // The sales hierarchy: 19 sales people over 74 agents.
+            rowFields: ["sales_person", "agent"],
+            dataFields: [
+              { field: "value", label: "Sum of value" },
+              { field: "live_lines", label: "Sum of lines" },
+            ],
+            slicerFields: ["stage", "Month", "size_band", "is_complete"],
+            sheetName: "Pivot - Sales person",
+            pivotTableName: "SalesRollup",
+          },
+          {
+            // Do big orders move slower? Size against where it has reached.
+            rowFields: ["size_band"],
+            colField: "stage",
+            dataFields: [{ field: "value", label: "Sum of value" }],
+            slicerFields: ["agent", "sales_person", "Month", "age_bucket"],
+            sheetName: "Pivot - Order size",
+            pivotTableName: "SizeByStage",
+          },
+          {
+            rowFields: ["party_name"],
+            dataFields: [
+              { field: "value" },
+              { field: "qty_mtr", label: "Sum of metres" },
+            ],
+            slicerFields: ["agent", "sales_person", "stage", "transport"],
+            sheetName: "Pivot - Orders",
+            pivotTableName: "OrdersByParty",
+          },
+        ],
+      },
     },
   };
 }
@@ -619,56 +1032,205 @@ export const orderRegister: ReportDefinition = {
     { key: "sales_person", label: "Sales person", type: "text", width: 18 },
     { key: "transport", label: "Transport", type: "text", width: 22 },
     { key: "haste", label: "Haste", type: "text", width: 12 },
-    { key: "stage", label: "Reached", type: "text", width: 17,
+    {
+      key: "stage",
+      label: "Reached",
+      type: "text",
+      width: 17,
       // Only "Not started" is coloured. A stage name is not good or bad —
       // an order at Challan is not doing worse than one at Bill — but an
       // order with NOTHING ticked is the one somebody has to chase.
       // Grey for the cancelled ones, not amber: they are settled, and an
       // amber cell is an instruction to go and chase somebody.
       badge: { "Not started": "warn", [NOTHING_LIVE]: "neutral" },
-      note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences." },
-    { key: "furthest_line", label: "Furthest line", type: "text", width: 17, note: "The furthest stage ANY line has finished, for the other reading." },
-    { key: "is_complete", label: "Complete", type: "boolean",
+      note: "The furthest stage EVERY live line of this order has finished. One line still at stock checking holds the whole order there — which is what the customer experiences.",
+    },
+    {
+      key: "furthest_line",
+      label: "Furthest line",
+      type: "text",
+      width: 17,
+      note: "The furthest stage ANY line has finished, for the other reading.",
+    },
+    {
+      key: "is_complete",
+      label: "Complete",
+      type: "boolean",
       // Finished is worth seeing; still open is the ordinary state of a
       // live book (264 of 337) and tinting it would colour the page.
       badge: { Yes: "good" },
-      note: "Every live line has finished its last stage. The Age column beside it is what says whether an unfinished one is late." },
-    { key: "days_open", label: "Days open", type: "int", total: "avg", note: "From the order date to today. The foot shows the average age, not a sum." },
-    { key: "age_bucket", label: "Age", type: "text", width: 13, badge: { "0\u20137 days": "good", "8\u201315 days": "good", "16\u201330 days": "warn", "31\u201360 days": "warn", "Over 60 days": "bad" } },
-    { key: "live_lines", label: "Lines", type: "int", note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column." },
+      note: "Every live line has finished its last stage. The Age column beside it is what says whether an unfinished one is late.",
+    },
+    {
+      key: "days_open",
+      label: "Days open",
+      type: "int",
+      total: "avg",
+      note: "From the order date to today. The foot shows the average age, not a sum.",
+    },
+    {
+      key: "age_bucket",
+      label: "Age",
+      type: "text",
+      width: 13,
+      badge: {
+        "0\u20137 days": "good",
+        "8\u201315 days": "good",
+        "16\u201330 days": "warn",
+        "31\u201360 days": "warn",
+        "Over 60 days": "bad",
+      },
+    },
+    {
+      key: "live_lines",
+      label: "Lines",
+      type: "int",
+      note: "Cancelled lines excluded, the same as Metres and Value beside it. The cancelled ones are counted in their own column.",
+    },
     { key: "finished_lines", label: "Lines finished", type: "int" },
-    { key: "held_lines", label: "Lines on hold", type: "int",
-      note: "A held line is not counted as finished, whatever stages it has ticked." },
-    { key: "lines_through", label: "Lines through", type: "percent", total: "avg",
+    {
+      key: "held_lines",
+      label: "Lines on hold",
+      type: "int",
+      note: "A held line is not counted as finished, whatever stages it has ticked.",
+    },
+    {
+      key: "lines_through",
+      label: "Lines through",
+      type: "percent",
+      total: "avg",
       // WEIGHTED BY THE LINES, because this is a RATIO. Unweighted, a
       // one-line order that finished counts as much as a forty-line order
       // that did not: the foot read 33.07% where finished-over-live is
       // 32.71%. Small here and the same class of error as the "Avg order"
       // mean-of-means that read 24% low.
-      avgWeightBy: "live_lines", note: "How much of this order has finished." },
-    { key: "days_since_move", label: "Days since move", type: "number", total: "avg", note: "Since the last stage was ticked. Blank when nothing has ever been ticked." },
+      avgWeightBy: "live_lines",
+      note: "How much of this order has finished.",
+    },
+    {
+      key: "days_since_move",
+      label: "Days since move",
+      type: "number",
+      total: "avg",
+      note: "Since the last stage was ticked. Blank when nothing has ever been ticked.",
+    },
     { key: "last_tick", label: "Last ticked", type: "datetime" },
+    // ── DELIVERY: did it arrive, and was it on time ──────────────────────
+    //
+    // All three are blank until the order actually finishes. A half-done
+    // order has no lead time, and filling one in from today's date would
+    // drag every average towards "fast" using orders that have not arrived.
+    {
+      key: "lead_days",
+      label: "Days to finish",
+      type: "int",
+      total: "avg",
+      note: "Order date to the day Received LR was ticked. Blank while the order is still open — an unfinished order has no lead time yet, and counting one would understate the average. The foot is the average of the finished ones.",
+    },
+    {
+      key: "due_on",
+      label: "Due on",
+      type: "date",
+      note: "When the last stage was planned for, generated from the order date and the stage offsets in Time tracking. It is a target, not a promise made to the customer.",
+    },
+    {
+      key: "on_time",
+      label: "On time",
+      type: "boolean",
+      // The exception is being LATE, so only No is tinted. Tinting Yes as
+      // well would colour most of the column on a book that runs late.
+      badge: { No: "bad" },
+      note: "Whether Received LR was ticked on or before Due on. Blank while the order is open. Measured against the generated target above, so it says as much about the offsets as about the mill — see the caveat.",
+    },
+    {
+      key: "size_band",
+      label: "Order size",
+      type: "text",
+      width: 14,
+      note: "Which value band this order falls in. The bands are this book's own quartiles, so each holds a real share of the orders.",
+    },
     { key: "cancelled_lines", label: "Cancelled lines", type: "int" },
-    { key: "quality_names", label: "Fabrics", type: "text", width: 34, note: "The fabrics on this order, comma separated — the same list the Orders screen shows. Cancelled lines are left out, so it matches the count beside it." },
-    { key: "qualities", label: "Fabric count", type: "int", total: "none", note: "How many distinct fabrics that is. Not added up at the foot — the same fabric on two orders is one fabric." },
-    { key: "designs", label: "Designs", type: "int", total: "none", note: "Distinct designs on this order. Not added up, for the same reason." },
-    { key: "repeated_lines", label: "Extra lines", type: "int", note: "How many EXTRA lines repeat a fabric and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same fabric and design can go at two rates or for two lots, and the order's totals are right either way." },
-    { key: "qty_mtr", label: "Metres", type: "number", unit: "MTR", note: "Cancelled lines excluded." },
-    { key: "value", label: "Value", type: "money", note: "Cancelled lines excluded — what should actually be delivered." },
-    { key: "avg_rate", label: "Avg rate", type: "money", total: "avg", avgWeightBy: "qty_mtr", note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres." },
+    {
+      key: "quality_names",
+      label: "Fabrics",
+      type: "text",
+      width: 34,
+      note: "The fabrics on this order, comma separated — the same list the Orders screen shows. Cancelled lines are left out, so it matches the count beside it.",
+    },
+    {
+      key: "qualities",
+      label: "Fabric count",
+      type: "int",
+      total: "none",
+      note: "How many distinct fabrics that is. Not added up at the foot — the same fabric on two orders is one fabric.",
+    },
+    {
+      key: "designs",
+      label: "Designs",
+      type: "int",
+      total: "none",
+      note: "Distinct designs on this order. Not added up, for the same reason.",
+    },
+    {
+      key: "repeated_lines",
+      label: "Extra lines",
+      type: "int",
+      note: "How many EXTRA lines repeat a fabric and design already on this order — a pair counts as one. Line detail flags both members instead, so the same repeats read 29 here and 58 there. Allowed on purpose: the same fabric and design can go at two rates or for two lots, and the order's totals are right either way.",
+    },
+    {
+      key: "qty_mtr",
+      label: "Metres",
+      type: "number",
+      unit: "MTR",
+      note: "Cancelled lines excluded.",
+    },
+    {
+      key: "value",
+      label: "Value",
+      type: "money",
+      note: "Cancelled lines excluded — what should actually be delivered.",
+    },
+    {
+      key: "avg_rate",
+      label: "Avg rate",
+      type: "money",
+      total: "avg",
+      avgWeightBy: "qty_mtr",
+      note: "Value divided by metres, for this order. The foot shows the rate across the whole file, weighted by metres.",
+    },
     { key: "cancelled_value", label: "Cancelled value", type: "money" },
     { key: "lot_no", label: "Lot no", type: "text", width: 14 },
     { key: "challan_no", label: "Challan no", type: "text", width: 14 },
-    { key: "in_crr", label: "In CRR", type: "boolean", note: "Whether this customer is matched to the CRR customer master." },
+    {
+      key: "in_crr",
+      label: "In CRR",
+      type: "boolean",
+      note: "Whether this customer is matched to the CRR customer master.",
+    },
     { key: "remarks", label: "Remarks", type: "text", width: 34 },
     { key: "created_by", label: "Entered by", type: "text", width: 22 },
     { key: "created_at", label: "Entered at", type: "datetime" },
   ],
   filters: [
     { key: "dateRange", label: "Order date", kind: "dateRange" },
-    { key: "party", label: "Party", kind: "select", options: () => distinctValues("party_name") },
-    { key: "agent", label: "Agent", kind: "select", options: () => distinctValues("agent") },
-    { key: "salesPerson", label: "Sales person", kind: "select", options: () => distinctValues("sales_person") },
+    {
+      key: "party",
+      label: "Party",
+      kind: "select",
+      options: () => distinctValues("party_name"),
+    },
+    {
+      key: "agent",
+      label: "Agent",
+      kind: "select",
+      options: () => distinctValues("agent"),
+    },
+    {
+      key: "salesPerson",
+      label: "Sales person",
+      kind: "select",
+      options: () => distinctValues("sales_person"),
+    },
   ],
   run,
 };

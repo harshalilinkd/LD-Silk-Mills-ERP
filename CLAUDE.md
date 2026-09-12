@@ -1016,6 +1016,59 @@ switching to check the other sheet and coming back to find the file gone,
 mapping and preview and all, is the kind of small loss that makes somebody
 re-upload rather than look.
 
+## Removing an order is WRITTEN DOWN now, and it carries the order with it
+
+Sep 2026. Orders **1262, 1264 and 1265** (Watchlier Clothing, 8 Sep, LONDON,
+about ₹29 lakh between them) were on screen in the afternoon and gone from the
+table by evening. Every place a trace could survive was searched —
+`design_database`, whose `order_id` is ON DELETE SET NULL so its rows outlive
+their order; `crm_followups`; the audit log itself — and there was nothing.
+`DELETE /api/order-entry/orders/[id]` ran `db.delete(customerOrders)` and
+returned. Nobody could say who, when, or what was in them, and there was nothing
+to restore from.
+
+**Removing an order is TWO deliberate steps**, which is why it is not an
+accident: the permanent delete refuses while any live line remains
+(*"Delete the order (move it to Trash) before permanently removing it"*), so
+somebody has to bin it and then remove it. Both steps need `orders.edit` — ADMIN
+or OPS.
+
+`lib/order-entry/audit.ts` now records all three actions:
+
+| Action | Written by |
+|---|---|
+| `order-entry.order_binned` | `PATCH /orders/[id]/delete` with `deleted: true` |
+| `order-entry.order_restored` | the same, with `deleted: false` |
+| `order-entry.order_deleted` | `DELETE /orders/[id]` |
+
+**The row is written BEFORE the thing it records, and that ordering is the
+point.** Audit-after leaves exactly the hole above whenever the second write
+fails. Audit-before can leave a row describing a delete that did not happen —
+recoverable, because the order is still there to look at. Of the two ways to be
+wrong, only one loses the answer. `auditOrderEntry` THROWS on failure for the
+same reason: the destructive step then does not run.
+
+**And the row carries the whole order, not just its number.** `metadata` is
+jsonb, so `snapshotOrder` stores the party, date, department, agent, transport,
+challan, lot, totals AND every design line with its quantity, rate and
+line_total — capped at 500 lines. Recording the number alone would have answered
+WHO in this case and still left nothing to put back. It reads the soft-deleted
+lines too: on the permanent-delete path every line is deleted by definition, so
+skipping them would snapshot an empty order.
+
+Proven by actually doing it (`.scratch/audit-snapshot.mts`,
+`audit-delete-e2e.mts`): an order is created through the real endpoints, binned,
+permanently removed — and then rebuilt from the audit row alone, with Postgres
+recomputing `line_total` from the restored quantity and rate and arriving at the
+same money.
+
+**THE STANDALONE ORDER ENTRY APP STILL HAS NO AUDIT, AND CANNOT GET ONE FROM
+HERE.** It shares `ld_order_entry` and has the same two delete endpoints, but
+`ld_erp_core` is this repo's exclusively — writing to it from there would point
+the dependency the wrong way. So a delete done in that app still leaves no
+trace. If order deletions ever need to be answerable whatever the door, that
+app needs its own audit table, and that is a change in its repo.
+
 ## Outbound integration — the order feed (`/api/export/orders`)
 Two external systems pull orders from us. **We are the source; we never call
 them.** `docs/SCOT-INTEGRATION.md` is the handover note given to the SCOT team
