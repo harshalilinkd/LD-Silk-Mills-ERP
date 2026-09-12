@@ -734,7 +734,7 @@ export function FunnelRows({
                 className="block h-full rounded-[4px] transition-[width]"
                 style={{
                   width: `${Math.max(share, 0.6)}%`,
-                  background: colourAt(i),
+                  background: rankShade("var(--chart-1)", i, rows.length),
                 }}
               />
             </span>

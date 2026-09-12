@@ -125,7 +125,9 @@ export default async function ProductionDashboardPage({
         />
       ) : (
         <>
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <KpiStrip kpis={a.kpis} />
+
+          <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
             <Card
               title="Where the work has got to"
               sub={`${count(d.total)} live lines`}
@@ -145,48 +147,35 @@ export default async function ProductionDashboardPage({
                 bottleneck.
               </p>
             </Card>
-            {/* The figure tiles sit in this same column, under the gauges,
-                rather than in their own full-width strip below both charts —
-                everything about "how far has the work got" is one glance to
-                the right of the funnel now, not a further scroll down. Two
-                across, not six: six-wide is what this strip uses at full page
-                width, and squeezed into 360px that would put one word per
-                line on every card. */}
-            <div className="flex flex-col gap-3">
-              <Card title="At a glance" sub={period}>
-                <div className="flex flex-col gap-4">
-                  <Gauge
-                    value={d.total ? (started / d.total) * 100 : 0}
-                    label="Started"
-                    sub={`${count(started)} of ${count(d.total)} lines have had a first tick`}
-                    tone="accent"
-                  />
-                  <Gauge
-                    value={d.total ? (finished / d.total) * 100 : 0}
-                    label="Finished"
-                    sub={`${count(finished)} lines through the last stage and out of the mill`}
-                    tone={finished >= d.total / 2 ? "good" : "warn"}
-                  />
-                  <Gauge
-                    value={onTime ?? 0}
-                    label="Ticked on time"
-                    sub={
-                      onTime === null
-                        ? "Nothing has been ticked in this period, so there is nothing to measure"
-                        : "Stages ticked on or before their planned date — read the note at the foot"
-                    }
-                    tone={onTime === null ? "accent" : "bad"}
-                  />
-                </div>
-              </Card>
-              <KpiStrip
-                kpis={a.kpis}
-                className="grid-cols-2 sm:grid-cols-2 xl:grid-cols-2"
-              />
-            </div>
+            <Card title="At a glance" sub={period}>
+              <div className="flex flex-col gap-4">
+                <Gauge
+                  value={d.total ? (started / d.total) * 100 : 0}
+                  label="Started"
+                  sub={`${count(started)} of ${count(d.total)} lines have had a first tick`}
+                  tone="accent"
+                />
+                <Gauge
+                  value={d.total ? (finished / d.total) * 100 : 0}
+                  label="Finished"
+                  sub={`${count(finished)} lines through the last stage and out of the mill`}
+                  tone={finished >= d.total / 2 ? "good" : "warn"}
+                />
+                <Gauge
+                  value={onTime ?? 0}
+                  label="Ticked on time"
+                  sub={
+                    onTime === null
+                      ? "Nothing has been ticked in this period, so there is nothing to measure"
+                      : "Stages ticked on or before their planned date — read the note at the foot"
+                  }
+                  tone={onTime === null ? "accent" : "bad"}
+                />
+              </div>
+            </Card>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-3">
+          <div className="grid items-stretch gap-3 xl:grid-cols-3">
             <Card
               title="What each open line is waiting for"
               sub={`${count(d.open)} open`}
@@ -196,6 +185,7 @@ export default async function ProductionDashboardPage({
                 data={d.waiting}
                 money={false}
                 colour="var(--chart-3)"
+                height={340}
               />
             </Card>
             <Card
@@ -203,7 +193,7 @@ export default async function ProductionDashboardPage({
               sub="counted from the order date"
               note="This is what the customer is experiencing, not how long the mill has had it."
             >
-              <CountColumns data={d.ageing} tone="severity" height={240} />
+              <CountColumns data={d.ageing} tone="severity" height={340} />
             </Card>
             <Card
               title="Whose money is still in the mill"
@@ -221,7 +211,17 @@ export default async function ProductionDashboardPage({
               note="The fifteen that have been open longest. For the whole list, download Production status and filter Still open to Yes."
             >
               <div className="-mx-1 overflow-x-auto px-1">
-                <table className="w-full min-w-[720px] border-collapse">
+                <table className="w-full min-w-[950px] table-fixed border-collapse">
+                  <colgroup>
+                    <col className="w-[80px]" />
+                    <col className="w-[190px]" />
+                    <col className="w-[140px]" />
+                    <col className="w-[90px]" />
+                    <col className="w-[90px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[100px]" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th className={th}>Order</th>
@@ -242,21 +242,20 @@ export default async function ProductionDashboardPage({
                         <td className={`${td} num whitespace-nowrap`}>
                           {r.order_no}
                         </td>
-                        <td
-                          className={`${td} max-w-[180px] truncate`}
-                          title={r.party}
-                        >
+                        <td className={`${td} truncate`} title={r.party}>
                           {r.party}
                         </td>
-                        <td className={td}>{r.quality}</td>
-                        <td className={td}>{r.design}</td>
+                        <td className={`${td} truncate`} title={r.quality}>
+                          {r.quality}
+                        </td>
+                        <td className={`${td} truncate`}>{r.design}</td>
                         <td className={`${td} num text-right`}>
                           {qty(r.metres)}
                         </td>
                         <td className={`${td} num text-right`}>
                           {inr(r.value)}
                         </td>
-                        <td className={td}>{r.waiting_on}</td>
+                        <td className={`${td} truncate`}>{r.waiting_on}</td>
                         <td
                           className={`${td} num text-right font-semibold text-text-1`}
                         >
@@ -274,7 +273,14 @@ export default async function ProductionDashboardPage({
               sub={`${count(d.total)} live lines`}
               note="Days late is measured from when the stage was TICKED, not when the work happened, and it is averaged over the lines that have been ticked at all."
             >
-              <table className="w-full border-collapse">
+              <table className="w-full table-fixed border-collapse">
+                <colgroup>
+                  <col className="w-[8%]" />
+                  <col className="w-[32%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th className={th}>#</th>
@@ -288,7 +294,7 @@ export default async function ProductionDashboardPage({
                   {d.stages.map((s) => (
                     <tr key={s.label}>
                       <td className={`${td} num`}>{s.no}</td>
-                      <td className={td}>{s.label}</td>
+                      <td className={`${td} truncate`}>{s.label}</td>
                       <td className={`${td} num text-right`}>
                         {count(s.done)}
                       </td>
